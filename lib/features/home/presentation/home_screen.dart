@@ -98,30 +98,30 @@ class _Section<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
-        child: SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              StreamBuilder<List<T>>(
-                stream: stream,
-                builder: (context, snapshot) {
-                  final List<T> data = snapshot.data ?? <T>[];
-                  if (data.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text(empty),
-                    );
-                  }
-                  return Column(
-                    children: data.take(5).map(itemBuilder).toList(growable: false),
-                  );
-                },
-              ),
-            ],
+    padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
+    child: SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          StreamBuilder<List<T>>(
+            stream: stream,
+            builder: (context, snapshot) {
+              final List<T> data = snapshot.data ?? <T>[];
+              if (data.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(empty),
+                );
+              }
+              return Column(
+                children: data.take(5).map(itemBuilder).toList(growable: false),
+              );
+            },
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }

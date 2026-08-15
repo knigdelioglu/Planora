@@ -27,9 +27,9 @@ final class DriftAppSettingsRepository implements AppSettingsRepository {
 
   @override
   Stream<int> watchCacheLimitBytes() => _watch(
-        'cache_limit_bytes',
-        '${512 * 1024 * 1024}',
-      ).map((value) => int.tryParse(value) ?? 512 * 1024 * 1024);
+    'cache_limit_bytes',
+    '${512 * 1024 * 1024}',
+  ).map((value) => int.tryParse(value) ?? 512 * 1024 * 1024);
 
   @override
   Future<void> setCacheLimitBytes(int bytes) {
@@ -48,7 +48,9 @@ final class DriftAppSettingsRepository implements AppSettingsRepository {
   }
 
   Future<void> _set(String key, String value) {
-    return _database.into(_database.appSettings).insertOnConflictUpdate(
+    return _database
+        .into(_database.appSettings)
+        .insertOnConflictUpdate(
           AppSettingsCompanion.insert(
             key: key,
             valueJson: value,
