@@ -12,6 +12,14 @@ Uygulamanın ekran, navigasyon, buton, form, Kanban, not editörü, hatırlatıc
 
 Bu belge UI geliştirmede bağlayıcı tasarım referansıdır. Yeni ekranlar ve ortak componentler burada tanımlanan design token, responsive ve etkileşim kurallarına uymalıdır.
 
+## Scope ve ürün sınırları
+
+Uygulamanın hangi özellikleri kapsadığı, hangi ürün yönlerinin özellikle kapsam dışında tutulduğu, tek kullanıcı sınırı, platform kapsamı, offline/sync davranışı, MVP sınırları ve scope değişiklik prosedürü:
+
+**[docs/SCOPE.md](docs/SCOPE.md)**
+
+Bu belge ürün geliştirmede bağlayıcı kapsam referansıdır. Yeni bir özellik mevcut scope içinde açıkça yer almıyorsa implementation'a alınmadan önce kapsam etkisi değerlendirilmelidir.
+
 ## Ürün kapsamı
 
 - Notlar ve zengin içerik için ölçeklenebilir feature alanı
