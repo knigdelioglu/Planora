@@ -1,5 +1,4 @@
-import 'dart:convert';
-
+import 'package:drift/drift.dart';
 import 'package:not_app/core/database/app_database.dart';
 import 'package:not_app/features/notes/domain/entities/note_document.dart';
 import 'package:not_app/features/search/domain/entities/search_result.dart';
@@ -16,14 +15,16 @@ final class DriftSearchRepository implements SearchRepository {
     int limit = 60,
   }) async {
     final String normalized = query.trim();
-    if (normalized.isEmpty) return const <SearchResultEntity>[];
+    if (normalized.isEmpty) {
+      return const <SearchResultEntity>[];
+    }
     final List<String> tokens = normalized
         .split(RegExp(r'\s+'))
         .where((token) => token.isNotEmpty)
         .map((token) => '"${token.replaceAll('"', '""')}"*')
         .toList(growable: false);
     final String expression = tokens.join(' AND ');
-    final rows = await _database
+    final List<QueryRow> rows = await _database
         .customSelect(
           '''
       SELECT entity_type, entity_id, title,
@@ -37,7 +38,6 @@ final class DriftSearchRepository implements SearchRepository {
             Variable<String>(expression),
             Variable<int>(limit.clamp(1, 200)),
           ],
-          readsFrom: <ResultSetImplementation>{},
         )
         .get();
     return rows
@@ -59,16 +59,7 @@ final class DriftSearchRepository implements SearchRepository {
       _database.notes,
     )..where((tbl) => tbl.deletedAt.isNull())).get();
     for (final note in notes) {
-      String body = '';
-      try {
-        final Object? decoded = jsonDecode(note.contentJson);
-        if (decoded is Map)
-          body = NoteDocument.fromJson(
-            Map<String, Object?>.from(decoded),
-          ).plainText;
-      } catch (_) {
-        body = '';
-      }
+      final String body = NoteDocument.decode(note.contentJson).plainText;
       await _database.upsertSearchEntry(
         entityType: 'note',
         entityId: note.id,
