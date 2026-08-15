@@ -20,6 +20,23 @@ Uygulamanın hangi özellikleri kapsadığı, hangi ürün yönlerinin özellikl
 
 Bu belge ürün geliştirmede bağlayıcı kapsam referansıdır. Yeni bir özellik mevcut scope içinde açıkça yer almıyorsa implementation'a alınmadan önce kapsam etkisi değerlendirilmelidir.
 
+## Ürünleşme yol haritası
+
+Mevcut mimari iskeletten başlayarak native platform bootstrap, dependency wiring, production Drift katmanı, design system, Notes, Kanban, attachments, reminders, local search, Supabase/Auth/RLS, sync engine, conflict recovery, platform hardening, kalite güvence, beta/release candidate ve imzalı ürün dağıtımına kadar tüm yürütme planı:
+
+**[docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md)**
+
+Bu belge geliştirme sırasını ve faz çıkış kriterlerini belirleyen bağlayıcı yürütme planıdır. Bir faz yalnız kod yazıldığı için değil, ilgili kalite kapıları karşılandığında tamamlanmış kabul edilir.
+
+### Belge otoritesi
+
+Geliştirme kararlarında sıra şöyledir:
+
+1. `docs/SCOPE.md` — ne yapılacağını ve yapılmayacağını belirler.
+2. `docs/UX_DESIGN.md` — kullanıcı deneyimi ve UI sözleşmesini belirler.
+3. `docs/PRODUCT_ROADMAP.md` — hangi sırayla ve hangi kalite kapılarıyla geliştirileceğini belirler.
+4. `README.md` — mimari ve proje genel görünümüdür.
+
 ## Ürün kapsamı
 
 - Notlar ve zengin içerik için ölçeklenebilir feature alanı
@@ -260,18 +277,29 @@ Gerçek secret/service-role anahtarları istemci uygulamasına konmaz.
 - Domain testleri platform bağımlılığı olmadan çalışabilmelidir.
 - Repository ve platform servisleri interface üzerinden mock/fake edilebilir olmalıdır.
 
-## İlk geliştirme fazları
+## Geliştirme sırası
 
-1. Flutter native platform bootstrap + temel app shell
-2. Drift şeması, migration altyapısı ve repository sözleşmeleri
-3. Kanban CRUD + fractional ranking + optimistic UI
-4. Notes domain ve editör altyapısı
-5. Attachment sandbox + async file I/O + cache politikası
-6. Reminder scheduler + timezone + permission/reconciliation
-7. Sync queue + Supabase delta sync + retry/backoff
-8. Conflict testleri, offline/online geçiş testleri ve migration testleri
-9. Performans, büyük dosya ve uzun Kanban kolonları için profiling
-10. Release hardening ve platform paketleme
+Ayrıntılı fazlar, bağımlılıklar, test matrisi, release blocker kriterleri ve ürün Definition of Done için **[docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md)** esas alınır.
+
+Kısa sıra:
+
+1. Native bootstrap
+2. Dependency wiring + lifecycle
+3. Drift + repositories + migrations
+4. Design system + responsive shell
+5. Notes
+6. Kanban + ranking
+7. Attachments
+8. Reminders
+9. Search
+10. Supabase + Auth + RLS
+11. Sync engine
+12. Conflict + recovery
+13. Platform hardening
+14. Quality/performance/security/accessibility
+15. Beta + release candidate
+16. Signed product release
+17. Post-release maintenance
 
 ## Lisans
 
