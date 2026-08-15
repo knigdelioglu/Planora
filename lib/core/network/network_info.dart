@@ -1,23 +1,22 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 abstract interface class NetworkInfo {
-  Future<bool> get hasNetworkInterface;
-  Stream<bool> get onNetworkInterfaceChanged;
+  Future<bool> isConnected();
+  Stream<bool> get onConnectivityChanged;
 }
 
 final class ConnectivityNetworkInfo implements NetworkInfo {
-  ConnectivityNetworkInfo(this._connectivity);
-
+  ConnectivityNetworkInfo({Connectivity? connectivity}) : _connectivity = connectivity ?? Connectivity();
   final Connectivity _connectivity;
 
   @override
-  Future<bool> get hasNetworkInterface async {
-    final result = await _connectivity.checkConnectivity();
-    return result.any((value) => value != ConnectivityResult.none);
+  Future<bool> isConnected() async {
+    final List<ConnectivityResult> results = await _connectivity.checkConnectivity();
+    return results.any((result) => result != ConnectivityResult.none);
   }
 
   @override
-  Stream<bool> get onNetworkInterfaceChanged => _connectivity.onConnectivityChanged
-      .map((results) => results.any((value) => value != ConnectivityResult.none))
+  Stream<bool> get onConnectivityChanged => _connectivity.onConnectivityChanged
+      .map((results) => results.any((result) => result != ConnectivityResult.none))
       .distinct();
 }

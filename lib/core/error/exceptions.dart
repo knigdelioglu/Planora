@@ -1,19 +1,16 @@
-class LocalDataException implements Exception {
-  const LocalDataException(this.message, [this.cause]);
-
-  final String message;
-  final Object? cause;
+final class RankSpaceExhaustedException implements Exception {
+  const RankSpaceExhaustedException();
 
   @override
-  String toString() => 'LocalDataException: $message';
+  String toString() => 'No sortable rank remains between adjacent values.';
 }
 
-class RemoteDataException implements Exception {
-  const RemoteDataException(this.message, [this.cause]);
+final class StartupException implements Exception {
+  const StartupException(this.message, {this.cause});
 
   final String message;
   final Object? cause;
 
   @override
-  String toString() => 'RemoteDataException: $message';
+  String toString() => 'StartupException: $message';
 }

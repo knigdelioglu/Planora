@@ -1,17 +1,45 @@
-sealed class Failure {
-  const Failure(this.message);
+sealed class AppFailure implements Exception {
+  const AppFailure(this.message, {this.cause});
 
   final String message;
+  final Object? cause;
+
+  @override
+  String toString() => '$runtimeType: $message';
 }
 
-final class LocalFailure extends Failure {
-  const LocalFailure(super.message);
+final class ValidationFailure extends AppFailure {
+  const ValidationFailure(super.message, {super.cause});
 }
 
-final class RemoteFailure extends Failure {
-  const RemoteFailure(super.message);
+final class StorageFailure extends AppFailure {
+  const StorageFailure(super.message, {super.cause});
 }
 
-final class ValidationFailure extends Failure {
-  const ValidationFailure(super.message);
+final class DatabaseFailure extends AppFailure {
+  const DatabaseFailure(super.message, {super.cause});
+}
+
+final class PermissionFailure extends AppFailure {
+  const PermissionFailure(super.message, {super.cause});
+}
+
+final class NetworkFailure extends AppFailure {
+  const NetworkFailure(super.message, {super.cause});
+}
+
+final class AuthFailure extends AppFailure {
+  const AuthFailure(super.message, {super.cause});
+}
+
+final class SyncFailure extends AppFailure {
+  const SyncFailure(super.message, {super.cause});
+}
+
+final class ConflictFailure extends AppFailure {
+  const ConflictFailure(super.message, {super.cause});
+}
+
+final class UnknownFailure extends AppFailure {
+  const UnknownFailure(super.message, {super.cause});
 }

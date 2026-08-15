@@ -8,12 +8,15 @@ final class MoveCardUseCase {
   Future<void> call({
     required String cardId,
     required String destinationColumnId,
-    required double rank,
+    required int destinationIndex,
   }) {
+    if (destinationIndex < 0) {
+      throw ArgumentError.value(destinationIndex, 'destinationIndex');
+    }
     return _repository.moveCard(
       cardId: cardId,
       destinationColumnId: destinationColumnId,
-      rank: rank,
+      destinationIndex: destinationIndex,
     );
   }
 }
