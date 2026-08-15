@@ -4,11 +4,11 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
-record StoredFile(
+typedef StoredFile = ({
   String localPath,
   String fileName,
   int sizeBytes,
-);
+});
 
 abstract interface class FileStorageService {
   Future<StoredFile> persist(File source);
@@ -33,7 +33,11 @@ final class SandboxFileStorageService implements FileStorageService {
     final copied = await source.copy(destination.path);
     final size = await copied.length();
 
-    return (copied.path, fileName, size);
+    return (
+      localPath: copied.path,
+      fileName: fileName,
+      sizeBytes: size,
+    );
   }
 
   @override
