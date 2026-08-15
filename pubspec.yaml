@@ -1,18 +1,17 @@
 name: not_app
-description: Single-user, offline-first Notion-like notes and Kanban client.
+description: Single-user, offline-first personal notes and Kanban workspace.
 publish_to: "none"
-version: 0.1.0+1
+version: 1.0.0+1
 
 environment:
   sdk: ">=3.12.0 <4.0.0"
-  flutter: ">=3.38.0"
+  flutter: ">=3.44.0"
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.4.2
-  riverpod_annotation: ^4.0.6
-  drift: ^2.34.3
+  drift: ^2.32.1
   sqlite3: ^3.5.0
   path_provider: ^2.1.6
   file_picker: ^11.0.2
@@ -20,18 +19,24 @@ dependencies:
   path: ^1.9.1
   flutter_local_notifications: ^22.2.0
   timezone: ^0.11.1
+  flutter_timezone: ^5.1.0
   supabase_flutter: ^2.16.0
   dio: ^5.11.0
   connectivity_plus: ^7.3.1
   reorderables: ^0.6.0
+  crypto: ^3.0.6
+  mime: ^2.0.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
   flutter_lints: ^6.0.0
-  build_runner: ^2.15.3
-  riverpod_generator: ^4.0.8
-  drift_dev: ^2.34.5
+  build_runner: 2.15.1
+  drift_dev: 2.32.1
+  mocktail: ^1.0.4
 
 flutter:
   uses-material-design: true
