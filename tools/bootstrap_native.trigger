@@ -1,3 +1,3 @@
-bootstrap-native-platforms: 2026-08-15
+bootstrap-native-platforms: 2026-08-15-retry-1
 flutter: 3.44.8
 platforms: android,ios,macos
