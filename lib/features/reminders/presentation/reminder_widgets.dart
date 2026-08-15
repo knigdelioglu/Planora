@@ -107,7 +107,9 @@ Future<ReminderDraft?> showReminderEditorDialog(
         }
 
         return AlertDialog(
-          title: Text(existing == null ? 'Hatırlatıcı ekle' : 'Hatırlatıcıyı düzenle'),
+          title: Text(
+            existing == null ? 'Hatırlatıcı ekle' : 'Hatırlatıcıyı düzenle',
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -134,13 +136,17 @@ Future<ReminderDraft?> showReminderEditorDialog(
                       onPressed: chooseDate,
                       icon: const Icon(Icons.calendar_today_outlined),
                       label: Text(
-                        MaterialLocalizations.of(context).formatFullDate(selectedLocal),
+                        MaterialLocalizations.of(
+                          context,
+                        ).formatFullDate(selectedLocal),
                       ),
                     ),
                     OutlinedButton.icon(
                       onPressed: chooseTime,
                       icon: const Icon(Icons.schedule_outlined),
-                      label: Text(TimeOfDay.fromDateTime(selectedLocal).format(context)),
+                      label: Text(
+                        TimeOfDay.fromDateTime(selectedLocal).format(context),
+                      ),
                     ),
                   ],
                 ),
@@ -163,7 +169,9 @@ Future<ReminderDraft?> showReminderEditorDialog(
                   const SizedBox(height: 8),
                   Text(
                     validationError!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ],
               ],
@@ -364,10 +372,7 @@ class ReminderList extends ConsumerWidget {
                               value: 'snooze',
                               child: Text('10 dk ertele'),
                             ),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Text('Sil'),
-                            ),
+                            PopupMenuItem(value: 'delete', child: Text('Sil')),
                           ],
                         ),
                       ],

@@ -198,7 +198,8 @@ class SettingsScreen extends ConsumerWidget {
                                   final health =
                                       services.syncCoordinator.currentHealth;
                                   final String message =
-                                      health.lastError?.trim().isNotEmpty == true
+                                      health.lastError?.trim().isNotEmpty ==
+                                          true
                                       ? 'Eşitleme başarısız: ${health.lastError}'
                                       : 'Eşitleme tamamlandı: ${result.pushed} gönderildi, ${result.pulled} alındı, ${result.conflicts} çakışma.';
                                   ScaffoldMessenger.of(context).showSnackBar(

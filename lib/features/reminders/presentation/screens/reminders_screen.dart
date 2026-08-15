@@ -63,10 +63,7 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
                   value: _ReminderView.upcoming,
                   label: Text('Yaklaşan'),
                 ),
-                ButtonSegment(
-                  value: _ReminderView.past,
-                  label: Text('Geçmiş'),
-                ),
+                ButtonSegment(value: _ReminderView.past, label: Text('Geçmiş')),
                 ButtonSegment(
                   value: _ReminderView.disabled,
                   label: Text('Devre dışı'),
@@ -130,12 +127,8 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
                         children: <Widget>[
                           Switch.adaptive(
                             value: item.enabled,
-                            onChanged: (value) => setReminderEnabled(
-                              context,
-                              ref,
-                              item,
-                              value,
-                            ),
+                            onChanged: (value) =>
+                                setReminderEnabled(context, ref, item, value),
                           ),
                           PopupMenuButton<String>(
                             tooltip: 'Hatırlatıcı işlemleri',
@@ -148,21 +141,20 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
                                 await repo.remove(item.id);
                               }
                             },
-                            itemBuilder: (_) =>
-                                const <PopupMenuEntry<String>>[
-                                  PopupMenuItem(
-                                    value: 'edit',
-                                    child: Text('Düzenle'),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 'snooze',
-                                    child: Text('10 dk ertele'),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 'delete',
-                                    child: Text('Sil'),
-                                  ),
-                                ],
+                            itemBuilder: (_) => const <PopupMenuEntry<String>>[
+                              PopupMenuItem(
+                                value: 'edit',
+                                child: Text('Düzenle'),
+                              ),
+                              PopupMenuItem(
+                                value: 'snooze',
+                                child: Text('10 dk ertele'),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Sil'),
+                              ),
+                            ],
                           ),
                         ],
                       ),

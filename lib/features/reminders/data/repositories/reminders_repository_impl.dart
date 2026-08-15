@@ -62,9 +62,7 @@ final class DriftRemindersRepository implements RemindersRepository {
   @override
   Stream<List<ReminderEntity>> watchDisabled() {
     final query = _database.select(_database.reminders)
-      ..where(
-        (tbl) => tbl.deletedAt.isNull() & tbl.enabled.equals(false),
-      )
+      ..where((tbl) => tbl.deletedAt.isNull() & tbl.enabled.equals(false))
       ..orderBy(<OrderingTerm Function($RemindersTable)>[
         (tbl) => OrderingTerm.desc(tbl.scheduledAtUtc),
       ]);

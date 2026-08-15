@@ -75,13 +75,11 @@ final class LifecycleKanbanRepository implements KanbanRepository {
   );
 
   @override
-  Future<void> deleteColumn(
-    String columnId, {
-    String? moveCardsToColumnId,
-  }) => _delegate.deleteColumn(
-    columnId,
-    moveCardsToColumnId: moveCardsToColumnId,
-  );
+  Future<void> deleteColumn(String columnId, {String? moveCardsToColumnId}) =>
+      _delegate.deleteColumn(
+        columnId,
+        moveCardsToColumnId: moveCardsToColumnId,
+      );
 
   @override
   Future<String> createCard({

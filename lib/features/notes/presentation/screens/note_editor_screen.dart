@@ -298,14 +298,13 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
                   .watch(attachmentsRepositoryProvider)
                   .watchForParent('note', widget.noteId),
               builder: (context, attachmentSnapshot) {
-                final Map<String, AttachmentEntity> attachments = <
-                  String,
-                  AttachmentEntity
-                >{
-                  for (final item in
-                      attachmentSnapshot.data ?? const <AttachmentEntity>[])
-                    item.id: item,
-                };
+                final Map<String, AttachmentEntity> attachments =
+                    <String, AttachmentEntity>{
+                      for (final item
+                          in attachmentSnapshot.data ??
+                              const <AttachmentEntity>[])
+                        item.id: item,
+                    };
                 return Align(
                   alignment: Alignment.topCenter,
                   child: ConstrainedBox(
