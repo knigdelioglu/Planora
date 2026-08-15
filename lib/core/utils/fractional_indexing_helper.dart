@@ -28,8 +28,12 @@ final class FractionalIndexing {
   }
 
   static List<String> rebalance(int count) {
-    if (count < 0) throw ArgumentError.value(count, 'count');
-    if (count == 0) return const <String>[];
+    if (count < 0) {
+      throw ArgumentError.value(count, 'count');
+    }
+    if (count == 0) {
+      return const <String>[];
+    }
     final BigInt step = maxValue ~/ BigInt.from(count + 1);
     if (step <= BigInt.one) {
       throw const RankSpaceExhaustedException();
@@ -43,7 +47,11 @@ final class FractionalIndexing {
 
   static String encode(BigInt value) {
     if (value < BigInt.zero || value > maxValue) {
-      throw RangeError.range(value, BigInt.zero, maxValue, 'value');
+      throw RangeError.value(
+        value,
+        'value',
+        'Rank must be between 0 and $maxValue.',
+      );
     }
     BigInt remaining = value;
     final List<String> chars = List<String>.filled(width, '0');
@@ -66,7 +74,9 @@ final class FractionalIndexing {
     for (final int codeUnit in key.codeUnits) {
       final String char = String.fromCharCode(codeUnit);
       final int digit = alphabet.indexOf(char);
-      if (digit < 0) throw FormatException('Invalid rank character.', key);
+      if (digit < 0) {
+        throw FormatException('Invalid rank character.', key);
+      }
       value = (value * _base) + BigInt.from(digit);
     }
     return value;
