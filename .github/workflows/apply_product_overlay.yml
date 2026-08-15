@@ -3,7 +3,7 @@ name: Apply product source overlay
 on:
   push:
     paths:
-      - tools/product_overlay.b64
+      - tools/product_overlay.ready
 
 permissions:
   contents: write
@@ -20,9 +20,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode tools/product_overlay.b64 > "$RUNNER_TEMP/product-overlay.tar.gz"
+          cat tools/product_overlay.part-* | base64 --decode > "$RUNNER_TEMP/product-overlay.tar.gz"
           tar -xzf "$RUNNER_TEMP/product-overlay.tar.gz" -C .
-          rm tools/product_overlay.b64
+          rm -f tools/product_overlay.part-* tools/product_overlay.ready
       - name: Commit product implementation
         shell: bash
         run: |
