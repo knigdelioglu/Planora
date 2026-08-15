@@ -1,0 +1,133 @@
+name: Signed release packaging
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Target platform
+        required: true
+        type: choice
+        options: [android, macos, ios]
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    if: inputs.platform == 'android'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - name: Restore Android signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.NOT_ANDROID_KEYSTORE_B64 }}
+        run: |
+          test -n "$KEYSTORE_B64"
+          echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/not-release.jks"
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - name: Build signed AAB
+        env:
+          NOT_RELEASE_STORE_FILE: ${{ runner.temp }}/not-release.jks
+          NOT_RELEASE_STORE_PASSWORD: ${{ secrets.NOT_RELEASE_STORE_PASSWORD }}
+          NOT_RELEASE_KEY_ALIAS: ${{ secrets.NOT_RELEASE_KEY_ALIAS }}
+          NOT_RELEASE_KEY_PASSWORD: ${{ secrets.NOT_RELEASE_KEY_PASSWORD }}
+        run: >-
+          flutter build appbundle --release
+          --dart-define=SUPABASE_URL=${{ secrets.NOT_SUPABASE_URL }}
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ secrets.NOT_SUPABASE_PUBLISHABLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: not-android-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+
+  macos:
+    if: inputs.platform == 'macos'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - name: Import Developer ID certificate
+        env:
+          CERT_B64: ${{ secrets.NOT_MACOS_CERTIFICATE_B64 }}
+          CERT_PASSWORD: ${{ secrets.NOT_MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          test -n "$CERT_B64"
+          security create-keychain -p actions "$RUNNER_TEMP/not.keychain-db"
+          security default-keychain -s "$RUNNER_TEMP/not.keychain-db"
+          security unlock-keychain -p actions "$RUNNER_TEMP/not.keychain-db"
+          echo "$CERT_B64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$RUNNER_TEMP/not.keychain-db" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k actions "$RUNNER_TEMP/not.keychain-db"
+      - name: Build macOS release
+        run: >-
+          flutter build macos --release
+          --dart-define=SUPABASE_URL=${{ secrets.NOT_SUPABASE_URL }}
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ secrets.NOT_SUPABASE_PUBLISHABLE_KEY }}
+      - name: Sign app
+        env:
+          SIGN_ID: ${{ secrets.NOT_MACOS_SIGN_IDENTITY }}
+        run: |
+          test -n "$SIGN_ID"
+          codesign --force --deep --options runtime --timestamp --sign "$SIGN_ID" build/macos/Build/Products/Release/not_app.app
+          codesign --verify --deep --strict --verbose=2 build/macos/Build/Products/Release/not_app.app
+      - name: Zip app
+        run: ditto -c -k --keepParent build/macos/Build/Products/Release/not_app.app not-macos.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: not-macos-app
+          path: not-macos.zip
+
+  ios:
+    if: inputs.platform == 'ios'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - name: Require Apple signing material
+        env:
+          CERT_B64: ${{ secrets.NOT_IOS_CERTIFICATE_B64 }}
+          PROFILE_B64: ${{ secrets.NOT_IOS_PROVISIONING_PROFILE_B64 }}
+        run: |
+          test -n "$CERT_B64"
+          test -n "$PROFILE_B64"
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - name: Import distribution certificate and profile
+        env:
+          CERT_B64: ${{ secrets.NOT_IOS_CERTIFICATE_B64 }}
+          CERT_PASSWORD: ${{ secrets.NOT_IOS_CERTIFICATE_PASSWORD }}
+          PROFILE_B64: ${{ secrets.NOT_IOS_PROVISIONING_PROFILE_B64 }}
+        run: |
+          security create-keychain -p actions "$RUNNER_TEMP/not.keychain-db"
+          security default-keychain -s "$RUNNER_TEMP/not.keychain-db"
+          security unlock-keychain -p actions "$RUNNER_TEMP/not.keychain-db"
+          echo "$CERT_B64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$RUNNER_TEMP/not.keychain-db" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k actions "$RUNNER_TEMP/not.keychain-db"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          echo "$PROFILE_B64" | base64 --decode > "$HOME/Library/MobileDevice/Provisioning Profiles/not.mobileprovision"
+      - name: Build signed IPA
+        run: >-
+          flutter build ipa --release
+          --dart-define=SUPABASE_URL=${{ secrets.NOT_SUPABASE_URL }}
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ secrets.NOT_SUPABASE_PUBLISHABLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: not-ios-ipa
+          path: build/ios/ipa/*.ipa
