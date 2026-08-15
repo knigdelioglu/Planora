@@ -16,28 +16,33 @@ class ConflictsScreen extends ConsumerWidget {
       body: StreamBuilder<List<SyncConflictEntity>>(
         stream: repo.watchOpen(),
         builder: (context, snapshot) {
-          if (snapshot.hasError)
+          if (snapshot.hasError) {
             return ErrorState(message: snapshot.error.toString());
-          if (!snapshot.hasData)
+          }
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
+          }
           final data = snapshot.requireData;
-          if (data.isEmpty)
+          if (data.isEmpty) {
             return const EmptyState(
               icon: Icons.check_circle_outline,
               title: 'Çakışma yok',
               message: 'Cihazlar arasındaki değişiklikler uyumlu.',
             );
+          }
           return ListView.builder(
             padding: const EdgeInsets.all(20),
             itemCount: data.length,
             itemBuilder: (context, index) {
               final item = data[index];
+              final bool canCopy =
+                  item.entityType == 'note' || item.entityType == 'card';
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ExpansionTile(
                   leading: const Icon(Icons.compare_arrows_rounded),
                   title: Text('${item.entityType} · ${item.entityId}'),
-                  subtitle: Text(
+                  subtitle: const Text(
                     'İki cihaz aynı kaydı farklı biçimde değiştirdi.',
                   ),
                   childrenPadding: const EdgeInsets.all(16),
@@ -58,10 +63,11 @@ class ConflictsScreen extends ConsumerWidget {
                           onPressed: () => repo.resolveUsingRemote(item.id),
                           child: const Text('Diğer sürümü kullan'),
                         ),
-                        OutlinedButton(
-                          onPressed: () => repo.resolveAsCopy(item.id),
-                          child: const Text('Kopya olarak sakla'),
-                        ),
+                        if (canCopy)
+                          OutlinedButton(
+                            onPressed: () => repo.resolveAsCopy(item.id),
+                            child: const Text('Kopya olarak sakla'),
+                          ),
                       ],
                     ),
                   ],

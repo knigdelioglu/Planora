@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
 import 'package:not_app/app/widgets/common_widgets.dart';
 import 'package:not_app/features/reminders/domain/entities/reminder.dart';
+import 'package:not_app/features/reminders/presentation/reminder_widgets.dart';
+
+enum _ReminderView { upcoming, past, disabled }
 
 class RemindersScreen extends ConsumerStatefulWidget {
   const RemindersScreen({super.key});
@@ -11,7 +14,7 @@ class RemindersScreen extends ConsumerStatefulWidget {
 }
 
 class _RemindersScreenState extends ConsumerState<RemindersScreen> {
-  bool _past = false;
+  _ReminderView _view = _ReminderView.upcoming;
 
   Future<void> _requestPermissions() async {
     final state = await ref
@@ -32,6 +35,11 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(remindersRepositoryProvider);
+    final Stream<List<ReminderEntity>> stream = switch (_view) {
+      _ReminderView.upcoming => repo.watchUpcoming(),
+      _ReminderView.past => repo.watchPast(),
+      _ReminderView.disabled => repo.watchDisabled(),
+    };
     return Column(
       children: <Widget>[
         AppPageHeader(
@@ -49,14 +57,24 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Align(
             alignment: Alignment.centerLeft,
-            child: SegmentedButton<bool>(
-              segments: const <ButtonSegment<bool>>[
-                ButtonSegment(value: false, label: Text('Yaklaşan')),
-                ButtonSegment(value: true, label: Text('Geçmiş')),
+            child: SegmentedButton<_ReminderView>(
+              segments: const <ButtonSegment<_ReminderView>>[
+                ButtonSegment(
+                  value: _ReminderView.upcoming,
+                  label: Text('Yaklaşan'),
+                ),
+                ButtonSegment(
+                  value: _ReminderView.past,
+                  label: Text('Geçmiş'),
+                ),
+                ButtonSegment(
+                  value: _ReminderView.disabled,
+                  label: Text('Devre dışı'),
+                ),
               ],
-              selected: <bool>{_past},
+              selected: <_ReminderView>{_view},
               onSelectionChanged: (value) =>
-                  setState(() => _past = value.first),
+                  setState(() => _view = value.first),
               showSelectedIcon: false,
             ),
           ),
@@ -64,19 +82,28 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
         const SizedBox(height: 12),
         Expanded(
           child: StreamBuilder<List<ReminderEntity>>(
-            stream: _past ? repo.watchPast() : repo.watchUpcoming(),
+            stream: stream,
             builder: (context, snapshot) {
-              if (snapshot.hasError)
+              if (snapshot.hasError) {
                 return ErrorState(message: snapshot.error.toString());
-              if (!snapshot.hasData)
+              }
+              if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
+              }
               final data = snapshot.requireData;
               if (data.isEmpty) {
-                return const EmptyState(
-                  icon: Icons.notifications_none,
-                  title: 'Hatırlatıcı yok',
-                  message:
-                      'Not veya kart ayrıntısından bir tarih ve saat belirleyebilirsiniz.',
+                return EmptyState(
+                  icon: _view == _ReminderView.disabled
+                      ? Icons.notifications_off_outlined
+                      : Icons.notifications_none,
+                  title: _view == _ReminderView.disabled
+                      ? 'Devre dışı hatırlatıcı yok'
+                      : 'Hatırlatıcı yok',
+                  message: _view == _ReminderView.upcoming
+                      ? 'Not veya kart ayrıntısından bir tarih ve saat belirleyebilirsiniz.'
+                      : _view == _ReminderView.past
+                      ? 'Geçmiş etkin hatırlatıcılar burada görünür.'
+                      : 'Kapattığınız hatırlatıcılar burada saklanır ve yeniden açılabilir.',
                 );
               }
               return ListView.separated(
@@ -84,24 +111,62 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
                 itemCount: data.length,
                 separatorBuilder: (_, __) => const Divider(height: 1),
                 itemBuilder: (context, index) {
-                  final item = data[index];
+                  final ReminderEntity item = data[index];
                   return ListTile(
                     leading: Icon(
-                      item.schedulingStatus == 'scheduled'
-                          ? Icons.notifications_active_outlined
-                          : Icons.notifications_none,
+                      item.enabled
+                          ? item.schedulingStatus == 'scheduled'
+                                ? Icons.notifications_active_outlined
+                                : Icons.notifications_none
+                          : Icons.notifications_off_outlined,
                     ),
                     title: Text(item.title),
-                    subtitle: Text(
-                      '${MaterialLocalizations.of(context).formatFullDate(item.scheduledAtUtc.toLocal())} · ${TimeOfDay.fromDateTime(item.scheduledAtUtc.toLocal()).format(context)} · ${item.schedulingStatus}',
+                    subtitle: Text(reminderSubtitle(context, item)),
+                    onTap: () => editReminderEntity(context, ref, item),
+                    trailing: SizedBox(
+                      width: 104,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: <Widget>[
+                          Switch.adaptive(
+                            value: item.enabled,
+                            onChanged: (value) => setReminderEnabled(
+                              context,
+                              ref,
+                              item,
+                              value,
+                            ),
+                          ),
+                          PopupMenuButton<String>(
+                            tooltip: 'Hatırlatıcı işlemleri',
+                            onSelected: (value) async {
+                              if (value == 'edit') {
+                                await editReminderEntity(context, ref, item);
+                              } else if (value == 'snooze') {
+                                await snoozeReminder(context, ref, item);
+                              } else if (value == 'delete') {
+                                await repo.remove(item.id);
+                              }
+                            },
+                            itemBuilder: (_) =>
+                                const <PopupMenuEntry<String>>[
+                                  PopupMenuItem(
+                                    value: 'edit',
+                                    child: Text('Düzenle'),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'snooze',
+                                    child: Text('10 dk ertele'),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'delete',
+                                    child: Text('Sil'),
+                                  ),
+                                ],
+                          ),
+                        ],
+                      ),
                     ),
-                    trailing: item.deletedAt == null
-                        ? IconButton(
-                            tooltip: 'Hatırlatıcıyı sil',
-                            onPressed: () => repo.remove(item.id),
-                            icon: const Icon(Icons.delete_outline),
-                          )
-                        : null,
                   );
                 },
               );

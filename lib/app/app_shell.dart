@@ -5,6 +5,7 @@ import 'package:not_app/app/providers.dart';
 import 'package:not_app/app/router/app_router.dart';
 import 'package:not_app/app/theme/app_theme.dart';
 import 'package:not_app/app/widgets/common_widgets.dart';
+import 'package:not_app/core/sync/sync_coordinator.dart';
 import 'package:not_app/features/home/presentation/home_screen.dart';
 import 'package:not_app/features/kanban/presentation/screens/boards_screen.dart';
 import 'package:not_app/features/notes/presentation/screens/notes_screen.dart';
@@ -67,16 +68,18 @@ class _AppShellState extends ConsumerState<AppShell> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final double width = constraints.maxWidth;
-            if (width < AppBreakpoints.compact)
+            if (width < AppBreakpoints.compact) {
               return _compact(
                 services.config.cloudConfigured,
                 services.auth.currentState.isSignedIn,
               );
-            if (width < AppBreakpoints.expanded)
+            }
+            if (width < AppBreakpoints.expanded) {
               return _medium(
                 services.config.cloudConfigured,
                 services.auth.currentState.isSignedIn,
               );
+            }
             return _expanded(
               services.config.cloudConfigured,
               services.auth.currentState.isSignedIn,
@@ -87,15 +90,30 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
   }
 
-  Widget _sync(bool configured, bool signedIn) => StreamBuilder<int>(
-    stream: ref.watch(syncQueueRepositoryProvider).watchPendingCount(),
-    initialData: 0,
-    builder: (context, snapshot) => SyncStatusIndicator(
-      pendingCount: snapshot.data ?? 0,
-      cloudConfigured: configured,
-      signedIn: signedIn,
-    ),
-  );
+  Widget _sync(bool configured, bool signedIn) {
+    final coordinator = ref.watch(syncCoordinatorProvider);
+    return StreamBuilder<int>(
+      stream: ref.watch(syncQueueRepositoryProvider).watchPendingCount(),
+      initialData: 0,
+      builder: (context, pendingSnapshot) => StreamBuilder<SyncHealthState>(
+        stream: coordinator.watchHealth(),
+        initialData: coordinator.currentHealth,
+        builder: (context, healthSnapshot) {
+          final SyncHealthState health =
+              healthSnapshot.data ?? coordinator.currentHealth;
+          return SyncStatusIndicator(
+            pendingCount: pendingSnapshot.data ?? 0,
+            cloudConfigured: configured,
+            signedIn: signedIn,
+            isSyncing: health.isSyncing,
+            isOnline: health.isOnline,
+            lastSuccessfulSyncAt: health.lastSuccessfulSyncAt,
+            lastError: health.lastError,
+          );
+        },
+      ),
+    );
+  }
 
   Widget _expanded(bool configured, bool signedIn) => Scaffold(
     body: Row(

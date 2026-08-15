@@ -5,38 +5,22 @@ import 'package:not_app/app/router/app_router.dart';
 import 'package:not_app/app/widgets/common_widgets.dart';
 import 'package:not_app/features/kanban/domain/entities/board.dart';
 import 'package:not_app/features/kanban/presentation/screens/kanban_board_screen.dart';
+import 'package:not_app/features/kanban/presentation/widgets/kanban_color.dart';
 
 class BoardsScreen extends ConsumerWidget {
   const BoardsScreen({super.key});
 
   Future<void> _create(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
-    final String? title = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Yeni pano'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Pano adı'),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Vazgeç'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Oluştur'),
-          ),
-        ],
-      ),
+    final TitleColorValue? value = await showTitleColorDialog(
+      context,
+      dialogTitle: 'Yeni pano',
+      fieldLabel: 'Pano adı',
+      confirmLabel: 'Oluştur',
     );
-    controller.dispose();
-    if (title == null || title.isEmpty) return;
+    if (value == null) return;
     final String id = await ref
         .read(kanbanRepositoryProvider)
-        .createBoard(title: title);
+        .createBoard(title: value.title, colorHex: value.colorHex);
     if (!context.mounted) return;
     await AppRouter.push<void>(context, KanbanBoardScreen(boardId: id));
   }
@@ -61,10 +45,12 @@ class BoardsScreen extends ConsumerWidget {
           child: StreamBuilder<List<BoardEntity>>(
             stream: repo.watchBoards(),
             builder: (context, snapshot) {
-              if (snapshot.hasError)
+              if (snapshot.hasError) {
                 return ErrorState(message: snapshot.error.toString());
-              if (!snapshot.hasData)
+              }
+              if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
+              }
               final boards = snapshot.requireData;
               if (boards.isEmpty) {
                 return EmptyState(
@@ -89,6 +75,9 @@ class BoardsScreen extends ConsumerWidget {
                 itemCount: boards.length,
                 itemBuilder: (context, index) {
                   final board = boards[index];
+                  final Color accent =
+                      colorFromHex(board.colorHex) ??
+                      Theme.of(context).colorScheme.primary;
                   return Card(
                     child: InkWell(
                       borderRadius: BorderRadius.circular(10),
@@ -103,9 +92,15 @@ class BoardsScreen extends ConsumerWidget {
                           children: <Widget>[
                             Row(
                               children: <Widget>[
-                                Icon(
-                                  Icons.view_kanban_outlined,
-                                  color: Theme.of(context).colorScheme.primary,
+                                Icon(Icons.view_kanban_outlined, color: accent),
+                                const SizedBox(width: 8),
+                                Container(
+                                  width: 24,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: accent,
+                                    borderRadius: BorderRadius.circular(99),
+                                  ),
                                 ),
                                 const Spacer(),
                                 _BoardMenu(board: board),
@@ -164,8 +159,9 @@ class _BoardMenu extends ConsumerWidget {
           ),
         );
         controller.dispose();
-        if (title != null && title.isNotEmpty)
+        if (title != null && title.isNotEmpty) {
           await ref.read(kanbanRepositoryProvider).renameBoard(board.id, title);
+        }
       }
       if (value == 'delete') {
         final bool ok =
@@ -174,7 +170,7 @@ class _BoardMenu extends ConsumerWidget {
               builder: (context) => AlertDialog(
                 title: const Text('Pano silinsin mi?'),
                 content: const Text(
-                  'Pano ve içindeki kartlar çöp işaretiyle senkronize edilmek üzere kaldırılır.',
+                  'Pano, içindeki kartlar ve kartlara bağlı ekler ile hatırlatıcılar kaldırılır ve silme kayıtları senkronize edilir.',
                 ),
                 actions: <Widget>[
                   TextButton(

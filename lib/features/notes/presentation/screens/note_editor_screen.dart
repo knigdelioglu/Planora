@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
+import 'package:not_app/features/attachments/domain/entities/attachment.dart';
 import 'package:not_app/features/notes/domain/entities/note.dart';
 import 'package:not_app/features/notes/domain/entities/note_document.dart';
+import 'package:not_app/features/reminders/presentation/reminder_widgets.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 class NoteEditorScreen extends ConsumerStatefulWidget {
@@ -44,11 +48,12 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
       }
       if (mounted) setState(() => _loading = false);
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = error.toString();
         });
+      }
     }
   }
 
@@ -74,17 +79,19 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
       final repo = ref.read(notesRepositoryProvider);
       await repo.updateTitle(widget.noteId, title);
       await repo.saveDocument(widget.noteId, document);
-      if (showState && mounted)
+      if (showState && mounted) {
         setState(() {
           _saving = false;
           _error = null;
         });
+      }
     } catch (error) {
-      if (showState && mounted)
+      if (showState && mounted) {
         setState(() {
           _saving = false;
           _error = error.toString();
         });
+      }
     }
   }
 
@@ -126,6 +133,45 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     _scheduleSave();
   }
 
+  Future<void> _addReminder() => createReminderForParent(
+    context,
+    ref,
+    parentType: 'note',
+    parentId: widget.noteId,
+    defaultTitle: _title.text.trim().isEmpty
+        ? 'Not hatırlatıcısı'
+        : _title.text.trim(),
+    defaultBody: _document().plainText,
+  );
+
+  Future<void> _trashNote() async {
+    final bool confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Not çöpe taşınsın mı?'),
+            content: const Text(
+              'Not çöp kutusuna taşınır ve daha sonra geri yüklenebilir.',
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Vazgeç'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Çöpe taşı'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+    await _persist(showState: false);
+    await ref.read(notesRepositoryProvider).trash(widget.noteId);
+    if (mounted) Navigator.pop(context);
+  }
+
   void _addTextBlock(NoteBlockType type) {
     setState(
       () => _blocks.add(
@@ -138,13 +184,46 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     _scheduleSave();
   }
 
+  Future<void> _deleteBlock(int index) async {
+    final _EditableBlock block = _blocks[index];
+    if (block.attachmentId != null) {
+      try {
+        await ref
+            .read(attachmentsRepositoryProvider)
+            .remove(block.attachmentId!);
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(error.toString())));
+        }
+        return;
+      }
+    }
+    if (!mounted || index >= _blocks.length || _blocks[index] != block) return;
+    setState(() {
+      _blocks.removeAt(index).dispose();
+      if (_blocks.isEmpty) {
+        _blocks.add(
+          _EditableBlock.from(
+            NoteBlock(id: const Uuid().v7(), type: NoteBlockType.paragraph),
+            _scheduleSave,
+          ),
+        );
+      }
+    });
+    _scheduleSave();
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
     if (!_loading) unawaited(_persist(showState: false));
     _title.dispose();
-    for (final block in _blocks) block.dispose();
+    for (final block in _blocks) {
+      block.dispose();
+    }
     super.dispose();
   }
 
@@ -190,9 +269,23 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
             icon: const Icon(Icons.attach_file),
           ),
           IconButton(
+            tooltip: 'Hatırlatıcı ekle',
+            onPressed: _addReminder,
+            icon: const Icon(Icons.notifications_none),
+          ),
+          IconButton(
             tooltip: 'Şimdi kaydet',
             onPressed: _save,
             icon: const Icon(Icons.cloud_done_outlined),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Not işlemleri',
+            onSelected: (value) {
+              if (value == 'trash') unawaited(_trashNote());
+            },
+            itemBuilder: (_) => const <PopupMenuEntry<String>>[
+              PopupMenuItem(value: 'trash', child: Text('Çöpe taşı')),
+            ],
           ),
         ],
       ),
@@ -200,58 +293,80 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
           ? const Center(child: CircularProgressIndicator())
           : _error != null && _blocks.isEmpty
           ? Center(child: Text(_error!))
-          : Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 80),
-                  children: <Widget>[
-                    TextField(
-                      controller: _title,
-                      maxLines: null,
-                      style: Theme.of(context).textTheme.headlineLarge,
-                      decoration: const InputDecoration(
-                        hintText: 'Başlıksız not',
-                        border: InputBorder.none,
-                        filled: false,
-                        contentPadding: EdgeInsets.zero,
-                      ),
+          : StreamBuilder<List<AttachmentEntity>>(
+              stream: ref
+                  .watch(attachmentsRepositoryProvider)
+                  .watchForParent('note', widget.noteId),
+              builder: (context, attachmentSnapshot) {
+                final Map<String, AttachmentEntity> attachments = <
+                  String,
+                  AttachmentEntity
+                >{
+                  for (final item in
+                      attachmentSnapshot.data ?? const <AttachmentEntity>[])
+                    item.id: item,
+                };
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 760),
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(24, 32, 24, 80),
+                      children: <Widget>[
+                        TextField(
+                          controller: _title,
+                          maxLines: null,
+                          style: Theme.of(context).textTheme.headlineLarge,
+                          decoration: const InputDecoration(
+                            hintText: 'Başlıksız not',
+                            border: InputBorder.none,
+                            filled: false,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ...List<Widget>.generate(
+                          _blocks.length,
+                          (index) => _BlockEditorRow(
+                            key: ValueKey<String>(_blocks[index].id),
+                            block: _blocks[index],
+                            attachment: _blocks[index].attachmentId == null
+                                ? null
+                                : attachments[_blocks[index].attachmentId],
+                            index: index,
+                            onDelete: () => _deleteBlock(index),
+                            onChangedType: (type) {
+                              setState(() => _blocks[index].type = type);
+                              _scheduleSave();
+                            },
+                            onChecked: (value) {
+                              setState(() => _blocks[index].checked = value);
+                              _scheduleSave();
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: () =>
+                              _addTextBlock(NoteBlockType.paragraph),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Blok ekle'),
+                        ),
+                        const SizedBox(height: 28),
+                        Text(
+                          'Hatırlatıcılar',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        ReminderList(
+                          parentType: 'note',
+                          parentId: widget.noteId,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    ...List<Widget>.generate(
-                      _blocks.length,
-                      (index) => _BlockEditorRow(
-                        key: ValueKey<String>(_blocks[index].id),
-                        block: _blocks[index],
-                        index: index,
-                        onDelete: () {
-                          if (_blocks.length == 1) {
-                            _blocks[index].controller.clear();
-                            return;
-                          }
-                          setState(() => _blocks.removeAt(index).dispose());
-                          _scheduleSave();
-                        },
-                        onChangedType: (type) {
-                          setState(() => _blocks[index].type = type);
-                          _scheduleSave();
-                        },
-                        onChecked: (value) {
-                          setState(() => _blocks[index].checked = value);
-                          _scheduleSave();
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: () => _addTextBlock(NoteBlockType.paragraph),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Blok ekle'),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
     );
   }
@@ -313,14 +428,16 @@ class _BlockEditorRow extends StatelessWidget {
   const _BlockEditorRow({
     super.key,
     required this.block,
+    required this.attachment,
     required this.index,
     required this.onDelete,
     required this.onChangedType,
     required this.onChecked,
   });
   final _EditableBlock block;
+  final AttachmentEntity? attachment;
   final int index;
-  final VoidCallback onDelete;
+  final Future<void> Function() onDelete;
   final ValueChanged<NoteBlockType> onChangedType;
   final ValueChanged<bool> onChecked;
 
@@ -338,25 +455,11 @@ class _BlockEditorRow extends StatelessWidget {
       );
     }
     if (block.type == NoteBlockType.image || block.type == NoteBlockType.file) {
-      return Card(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        child: ListTile(
-          leading: Icon(
-            block.type == NoteBlockType.image
-                ? Icons.image_outlined
-                : Icons.insert_drive_file_outlined,
-          ),
-          title: Text(
-            block.controller.text.isEmpty ? 'Ek dosya' : block.controller.text,
-          ),
-          subtitle: Text(
-            block.type == NoteBlockType.image ? 'Görsel eki' : 'Dosya eki',
-          ),
-          trailing: IconButton(
-            onPressed: onDelete,
-            icon: const Icon(Icons.close),
-          ),
-        ),
+      return _AttachmentBlockRow(
+        attachment: attachment,
+        fallbackName: block.controller.text,
+        image: block.type == NoteBlockType.image,
+        onDelete: onDelete,
       );
     }
     final TextStyle? style = switch (block.type) {
@@ -463,6 +566,140 @@ class _BlockEditorRow extends StatelessWidget {
             tooltip: 'Bloğu sil',
             onPressed: onDelete,
             icon: const Icon(Icons.close, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AttachmentBlockRow extends ConsumerStatefulWidget {
+  const _AttachmentBlockRow({
+    required this.attachment,
+    required this.fallbackName,
+    required this.image,
+    required this.onDelete,
+  });
+
+  final AttachmentEntity? attachment;
+  final String fallbackName;
+  final bool image;
+  final Future<void> Function() onDelete;
+
+  @override
+  ConsumerState<_AttachmentBlockRow> createState() =>
+      _AttachmentBlockRowState();
+}
+
+class _AttachmentBlockRowState extends ConsumerState<_AttachmentBlockRow> {
+  File? _preview;
+  bool _loadingPreview = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.image) unawaited(_loadPreview());
+  }
+
+  @override
+  void didUpdateWidget(covariant _AttachmentBlockRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.image && oldWidget.attachment?.id != widget.attachment?.id) {
+      _preview = null;
+      unawaited(_loadPreview());
+    }
+  }
+
+  Future<File?> _ensureLocal() async {
+    final AttachmentEntity? attachment = widget.attachment;
+    if (attachment == null) return null;
+    return ref.read(attachmentsRepositoryProvider).ensureLocal(attachment.id);
+  }
+
+  Future<void> _loadPreview() async {
+    if (_loadingPreview || widget.attachment == null) return;
+    _loadingPreview = true;
+    try {
+      final File? file = await _ensureLocal();
+      if (mounted) setState(() => _preview = file);
+    } catch (_) {
+      if (mounted) setState(() => _preview = null);
+    } finally {
+      _loadingPreview = false;
+    }
+  }
+
+  Future<void> _open() async {
+    try {
+      final File? file = await _ensureLocal();
+      if (file == null) throw StateError('Ek kaydı bulunamadı.');
+      final bool opened = await launchUrl(Uri.file(file.path));
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dosya bu cihazda açılamadı.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final AttachmentEntity? attachment = widget.attachment;
+    final String name = attachment?.fileName.trim().isNotEmpty == true
+        ? attachment!.fileName
+        : widget.fallbackName.trim().isEmpty
+        ? 'Ek dosya'
+        : widget.fallbackName;
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (widget.image)
+            InkWell(
+              onTap: _open,
+              child: SizedBox(
+                height: 220,
+                child: _preview == null
+                    ? Center(
+                        child: _loadingPreview
+                            ? const CircularProgressIndicator()
+                            : const Icon(Icons.broken_image_outlined, size: 42),
+                      )
+                    : Image.file(
+                        _preview!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Center(
+                          child: Icon(Icons.broken_image_outlined, size: 42),
+                        ),
+                      ),
+              ),
+            ),
+          ListTile(
+            leading: Icon(
+              widget.image
+                  ? Icons.image_outlined
+                  : Icons.insert_drive_file_outlined,
+            ),
+            title: Text(name),
+            subtitle: Text(
+              attachment == null
+                  ? 'Ek kaydı bulunamadı'
+                  : '${(attachment.sizeBytes / 1024).ceil()} KB · ${attachment.transferState}',
+            ),
+            onTap: _open,
+            trailing: IconButton(
+              tooltip: 'Eki sil',
+              onPressed: widget.onDelete,
+              icon: const Icon(Icons.close),
+            ),
           ),
         ],
       ),

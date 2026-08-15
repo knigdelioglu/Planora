@@ -49,7 +49,21 @@ final class DriftRemindersRepository implements RemindersRepository {
     final query = _database.select(_database.reminders)
       ..where(
         (tbl) =>
-            tbl.deletedAt.isNull() & tbl.scheduledAtUtc.isSmallerThanValue(now),
+            tbl.deletedAt.isNull() &
+            tbl.enabled.equals(true) &
+            tbl.scheduledAtUtc.isSmallerThanValue(now),
+      )
+      ..orderBy(<OrderingTerm Function($RemindersTable)>[
+        (tbl) => OrderingTerm.desc(tbl.scheduledAtUtc),
+      ]);
+    return query.watch().map((rows) => rows.map(_map).toList(growable: false));
+  }
+
+  @override
+  Stream<List<ReminderEntity>> watchDisabled() {
+    final query = _database.select(_database.reminders)
+      ..where(
+        (tbl) => tbl.deletedAt.isNull() & tbl.enabled.equals(false),
       )
       ..orderBy(<OrderingTerm Function($RemindersTable)>[
         (tbl) => OrderingTerm.desc(tbl.scheduledAtUtc),
@@ -137,13 +151,15 @@ final class DriftRemindersRepository implements RemindersRepository {
     required String timeZoneId,
     required bool enabled,
   }) async {
-    if (enabled)
+    if (enabled) {
       _validate('note', title, scheduledAtUtc, skipParentValidation: true);
+    }
     final Reminder? row = await (_database.select(
       _database.reminders,
     )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
-    if (row == null || row.deletedAt != null)
+    if (row == null || row.deletedAt != null) {
       throw StateError('Reminder does not exist.');
+    }
     final DateTime now = _clock.nowUtc();
     final int nextVersion = row.version + 1;
     await _database.transaction(() async {
@@ -228,8 +244,9 @@ final class DriftRemindersRepository implements RemindersRepository {
           row.enabled &&
           row.scheduledAtUtc.isAfter(now);
       if (!shouldExist) {
-        if (pending.contains(row.notificationId))
+        if (pending.contains(row.notificationId)) {
           await _notifications.cancel(row.notificationId);
+        }
         continue;
       }
       if (!pending.contains(row.notificationId)) {
@@ -308,10 +325,12 @@ final class DriftRemindersRepository implements RemindersRepository {
         'Only note and card reminders are supported.',
       );
     }
-    if (title.trim().isEmpty)
+    if (title.trim().isEmpty) {
       throw ArgumentError('Reminder title cannot be empty.');
-    if (!scheduledAtUtc.toUtc().isAfter(_clock.nowUtc()))
+    }
+    if (!scheduledAtUtc.toUtc().isAfter(_clock.nowUtc())) {
       throw ArgumentError('Reminder time must be in the future.');
+    }
   }
 
   String? _clean(String? value) {

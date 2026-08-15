@@ -107,29 +107,63 @@ class SyncStatusIndicator extends StatelessWidget {
     required this.pendingCount,
     required this.cloudConfigured,
     required this.signedIn,
+    required this.isSyncing,
+    required this.isOnline,
+    required this.lastSuccessfulSyncAt,
+    required this.lastError,
   });
   final int pendingCount;
   final bool cloudConfigured;
   final bool signedIn;
+  final bool isSyncing;
+  final bool? isOnline;
+  final DateTime? lastSuccessfulSyncAt;
+  final String? lastError;
+
   @override
   Widget build(BuildContext context) {
     final IconData icon;
     final String label;
+    String tooltip;
     if (!cloudConfigured) {
       icon = Icons.cloud_off_outlined;
       label = 'Yalnız cihaz';
+      tooltip = label;
     } else if (!signedIn) {
       icon = Icons.cloud_outlined;
       label = 'Bulut bağlı değil';
+      tooltip = label;
+    } else if (isSyncing) {
+      icon = Icons.sync_rounded;
+      label = 'Eşitleniyor…';
+      tooltip = label;
+    } else if (isOnline == false) {
+      icon = Icons.cloud_off_outlined;
+      label = 'Çevrimdışı';
+      tooltip = lastSuccessfulSyncAt == null
+          ? label
+          : '$label · Son başarılı eşitleme mevcut';
+    } else if (lastError?.trim().isNotEmpty == true) {
+      icon = Icons.cloud_off_outlined;
+      label = 'Senkronizasyon sorunu';
+      tooltip = '$label: $lastError';
     } else if (pendingCount > 0) {
       icon = Icons.sync_rounded;
       label = '$pendingCount değişiklik bekliyor';
+      tooltip = label;
+    } else if (lastSuccessfulSyncAt == null) {
+      icon = Icons.cloud_queue_outlined;
+      label = 'Henüz eşitlenmedi';
+      tooltip = label;
     } else {
       icon = Icons.cloud_done_outlined;
       label = 'Senkronize';
+      final DateTime local = lastSuccessfulSyncAt!.toLocal();
+      tooltip =
+          '$label · ${MaterialLocalizations.of(context).formatShortDate(local)} ${TimeOfDay.fromDateTime(local).format(context)}';
     }
     return Tooltip(
-      message: label,
+      message: tooltip,
       child: Semantics(
         label: label,
         child: Padding(

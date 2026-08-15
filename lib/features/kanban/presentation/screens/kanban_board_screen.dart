@@ -6,39 +6,28 @@ import 'package:not_app/features/kanban/domain/entities/board_column.dart';
 import 'package:not_app/features/kanban/domain/entities/kanban_card.dart';
 import 'package:not_app/features/kanban/domain/entities/kanban_snapshot.dart';
 import 'package:not_app/features/kanban/presentation/screens/card_detail_screen.dart';
+import 'package:not_app/features/kanban/presentation/widgets/kanban_color.dart';
 
 class KanbanBoardScreen extends ConsumerWidget {
   const KanbanBoardScreen({super.key, required this.boardId});
   final String boardId;
 
   Future<void> _addColumn(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
-    final String? title = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Yeni kolon'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Kolon adı'),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Vazgeç'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Ekle'),
-          ),
-        ],
-      ),
+    final TitleColorValue? value = await showTitleColorDialog(
+      context,
+      dialogTitle: 'Yeni kolon',
+      fieldLabel: 'Kolon adı',
+      confirmLabel: 'Ekle',
     );
-    controller.dispose();
-    if (title != null && title.isNotEmpty)
+    if (value != null) {
       await ref
           .read(kanbanRepositoryProvider)
-          .createColumn(boardId: boardId, title: title);
+          .createColumn(
+            boardId: boardId,
+            title: value.title,
+            colorHex: value.colorHex,
+          );
+    }
   }
 
   @override
@@ -58,13 +47,16 @@ class KanbanBoardScreen extends ConsumerWidget {
       body: StreamBuilder<KanbanSnapshot?>(
         stream: repo.watchBoard(boardId),
         builder: (context, snapshot) {
-          if (snapshot.hasError)
+          if (snapshot.hasError) {
             return Center(child: Text(snapshot.error.toString()));
-          if (!snapshot.hasData)
+          }
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
+          }
           final KanbanSnapshot? data = snapshot.data;
-          if (data == null)
+          if (data == null) {
             return const Center(child: Text('Pano bulunamadı.'));
+          }
           if (data.columns.isEmpty) {
             return Center(
               child: FilledButton.icon(
@@ -74,15 +66,34 @@ class KanbanBoardScreen extends ConsumerWidget {
               ),
             );
           }
+          final Color? boardColor = colorFromHex(data.board.colorHex);
           return Column(
             children: <Widget>[
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    data.board.title,
-                    style: Theme.of(context).textTheme.headlineMedium,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      if (boardColor != null) ...<Widget>[
+                        Container(
+                          width: 10,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: boardColor,
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      Flexible(
+                        child: Text(
+                          data.board.title,
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -172,6 +183,7 @@ class _KanbanColumn extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final Color? columnColor = colorFromHex(column.colorHex);
     return Card(
       child: Column(
         children: <Widget>[
@@ -179,6 +191,17 @@ class _KanbanColumn extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(14, 10, 6, 8),
             child: Row(
               children: <Widget>[
+                if (columnColor != null) ...<Widget>[
+                  Container(
+                    width: 8,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: columnColor,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 Expanded(
                   child: Text(
                     '${column.title}  ${cards.length}',
@@ -321,16 +344,18 @@ class _ColumnMenu extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => PopupMenuButton<String>(
     onSelected: (value) async {
       final repo = ref.read(kanbanRepositoryProvider);
-      if (value == 'left' && columnIndex > 0)
+      if (value == 'left' && columnIndex > 0) {
         await repo.reorderColumn(
           columnId: column.id,
           destinationIndex: columnIndex - 1,
         );
-      if (value == 'right' && columnIndex < snapshot.columns.length - 1)
+      }
+      if (value == 'right' && columnIndex < snapshot.columns.length - 1) {
         await repo.reorderColumn(
           columnId: column.id,
           destinationIndex: columnIndex + 1,
         );
+      }
       if (value == 'rename') {
         final controller = TextEditingController(text: column.title);
         final String? title = await showDialog<String>(
@@ -351,8 +376,9 @@ class _ColumnMenu extends ConsumerWidget {
           ),
         );
         controller.dispose();
-        if (title != null && title.isNotEmpty)
+        if (title != null && title.isNotEmpty) {
           await repo.renameColumn(column.id, title);
+        }
       }
       if (value == 'delete') {
         final List<KanbanCard> cards =
@@ -363,7 +389,7 @@ class _ColumnMenu extends ConsumerWidget {
               .where((item) => item.id != column.id)
               .toList();
           if (candidates.isEmpty) {
-            if (context.mounted)
+            if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
@@ -371,6 +397,7 @@ class _ColumnMenu extends ConsumerWidget {
                   ),
                 ),
               );
+            }
             return;
           }
           destination = await showDialog<String>(

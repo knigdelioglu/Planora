@@ -49,10 +49,14 @@ class HomeScreen extends ConsumerWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            onTap: () => AppRouter.push<void>(
-              context,
-              NoteEditorScreen(noteId: note.id),
-            ),
+            onTap: () async {
+              await ref.read(notesRepositoryProvider).markOpened(note.id);
+              if (!context.mounted) return;
+              await AppRouter.push<void>(
+                context,
+                NoteEditorScreen(noteId: note.id),
+              );
+            },
           ),
         ),
         _Section<ReminderEntity>(
@@ -90,7 +94,6 @@ class _Section<T> extends StatelessWidget {
     required this.empty,
     required this.itemBuilder,
   });
-
   final String title;
   final Stream<List<T>> stream;
   final String empty;

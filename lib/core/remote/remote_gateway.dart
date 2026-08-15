@@ -24,6 +24,7 @@ abstract interface class RemoteGateway {
     required File file,
   });
   Future<String> createAttachmentDownloadUrl(String remotePath);
+  Future<void> deleteAttachment(String remotePath);
 }
 
 final class DisabledRemoteGateway implements RemoteGateway {
@@ -63,6 +64,9 @@ final class DisabledRemoteGateway implements RemoteGateway {
   @override
   Future<String> createAttachmentDownloadUrl(String remotePath) async =>
       _disabled();
+
+  @override
+  Future<void> deleteAttachment(String remotePath) async => _disabled();
 }
 
 final class SupabaseRemoteGateway implements RemoteGateway {
@@ -103,8 +107,9 @@ final class SupabaseRemoteGateway implements RemoteGateway {
     final Map<String, Object?> data = Map<String, Object?>.from(raw);
     if (data['status'] == 'conflict') {
       final Object? remoteRaw = data['remote'];
-      if (remoteRaw is! Map)
+      if (remoteRaw is! Map) {
         throw StateError('Conflict response is missing remote entity.');
+      }
       return RemoteApplyConflict(
         _mapEntity(Map<String, Object?>.from(remoteRaw)),
       );
@@ -155,8 +160,9 @@ final class SupabaseRemoteGateway implements RemoteGateway {
     required File file,
   }) async {
     if (!available) throw StateError('Cloud account is not signed in.');
-    if (!await file.exists())
+    if (!await file.exists()) {
       throw FileSystemException('Attachment is missing.', file.path);
+    }
     await _client.storage
         .from('attachments')
         .upload(remotePath, file, fileOptions: const FileOptions(upsert: true));
@@ -166,5 +172,11 @@ final class SupabaseRemoteGateway implements RemoteGateway {
   Future<String> createAttachmentDownloadUrl(String remotePath) {
     if (!available) throw StateError('Cloud account is not signed in.');
     return _client.storage.from('attachments').createSignedUrl(remotePath, 600);
+  }
+
+  @override
+  Future<void> deleteAttachment(String remotePath) async {
+    if (!available) throw StateError('Cloud account is not signed in.');
+    await _client.storage.from('attachments').remove(<String>[remotePath]);
   }
 }

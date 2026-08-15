@@ -49,8 +49,9 @@ final class SyncEngine {
   bool _running = false;
 
   Future<SyncRunResult> runOnce() async {
-    if (_running || !_remote.available)
+    if (_running || !_remote.available) {
       return const SyncRunResult(pushed: 0, pulled: 0, conflicts: 0);
+    }
     _running = true;
     int pushed = 0;
     int pulled = 0;
@@ -155,6 +156,14 @@ final class SyncEngine {
       payload: payload,
     );
     if (result is RemoteApplyConflict) {
+      final bool alreadyDeleted =
+          operation.operationType == SyncOperationType.delete &&
+          result.remote.deletedAt != null &&
+          result.remote.version >= version;
+      if (alreadyDeleted) {
+        await _deleteAttachmentBlobIfNeeded(operation);
+        return false;
+      }
       final Map<String, Object?>? local = await _localStore.payloadFor(
         operation.entityType,
         operation.entityId,
@@ -173,17 +182,35 @@ final class SyncEngine {
       );
       return true;
     }
+    await _deleteAttachmentBlobIfNeeded(operation);
     return false;
+  }
+
+  Future<void> _deleteAttachmentBlobIfNeeded(SyncOperation operation) async {
+    if (operation.entityType != 'attachment' ||
+        operation.operationType != SyncOperationType.delete) {
+      return;
+    }
+    final String remotePath = (operation.payload['remotePath'] ?? '')
+        .toString()
+        .trim();
+    if (remotePath.isEmpty) return;
+    await _remote.deleteAttachment(remotePath);
   }
 
   Future<void> _uploadAttachment(SyncOperation operation) async {
     final String localPath = (operation.payload['localPath'] ?? '').toString();
     final String fileName = (operation.payload['fileName'] ?? 'attachment')
         .toString();
-    if (localPath.isEmpty)
+    if (localPath.isEmpty) {
       throw StateError('Upload operation has no local file path.');
+    }
     final String? uid = _remote.userId;
     if (uid == null) throw StateError('Cloud account is not signed in.');
+    final Attachment? beforeUpload = await (_database.select(
+      _database.attachments,
+    )..where((tbl) => tbl.id.equals(operation.entityId))).getSingleOrNull();
+    if (beforeUpload == null || beforeUpload.deletedAt != null) return;
     final String remotePath =
         '$uid/${operation.entityId}/${_safeRemoteName(fileName)}';
     await _remote.uploadAttachment(
@@ -193,7 +220,10 @@ final class SyncEngine {
     final Attachment? row = await (_database.select(
       _database.attachments,
     )..where((tbl) => tbl.id.equals(operation.entityId))).getSingleOrNull();
-    if (row == null || row.deletedAt != null) return;
+    if (row == null || row.deletedAt != null) {
+      await _remote.deleteAttachment(remotePath);
+      return;
+    }
     final DateTime now = _clock.nowUtc();
     final int nextVersion = row.version + 1;
     await _database.transaction(() async {

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
-import 'package:not_app/features/attachments/domain/entities/attachment.dart';
+import 'package:not_app/features/attachments/presentation/attachments_section.dart';
 import 'package:not_app/features/kanban/domain/entities/kanban_card.dart';
-import 'package:not_app/features/reminders/domain/entities/reminder.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:not_app/features/reminders/presentation/reminder_widgets.dart';
 
 class CardDetailScreen extends ConsumerStatefulWidget {
   const CardDetailScreen({super.key, required this.cardId});
@@ -33,10 +32,11 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
           title: _title.text.trim(),
           description: _description.text.trim(),
         );
-    if (mounted)
+    if (mounted) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Kart cihazda kaydedildi.')));
+    }
   }
 
   Future<void> _addAttachment() async {
@@ -47,50 +47,16 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
         .addFromFile(parentType: 'card', parentId: widget.cardId, source: file);
   }
 
-  Future<void> _addReminder() async {
-    final DateTime now = DateTime.now();
-    final DateTime? date = await showDatePicker(
-      context: context,
-      firstDate: now,
-      lastDate: DateTime(now.year + 5),
-      initialDate: now,
-    );
-    if (date == null || !mounted) return;
-    final TimeOfDay? time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
-    );
-    if (time == null) return;
-    final DateTime local = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      time.hour,
-      time.minute,
-    );
-    if (!local.isAfter(DateTime.now())) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Hatırlatıcı saati gelecekte olmalıdır.'),
-          ),
-        );
-      return;
-    }
-    final zone = ref.read(notificationServiceProvider).localTimeZoneId;
-    await ref
-        .read(remindersRepositoryProvider)
-        .create(
-          parentType: 'card',
-          parentId: widget.cardId,
-          title: _title.text.trim().isEmpty
-              ? 'Kart hatırlatıcısı'
-              : _title.text.trim(),
-          body: _description.text.trim(),
-          scheduledAtUtc: local.toUtc(),
-          timeZoneId: zone,
-        );
-  }
+  Future<void> _addReminder(KanbanCard card) => createReminderForParent(
+    context,
+    ref,
+    parentType: 'card',
+    parentId: card.id,
+    defaultTitle: _title.text.trim().isEmpty
+        ? 'Kart hatırlatıcısı'
+        : _title.text.trim(),
+    defaultBody: _description.text.trim(),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -100,11 +66,13 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
       body: StreamBuilder<KanbanCard?>(
         stream: repo.watchCard(widget.cardId),
         builder: (context, snapshot) {
-          if (!snapshot.hasData)
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
+          }
           final card = snapshot.data;
-          if (card == null)
+          if (card == null) {
             return const Center(child: Text('Kart bulunamadı.'));
+          }
           if (_loadedCardId != card.id) {
             _loadedCardId = card.id;
             _title.text = card.title;
@@ -141,7 +109,7 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
                     label: const Text('Dosya ekle'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: _addReminder,
+                    onPressed: () => _addReminder(card),
                     icon: const Icon(Icons.notifications_none),
                     label: const Text('Hatırlatıcı'),
                   ),
@@ -152,6 +120,9 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
                             context: context,
                             builder: (context) => AlertDialog(
                               title: const Text('Kart silinsin mi?'),
+                              content: const Text(
+                                'Kartla birlikte bağlı ekler ve hatırlatıcılar da kaldırılır.',
+                              ),
                               actions: <Widget>[
                                 TextButton(
                                   onPressed: () =>
@@ -179,88 +150,18 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
               const SizedBox(height: 28),
               Text('Ekler', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 8),
-              _AttachmentList(parentId: card.id),
+              AttachmentsSection(parentType: 'card', parentId: card.id),
               const SizedBox(height: 28),
               Text(
                 'Hatırlatıcılar',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
-              _ReminderList(parentId: card.id),
+              ReminderList(parentType: 'card', parentId: card.id),
             ],
           );
         },
       ),
-    );
-  }
-}
-
-class _AttachmentList extends ConsumerWidget {
-  const _AttachmentList({required this.parentId});
-  final String parentId;
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(attachmentsRepositoryProvider);
-    return StreamBuilder<List<AttachmentEntity>>(
-      stream: repo.watchForParent('card', parentId),
-      builder: (context, snapshot) {
-        final data = snapshot.data ?? const <AttachmentEntity>[];
-        if (data.isEmpty) return const Text('Ek dosya yok.');
-        return Column(
-          children: data
-              .map(
-                (item) => ListTile(
-                  leading: const Icon(Icons.insert_drive_file_outlined),
-                  title: Text(item.fileName),
-                  subtitle: Text(
-                    '${(item.sizeBytes / 1024).ceil()} KB · ${item.transferState}',
-                  ),
-                  onTap: () async {
-                    final file = await repo.ensureLocal(item.id);
-                    await launchUrl(Uri.file(file.path));
-                  },
-                  trailing: IconButton(
-                    onPressed: () => repo.remove(item.id),
-                    icon: const Icon(Icons.close),
-                  ),
-                ),
-              )
-              .toList(),
-        );
-      },
-    );
-  }
-}
-
-class _ReminderList extends ConsumerWidget {
-  const _ReminderList({required this.parentId});
-  final String parentId;
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(remindersRepositoryProvider);
-    return StreamBuilder<List<ReminderEntity>>(
-      stream: repo.watchForParent('card', parentId),
-      builder: (context, snapshot) {
-        final data = snapshot.data ?? const <ReminderEntity>[];
-        if (data.isEmpty) return const Text('Hatırlatıcı yok.');
-        return Column(
-          children: data
-              .map(
-                (item) => ListTile(
-                  leading: const Icon(Icons.notifications_none),
-                  title: Text(item.title),
-                  subtitle: Text(
-                    '${item.scheduledAtUtc.toLocal()} · ${item.schedulingStatus}',
-                  ),
-                  trailing: IconButton(
-                    onPressed: () => repo.remove(item.id),
-                    icon: const Icon(Icons.close),
-                  ),
-                ),
-              )
-              .toList(),
-        );
-      },
     );
   }
 }

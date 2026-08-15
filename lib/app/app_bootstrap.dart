@@ -19,6 +19,7 @@ import 'package:not_app/features/attachments/domain/repositories/attachments_rep
 import 'package:not_app/features/conflicts/data/repositories/conflict_repository_impl.dart';
 import 'package:not_app/features/conflicts/domain/repositories/conflict_repository.dart';
 import 'package:not_app/features/kanban/data/repositories/kanban_repository_impl.dart';
+import 'package:not_app/features/kanban/data/repositories/lifecycle_kanban_repository.dart';
 import 'package:not_app/features/kanban/domain/repositories/kanban_repository.dart';
 import 'package:not_app/features/notes/data/repositories/notes_repository_impl.dart';
 import 'package:not_app/features/notes/domain/repositories/notes_repository.dart';
@@ -81,22 +82,11 @@ final class AppBootstrap {
         clock: clock,
         logger: logger,
       );
-      final SyncCoordinator coordinator = SyncCoordinator(
-        networkInfo: network,
-        authService: auth,
-        engine: engine,
-        logger: logger,
-      );
       final AppSettingsRepository settings = DriftAppSettingsRepository(
         database,
         clock,
       );
       final NotesRepository notes = DriftNotesRepository(
-        database: database,
-        syncQueue: queue,
-        clock: clock,
-      );
-      final KanbanRepository kanban = DriftKanbanRepository(
         database: database,
         syncQueue: queue,
         clock: clock,
@@ -114,7 +104,25 @@ final class AppBootstrap {
         syncQueue: queue,
         clock: clock,
       );
+      final KanbanRepository kanban = LifecycleKanbanRepository(
+        delegate: DriftKanbanRepository(
+          database: database,
+          syncQueue: queue,
+          clock: clock,
+        ),
+        attachments: attachments,
+        reminders: reminders,
+      );
       final SearchRepository search = DriftSearchRepository(database);
+      final SyncCoordinator coordinator = SyncCoordinator(
+        networkInfo: network,
+        authService: auth,
+        engine: engine,
+        database: database,
+        clock: clock,
+        reconcileReminders: reminders.reconcile,
+        logger: logger,
+      );
       await reminders.reconcile();
       await coordinator.start();
 

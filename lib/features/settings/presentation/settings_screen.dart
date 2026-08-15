@@ -63,10 +63,11 @@ class SettingsScreen extends ConsumerWidget {
             .signIn(email: result.$1, password: result.$2);
       }
     } catch (error) {
-      if (context.mounted)
+      if (context.mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
     }
   }
 
@@ -130,7 +131,7 @@ class SettingsScreen extends ConsumerWidget {
                       onPressed: () async {
                         final state = await services.notifications
                             .requestPermissions();
-                        if (context.mounted)
+                        if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
@@ -140,6 +141,7 @@ class SettingsScreen extends ConsumerWidget {
                               ),
                             ),
                           );
+                        }
                       },
                       icon: const Icon(Icons.notifications_active_outlined),
                       label: const Text('Bildirim izinlerini iste'),
@@ -189,8 +191,20 @@ class SettingsScreen extends ConsumerWidget {
                             ],
                             if (state.isSignedIn) ...<Widget>[
                               FilledButton.icon(
-                                onPressed: () =>
-                                    services.syncCoordinator.syncNow(),
+                                onPressed: () async {
+                                  final result = await services.syncCoordinator
+                                      .syncNow();
+                                  if (!context.mounted) return;
+                                  final health =
+                                      services.syncCoordinator.currentHealth;
+                                  final String message =
+                                      health.lastError?.trim().isNotEmpty == true
+                                      ? 'Eşitleme başarısız: ${health.lastError}'
+                                      : 'Eşitleme tamamlandı: ${result.pushed} gönderildi, ${result.pulled} alındı, ${result.conflicts} çakışma.';
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(message)),
+                                  );
+                                },
                                 icon: const Icon(Icons.sync),
                                 label: const Text('Şimdi eşitle'),
                               ),

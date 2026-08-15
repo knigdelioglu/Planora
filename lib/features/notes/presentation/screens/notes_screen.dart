@@ -70,10 +70,12 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           child: StreamBuilder<List<NoteEntity>>(
             stream: repository.watchNotes(_filter),
             builder: (context, snapshot) {
-              if (snapshot.hasError)
+              if (snapshot.hasError) {
                 return ErrorState(message: snapshot.error.toString());
-              if (!snapshot.hasData)
+              }
+              if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
+              }
               final List<NoteEntity> notes = snapshot.requireData;
               if (notes.isEmpty) {
                 return EmptyState(
@@ -125,8 +127,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                     trailing: note.isDeleted
                         ? PopupMenuButton<String>(
                             onSelected: (value) async {
-                              if (value == 'restore')
+                              if (value == 'restore') {
                                 await repository.restore(note.id);
+                              }
                               if (value == 'delete') {
                                 final bool confirmed =
                                     await showDialog<bool>(
@@ -153,8 +156,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                       ),
                                     ) ??
                                     false;
-                                if (confirmed)
+                                if (confirmed) {
                                   await repository.deletePermanently(note.id);
+                                }
                               }
                             },
                             itemBuilder: (_) => const <PopupMenuEntry<String>>[
@@ -168,19 +172,39 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                               ),
                             ],
                           )
-                        : IconButton(
-                            tooltip: note.isFavorite
-                                ? 'Favoriden çıkar'
-                                : 'Favoriye ekle',
-                            onPressed: () => repository.setFavorite(
-                              note.id,
-                              !note.isFavorite,
-                            ),
-                            icon: Icon(
-                              note.isFavorite
-                                  ? Icons.star_rounded
-                                  : Icons.star_border_rounded,
-                            ),
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              IconButton(
+                                tooltip: note.isFavorite
+                                    ? 'Favoriden çıkar'
+                                    : 'Favoriye ekle',
+                                onPressed: () => repository.setFavorite(
+                                  note.id,
+                                  !note.isFavorite,
+                                ),
+                                icon: Icon(
+                                  note.isFavorite
+                                      ? Icons.star_rounded
+                                      : Icons.star_border_rounded,
+                                ),
+                              ),
+                              PopupMenuButton<String>(
+                                tooltip: 'Not işlemleri',
+                                onSelected: (value) async {
+                                  if (value == 'trash') {
+                                    await repository.trash(note.id);
+                                  }
+                                },
+                                itemBuilder: (_) =>
+                                    const <PopupMenuEntry<String>>[
+                                      PopupMenuItem(
+                                        value: 'trash',
+                                        child: Text('Çöpe taşı'),
+                                      ),
+                                    ],
+                              ),
+                            ],
                           ),
                     onTap: note.isDeleted
                         ? null
