@@ -18,11 +18,11 @@ final class DriftConflictRepository implements ConflictRepository {
     required LocalEntityStore localStore,
     required AppClock clock,
     Uuid? uuid,
-  })  : _database = database,
-        _syncQueue = syncQueue,
-        _localStore = localStore,
-        _clock = clock,
-        _uuid = uuid ?? const Uuid();
+  }) : _database = database,
+       _syncQueue = syncQueue,
+       _localStore = localStore,
+       _clock = clock,
+       _uuid = uuid ?? const Uuid();
 
   final AppDatabase _database;
   final SyncQueueRepository _syncQueue;
@@ -34,7 +34,9 @@ final class DriftConflictRepository implements ConflictRepository {
   Stream<List<SyncConflictEntity>> watchOpen() {
     final query = _database.select(_database.conflicts)
       ..where((tbl) => tbl.resolvedAt.isNull())
-      ..orderBy(<OrderingTerm Function($ConflictsTable)>[(tbl) => OrderingTerm.desc(tbl.createdAt)]);
+      ..orderBy(<OrderingTerm Function($ConflictsTable)>[
+        (tbl) => OrderingTerm.desc(tbl.createdAt),
+      ]);
     return query.watch().map((rows) => rows.map(_map).toList(growable: false));
   }
 
@@ -46,13 +48,19 @@ final class DriftConflictRepository implements ConflictRepository {
     required RemoteEntity remote,
   }) async {
     final String id = _uuid.v7();
-    await _database.into(_database.conflicts).insert(
+    await _database
+        .into(_database.conflicts)
+        .insert(
           ConflictsCompanion.insert(
             id: id,
             entityType: entityType,
             entityId: entityId,
             localJson: jsonEncode(local),
-            localUpdatedAt: DateTime.tryParse((local['updatedAt'] ?? '').toString())?.toUtc() ?? _clock.nowUtc(),
+            localUpdatedAt:
+                DateTime.tryParse(
+                  (local['updatedAt'] ?? '').toString(),
+                )?.toUtc() ??
+                _clock.nowUtc(),
             remoteUpdatedAt: remote.updatedAt,
             remoteJson: jsonEncode(<String, Object?>{
               ...remote.payload,
@@ -73,13 +81,19 @@ final class DriftConflictRepository implements ConflictRepository {
     final Map<String, Object?> local = _decode(row.localJson);
     final Map<String, Object?> remote = _decode(row.remoteJson);
     final int remoteVersion = (remote['version'] as num?)?.toInt() ?? 0;
-    final int localVersion = (local['version'] as num?)?.toInt() ?? remoteVersion + 1;
+    final int localVersion =
+        (local['version'] as num?)?.toInt() ?? remoteVersion + 1;
     await _syncQueue.enqueue(
       entityType: row.entityType,
       entityId: row.entityId,
       operationType: SyncOperationType.upsert,
       baseVersion: remoteVersion,
-      payload: <String, Object?>{...local, 'version': localVersion <= remoteVersion ? remoteVersion + 1 : localVersion},
+      payload: <String, Object?>{
+        ...local,
+        'version': localVersion <= remoteVersion
+            ? remoteVersion + 1
+            : localVersion,
+      },
     );
     await _resolve(row.id, 'local');
   }
@@ -88,7 +102,9 @@ final class DriftConflictRepository implements ConflictRepository {
   Future<void> resolveUsingRemote(String conflictId) async {
     final Conflict row = await _load(conflictId);
     final Map<String, Object?> remote = _decode(row.remoteJson);
-    final DateTime updatedAt = DateTime.tryParse((remote['updatedAt'] ?? '').toString())?.toUtc() ?? _clock.nowUtc();
+    final DateTime updatedAt =
+        DateTime.tryParse((remote['updatedAt'] ?? '').toString())?.toUtc() ??
+        _clock.nowUtc();
     final DateTime? deletedAt = remote['deletedAt'] == null
         ? null
         : DateTime.tryParse(remote['deletedAt'].toString())?.toUtc();
@@ -118,16 +134,25 @@ final class DriftConflictRepository implements ConflictRepository {
     final Conflict row = await _load(conflictId);
     final Map<String, Object?> local = _decode(row.localJson);
     if (row.entityType != 'note' && row.entityType != 'card') {
-      throw StateError('Only note and card conflicts can be preserved as a copy.');
+      throw StateError(
+        'Only note and card conflicts can be preserved as a copy.',
+      );
     }
     final String copyId = _uuid.v7();
     final DateTime now = _clock.nowUtc();
     if (row.entityType == 'note') {
-      await _database.into(_database.notes).insert(
+      await _database
+          .into(_database.notes)
+          .insert(
             NotesCompanion.insert(
               id: copyId,
-              title: Value<String>('${local['title'] ?? 'Not'} (Çakışma kopyası)'),
-              contentJson: Value<String>((local['contentJson'] ?? '{"version":1,"blocks":[]}').toString()),
+              title: Value<String>(
+                '${local['title'] ?? 'Not'} (Çakışma kopyası)',
+              ),
+              contentJson: Value<String>(
+                (local['contentJson'] ?? '{"version":1,"blocks":[]}')
+                    .toString(),
+              ),
               createdAt: now,
               updatedAt: now,
             ),
@@ -135,15 +160,20 @@ final class DriftConflictRepository implements ConflictRepository {
     } else {
       final String? boardId = local['boardId'] as String?;
       final String? columnId = local['columnId'] as String?;
-      if (boardId == null || columnId == null) throw StateError('Card conflict data is incomplete.');
-      await _database.into(_database.cards).insert(
+      if (boardId == null || columnId == null)
+        throw StateError('Card conflict data is incomplete.');
+      await _database
+          .into(_database.cards)
+          .insert(
             CardsCompanion.insert(
               id: copyId,
               boardId: boardId,
               columnId: columnId,
               title: '${local['title'] ?? 'Kart'} (Çakışma kopyası)',
               description: Value<String?>(local['description'] as String?),
-              rankKey: Value<String>((local['rankKey'] ?? 'hzzzzzzzzzzz').toString()),
+              rankKey: Value<String>(
+                (local['rankKey'] ?? 'hzzzzzzzzzzz').toString(),
+              ),
               createdAt: now,
               updatedAt: now,
             ),
@@ -154,20 +184,30 @@ final class DriftConflictRepository implements ConflictRepository {
       entityId: copyId,
       operationType: SyncOperationType.upsert,
       baseVersion: 0,
-      payload: <String, Object?>{...local, 'id': copyId, 'version': 1, 'updatedAt': now.toIso8601String()},
+      payload: <String, Object?>{
+        ...local,
+        'id': copyId,
+        'version': 1,
+        'updatedAt': now.toIso8601String(),
+      },
     );
     await resolveUsingRemote(conflictId);
     await _resolve(row.id, 'copy');
   }
 
   Future<Conflict> _load(String id) async {
-    final Conflict? row = await (_database.select(_database.conflicts)..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
-    if (row == null || row.resolvedAt != null) throw StateError('Conflict is not open.');
+    final Conflict? row = await (_database.select(
+      _database.conflicts,
+    )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
+    if (row == null || row.resolvedAt != null)
+      throw StateError('Conflict is not open.');
     return row;
   }
 
   Future<void> _resolve(String id, String resolution) {
-    return (_database.update(_database.conflicts)..where((tbl) => tbl.id.equals(id))).write(
+    return (_database.update(
+      _database.conflicts,
+    )..where((tbl) => tbl.id.equals(id))).write(
       ConflictsCompanion(
         resolvedAt: Value<DateTime?>(_clock.nowUtc()),
         resolution: Value<String?>(resolution),
@@ -177,17 +217,19 @@ final class DriftConflictRepository implements ConflictRepository {
 
   Map<String, Object?> _decode(String raw) {
     final Object? value = jsonDecode(raw);
-    return value is Map ? Map<String, Object?>.from(value) : <String, Object?>{};
+    return value is Map
+        ? Map<String, Object?>.from(value)
+        : <String, Object?>{};
   }
 
   SyncConflictEntity _map(Conflict row) => SyncConflictEntity(
-        id: row.id,
-        entityType: row.entityType,
-        entityId: row.entityId,
-        localJson: row.localJson,
-        remoteJson: row.remoteJson,
-        createdAt: row.createdAt,
-        resolvedAt: row.resolvedAt,
-        resolution: row.resolution,
-      );
+    id: row.id,
+    entityType: row.entityType,
+    entityId: row.entityId,
+    localJson: row.localJson,
+    remoteJson: row.remoteJson,
+    createdAt: row.createdAt,
+    resolvedAt: row.resolvedAt,
+    resolution: row.resolution,
+  );
 }

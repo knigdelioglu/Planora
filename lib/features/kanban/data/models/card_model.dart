@@ -22,13 +22,13 @@ final class CardModel {
   final int version;
 
   KanbanCard toEntity() => KanbanCard(
-        id: id,
-        boardId: boardId,
-        columnId: columnId,
-        title: title,
-        description: description,
-        rank: rank,
-        updatedAt: updatedAt,
-        version: version,
-      );
+    id: id,
+    boardId: boardId,
+    columnId: columnId,
+    title: title,
+    description: description,
+    rank: rank,
+    updatedAt: updatedAt,
+    version: version,
+  );
 }

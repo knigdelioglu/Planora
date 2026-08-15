@@ -15,8 +15,14 @@ abstract interface class RemoteGateway {
     required DateTime? deletedAt,
     required Map<String, Object?> payload,
   });
-  Future<List<RemoteEntity>> pull({required int afterRevision, int limit = 250});
-  Future<void> uploadAttachment({required String remotePath, required File file});
+  Future<List<RemoteEntity>> pull({
+    required int afterRevision,
+    int limit = 250,
+  });
+  Future<void> uploadAttachment({
+    required String remotePath,
+    required File file,
+  });
   Future<String> createAttachmentDownloadUrl(String remotePath);
 }
 
@@ -28,7 +34,8 @@ final class DisabledRemoteGateway implements RemoteGateway {
   @override
   String? get userId => null;
 
-  Never _disabled() => throw StateError('Cloud sync is not configured or signed in.');
+  Never _disabled() =>
+      throw StateError('Cloud sync is not configured or signed in.');
 
   @override
   Future<RemoteApplyResult> apply({
@@ -42,13 +49,20 @@ final class DisabledRemoteGateway implements RemoteGateway {
   }) async => _disabled();
 
   @override
-  Future<List<RemoteEntity>> pull({required int afterRevision, int limit = 250}) async => _disabled();
+  Future<List<RemoteEntity>> pull({
+    required int afterRevision,
+    int limit = 250,
+  }) async => _disabled();
 
   @override
-  Future<void> uploadAttachment({required String remotePath, required File file}) async => _disabled();
+  Future<void> uploadAttachment({
+    required String remotePath,
+    required File file,
+  }) async => _disabled();
 
   @override
-  Future<String> createAttachmentDownloadUrl(String remotePath) async => _disabled();
+  Future<String> createAttachmentDownloadUrl(String remotePath) async =>
+      _disabled();
 }
 
 final class SupabaseRemoteGateway implements RemoteGateway {
@@ -89,23 +103,33 @@ final class SupabaseRemoteGateway implements RemoteGateway {
     final Map<String, Object?> data = Map<String, Object?>.from(raw);
     if (data['status'] == 'conflict') {
       final Object? remoteRaw = data['remote'];
-      if (remoteRaw is! Map) throw StateError('Conflict response is missing remote entity.');
-      return RemoteApplyConflict(_mapEntity(Map<String, Object?>.from(remoteRaw)));
+      if (remoteRaw is! Map)
+        throw StateError('Conflict response is missing remote entity.');
+      return RemoteApplyConflict(
+        _mapEntity(Map<String, Object?>.from(remoteRaw)),
+      );
     }
     final Object? revision = data['revision'];
     return RemoteApplySuccess(revision is num ? revision.toInt() : 0);
   }
 
   @override
-  Future<List<RemoteEntity>> pull({required int afterRevision, int limit = 250}) async {
+  Future<List<RemoteEntity>> pull({
+    required int afterRevision,
+    int limit = 250,
+  }) async {
     if (!available) return const <RemoteEntity>[];
     final List<Map<String, dynamic>> rows = await _client
         .from('entities')
-        .select('entity_type,entity_id,version,updated_at,deleted_at,payload,sync_revision')
+        .select(
+          'entity_type,entity_id,version,updated_at,deleted_at,payload,sync_revision',
+        )
         .gt('sync_revision', afterRevision)
         .order('sync_revision')
         .limit(limit);
-    return rows.map((row) => _mapEntity(Map<String, Object?>.from(row))).toList(growable: false);
+    return rows
+        .map((row) => _mapEntity(Map<String, Object?>.from(row)))
+        .toList(growable: false);
   }
 
   RemoteEntity _mapEntity(Map<String, Object?> row) {
@@ -115,21 +139,27 @@ final class SupabaseRemoteGateway implements RemoteGateway {
       entityId: row['entity_id']! as String,
       version: (row['version']! as num).toInt(),
       updatedAt: DateTime.parse(row['updated_at']! as String).toUtc(),
-      deletedAt: row['deleted_at'] == null ? null : DateTime.parse(row['deleted_at']! as String).toUtc(),
-      payload: payload is Map ? Map<String, Object?>.from(payload) : const <String, Object?>{},
+      deletedAt: row['deleted_at'] == null
+          ? null
+          : DateTime.parse(row['deleted_at']! as String).toUtc(),
+      payload: payload is Map
+          ? Map<String, Object?>.from(payload)
+          : const <String, Object?>{},
       syncRevision: (row['sync_revision']! as num).toInt(),
     );
   }
 
   @override
-  Future<void> uploadAttachment({required String remotePath, required File file}) async {
+  Future<void> uploadAttachment({
+    required String remotePath,
+    required File file,
+  }) async {
     if (!available) throw StateError('Cloud account is not signed in.');
-    if (!await file.exists()) throw FileSystemException('Attachment is missing.', file.path);
-    await _client.storage.from('attachments').upload(
-          remotePath,
-          file,
-          fileOptions: const FileOptions(upsert: true),
-        );
+    if (!await file.exists())
+      throw FileSystemException('Attachment is missing.', file.path);
+    await _client.storage
+        .from('attachments')
+        .upload(remotePath, file, fileOptions: const FileOptions(upsert: true));
   }
 
   @override

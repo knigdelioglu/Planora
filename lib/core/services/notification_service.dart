@@ -34,7 +34,7 @@ abstract interface class NotificationService {
 
 final class LocalNotificationService implements NotificationService {
   LocalNotificationService({FlutterLocalNotificationsPlugin? plugin})
-      : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+    : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   final FlutterLocalNotificationsPlugin _plugin;
   String _localTimeZoneId = 'UTC';
@@ -55,8 +55,16 @@ final class LocalNotificationService implements NotificationService {
     }
     const InitializationSettings settings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      iOS: DarwinInitializationSettings(requestAlertPermission: false, requestBadgePermission: false, requestSoundPermission: false),
-      macOS: DarwinInitializationSettings(requestAlertPermission: false, requestBadgePermission: false, requestSoundPermission: false),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
+      macOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
     );
     await _plugin.initialize(settings: settings);
   }
@@ -66,17 +74,41 @@ final class LocalNotificationService implements NotificationService {
     bool notifications = true;
     bool exact = true;
     if (Platform.isAndroid) {
-      final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       notifications = await android?.requestNotificationsPermission() ?? true;
       exact = await android?.requestExactAlarmsPermission() ?? true;
     } else if (Platform.isIOS) {
-      final ios = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
-      notifications = await ios?.requestPermissions(alert: true, badge: true, sound: true) ?? false;
+      final ios = _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
+      notifications =
+          await ios?.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          ) ??
+          false;
     } else if (Platform.isMacOS) {
-      final mac = _plugin.resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>();
-      notifications = await mac?.requestPermissions(alert: true, badge: true, sound: true) ?? false;
+      final mac = _plugin
+          .resolvePlatformSpecificImplementation<
+            MacOSFlutterLocalNotificationsPlugin
+          >();
+      notifications =
+          await mac?.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          ) ??
+          false;
     }
-    return NotificationPermissionState(notificationsAllowed: notifications, exactAlarmsAllowed: exact);
+    return NotificationPermissionState(
+      notificationsAllowed: notifications,
+      exactAlarmsAllowed: exact,
+    );
   }
 
   @override
@@ -84,11 +116,17 @@ final class LocalNotificationService implements NotificationService {
     bool notifications = true;
     bool exact = true;
     if (Platform.isAndroid) {
-      final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       notifications = await android?.areNotificationsEnabled() ?? true;
       exact = await android?.canScheduleExactNotifications() ?? true;
     }
-    return NotificationPermissionState(notificationsAllowed: notifications, exactAlarmsAllowed: exact);
+    return NotificationPermissionState(
+      notificationsAllowed: notifications,
+      exactAlarmsAllowed: exact,
+    );
   }
 
   @override
@@ -106,7 +144,10 @@ final class LocalNotificationService implements NotificationService {
     } catch (_) {
       throw ArgumentError.value(timeZoneId, 'timeZoneId', 'Unknown timezone.');
     }
-    final tz.TZDateTime scheduled = tz.TZDateTime.from(scheduledAtUtc.toUtc(), location);
+    final tz.TZDateTime scheduled = tz.TZDateTime.from(
+      scheduledAtUtc.toUtc(),
+      location,
+    );
     if (!scheduled.isAfter(tz.TZDateTime.now(location))) {
       throw ArgumentError('Reminder time must be in the future.');
     }
@@ -136,7 +177,8 @@ final class LocalNotificationService implements NotificationService {
 
   @override
   Future<Set<int>> pendingIds() async {
-    final List<PendingNotificationRequest> pending = await _plugin.pendingNotificationRequests();
+    final List<PendingNotificationRequest> pending = await _plugin
+        .pendingNotificationRequests();
     return pending.map((item) => item.id).toSet();
   }
 }

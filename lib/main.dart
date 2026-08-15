@@ -44,7 +44,9 @@ class _BootstrapHostState extends State<BootstrapHost> {
           _services = snapshot.requireData;
           AppServiceRegistry.current = snapshot.requireData;
           return ProviderScope(
-            overrides: [appServicesProvider.overrideWithValue(snapshot.requireData)],
+            overrides: [
+              appServicesProvider.overrideWithValue(snapshot.requireData),
+            ],
             child: const NotApp(),
           );
         }
@@ -62,11 +64,24 @@ class _BootstrapHostState extends State<BootstrapHost> {
                       children: <Widget>[
                         const Icon(Icons.error_outline_rounded, size: 52),
                         const SizedBox(height: 16),
-                        const Text('Not başlatılamadı', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+                        const Text(
+                          'Not başlatılamadı',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                         const SizedBox(height: 8),
-                        const Text('Yerel veritabanı veya cihaz servisleri hazırlanamadı. Veriler silinmedi. Tekrar deneyebilirsiniz.', textAlign: TextAlign.center),
+                        const Text(
+                          'Yerel veritabanı veya cihaz servisleri hazırlanamadı. Veriler silinmedi. Tekrar deneyebilirsiniz.',
+                          textAlign: TextAlign.center,
+                        ),
                         const SizedBox(height: 20),
-                        FilledButton.icon(onPressed: _retry, icon: const Icon(Icons.refresh), label: const Text('Tekrar dene')),
+                        FilledButton.icon(
+                          onPressed: _retry,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Tekrar dene'),
+                        ),
                       ],
                     ),
                   ),

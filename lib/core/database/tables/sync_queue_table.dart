@@ -1,6 +1,9 @@
 import 'package:drift/drift.dart';
 
-@TableIndex(name: 'sync_queue_due_idx', columns: {#status, #nextAttemptAt, #createdAt})
+@TableIndex(
+  name: 'sync_queue_due_idx',
+  columns: {#status, #nextAttemptAt, #createdAt},
+)
 class SyncQueue extends Table {
   TextColumn get operationId => text()();
   TextColumn get entityType => text()();

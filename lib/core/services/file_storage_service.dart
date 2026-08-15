@@ -67,7 +67,9 @@ final class SandboxFileStorageService implements FileStorageService {
     }
     final Directory root = await _supportRoot();
     final String bucket = cache ? 'cache' : 'attachments';
-    final Directory directory = Directory(p.join(root.path, bucket, attachmentId));
+    final Directory directory = Directory(
+      p.join(root.path, bucket, attachmentId),
+    );
     await directory.create(recursive: true);
     final String fileName = _safeName(p.basename(source.path));
     final File destination = File(p.join(directory.path, fileName));
@@ -97,17 +99,22 @@ final class SandboxFileStorageService implements FileStorageService {
   }
 
   @override
-  Future<void> deleteOwned(String localPath) => _deleteWithin(localPath, 'attachments');
+  Future<void> deleteOwned(String localPath) =>
+      _deleteWithin(localPath, 'attachments');
 
   @override
-  Future<void> deleteCache(String localPath) => _deleteWithin(localPath, 'cache');
+  Future<void> deleteCache(String localPath) =>
+      _deleteWithin(localPath, 'cache');
 
   Future<void> _deleteWithin(String localPath, String bucket) async {
     final Directory root = await _supportRoot();
     final String allowed = p.normalize(p.absolute(p.join(root.path, bucket)));
     final String target = p.normalize(p.absolute(localPath));
     if (!p.isWithin(allowed, target)) {
-      throw FileSystemException('Refusing to delete outside managed sandbox.', target);
+      throw FileSystemException(
+        'Refusing to delete outside managed sandbox.',
+        target,
+      );
     }
     final File file = File(target);
     if (await file.exists()) await file.delete();
@@ -135,7 +142,8 @@ final class SandboxFileStorageService implements FileStorageService {
 
   @override
   Future<void> evictCacheUntil({required int maximumBytes}) async {
-    if (maximumBytes < 0) throw ArgumentError.value(maximumBytes, 'maximumBytes');
+    if (maximumBytes < 0)
+      throw ArgumentError.value(maximumBytes, 'maximumBytes');
     final Directory root = await _supportRoot();
     final Directory cache = Directory(p.join(root.path, 'cache'));
     if (!await cache.exists()) return;

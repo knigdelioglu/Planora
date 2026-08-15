@@ -14,7 +14,8 @@ class HomeScreen extends ConsumerWidget {
 
   Future<void> _quickNote(BuildContext context, WidgetRef ref) async {
     final String id = await ref.read(notesRepositoryProvider).createNote();
-    if (context.mounted) await AppRouter.push<void>(context, NoteEditorScreen(noteId: id));
+    if (context.mounted)
+      await AppRouter.push<void>(context, NoteEditorScreen(noteId: id));
   }
 
   @override
@@ -25,17 +26,32 @@ class HomeScreen extends ConsumerWidget {
         AppPageHeader(
           title: 'Ana Sayfa',
           subtitle: 'Bugün üzerinde çalıştığınız şeylere hızlıca dönün.',
-          actions: <Widget>[FilledButton.icon(onPressed: () => _quickNote(context, ref), icon: const Icon(Icons.add), label: const Text('Hızlı not'))],
+          actions: <Widget>[
+            FilledButton.icon(
+              onPressed: () => _quickNote(context, ref),
+              icon: const Icon(Icons.add),
+              label: const Text('Hızlı not'),
+            ),
+          ],
         ),
         _Section<NoteEntity>(
           title: 'Son notlar',
-          stream: ref.watch(notesRepositoryProvider).watchNotes(NoteFilter.recent),
+          stream: ref
+              .watch(notesRepositoryProvider)
+              .watchNotes(NoteFilter.recent),
           empty: 'Henüz not yok.',
           itemBuilder: (note) => ListTile(
             leading: const Icon(Icons.description_outlined),
             title: Text(note.title.isEmpty ? 'Başlıksız not' : note.title),
-            subtitle: Text(note.document.plainText, maxLines: 1, overflow: TextOverflow.ellipsis),
-            onTap: () => AppRouter.push<void>(context, NoteEditorScreen(noteId: note.id)),
+            subtitle: Text(
+              note.document.plainText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onTap: () => AppRouter.push<void>(
+              context,
+              NoteEditorScreen(noteId: note.id),
+            ),
           ),
         ),
         _Section<ReminderEntity>(
@@ -55,7 +71,10 @@ class HomeScreen extends ConsumerWidget {
           itemBuilder: (board) => ListTile(
             leading: const Icon(Icons.view_kanban_outlined),
             title: Text(board.title),
-            onTap: () => AppRouter.push<void>(context, KanbanBoardScreen(boardId: board.id)),
+            onTap: () => AppRouter.push<void>(
+              context,
+              KanbanBoardScreen(boardId: board.id),
+            ),
           ),
         ),
       ],
@@ -64,30 +83,41 @@ class HomeScreen extends ConsumerWidget {
 }
 
 class _Section<T> extends StatelessWidget {
-  const _Section({required this.title, required this.stream, required this.empty, required this.itemBuilder});
+  const _Section({
+    required this.title,
+    required this.stream,
+    required this.empty,
+    required this.itemBuilder,
+  });
   final String title;
   final Stream<List<T>> stream;
   final String empty;
   final Widget Function(T value) itemBuilder;
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
-        child: SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              StreamBuilder<List<T>>(
-                stream: stream,
-                builder: (context, snapshot) {
-                  final data = snapshot.data ?? const <T>[];
-                  if (data.isEmpty) return Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(empty));
-                  return Column(children: data.take(5).map(itemBuilder).toList(growable: false));
-                },
-              ),
-            ],
+    padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
+    child: SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          StreamBuilder<List<T>>(
+            stream: stream,
+            builder: (context, snapshot) {
+              final data = snapshot.data ?? const <T>[];
+              if (data.isEmpty)
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(empty),
+                );
+              return Column(
+                children: data.take(5).map(itemBuilder).toList(growable: false),
+              );
+            },
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }

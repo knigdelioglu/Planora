@@ -16,11 +16,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   NoteFilter _filter = NoteFilter.all;
 
   String _label(NoteFilter value) => switch (value) {
-        NoteFilter.all => 'Tümü',
-        NoteFilter.favorites => 'Favoriler',
-        NoteFilter.recent => 'Son kullanılan',
-        NoteFilter.trash => 'Çöp kutusu',
-      };
+    NoteFilter.all => 'Tümü',
+    NoteFilter.favorites => 'Favoriler',
+    NoteFilter.recent => 'Son kullanılan',
+    NoteFilter.trash => 'Çöp kutusu',
+  };
 
   Future<void> _create() async {
     final String id = await ref.read(notesRepositoryProvider).createNote();
@@ -35,17 +35,32 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       children: <Widget>[
         AppPageHeader(
           title: 'Notlar',
-          subtitle: 'Fikirlerinizi ve belgelerinizi çevrimdışı çalışacak şekilde saklayın.',
-          actions: <Widget>[FilledButton.icon(onPressed: _create, icon: const Icon(Icons.add), label: const Text('Yeni not'))],
+          subtitle:
+              'Fikirlerinizi ve belgelerinizi çevrimdışı çalışacak şekilde saklayın.',
+          actions: <Widget>[
+            FilledButton.icon(
+              onPressed: _create,
+              icon: const Icon(Icons.add),
+              label: const Text('Yeni not'),
+            ),
+          ],
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Align(
             alignment: Alignment.centerLeft,
             child: SegmentedButton<NoteFilter>(
-              segments: NoteFilter.values.map((value) => ButtonSegment<NoteFilter>(value: value, label: Text(_label(value)))).toList(),
+              segments: NoteFilter.values
+                  .map(
+                    (value) => ButtonSegment<NoteFilter>(
+                      value: value,
+                      label: Text(_label(value)),
+                    ),
+                  )
+                  .toList(),
               selected: <NoteFilter>{_filter},
-              onSelectionChanged: (value) => setState(() => _filter = value.first),
+              onSelectionChanged: (value) =>
+                  setState(() => _filter = value.first),
               showSelectedIcon: false,
             ),
           ),
@@ -55,15 +70,28 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           child: StreamBuilder<List<NoteEntity>>(
             stream: repository.watchNotes(_filter),
             builder: (context, snapshot) {
-              if (snapshot.hasError) return ErrorState(message: snapshot.error.toString());
-              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              if (snapshot.hasError)
+                return ErrorState(message: snapshot.error.toString());
+              if (!snapshot.hasData)
+                return const Center(child: CircularProgressIndicator());
               final List<NoteEntity> notes = snapshot.requireData;
               if (notes.isEmpty) {
                 return EmptyState(
-                  icon: _filter == NoteFilter.trash ? Icons.delete_outline : Icons.note_add_outlined,
-                  title: _filter == NoteFilter.trash ? 'Çöp kutusu boş' : 'Henüz not yok',
-                  message: _filter == NoteFilter.trash ? 'Sildiğiniz notlar burada görünür.' : 'İlk notunuzu oluşturup yazmaya başlayın.',
-                  action: _filter == NoteFilter.trash ? null : FilledButton(onPressed: _create, child: const Text('Not oluştur')),
+                  icon: _filter == NoteFilter.trash
+                      ? Icons.delete_outline
+                      : Icons.note_add_outlined,
+                  title: _filter == NoteFilter.trash
+                      ? 'Çöp kutusu boş'
+                      : 'Henüz not yok',
+                  message: _filter == NoteFilter.trash
+                      ? 'Sildiğiniz notlar burada görünür.'
+                      : 'İlk notunuzu oluşturup yazmaya başlayın.',
+                  action: _filter == NoteFilter.trash
+                      ? null
+                      : FilledButton(
+                          onPressed: _create,
+                          child: const Text('Not oluştur'),
+                        ),
                 );
               }
               return ListView.separated(
@@ -73,50 +101,96 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 itemBuilder: (context, index) {
                   final NoteEntity note = notes[index];
                   return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    leading: Icon(note.isDeleted ? Icons.delete_outline : Icons.description_outlined),
-                    title: Text(note.title.trim().isEmpty ? 'Başlıksız not' : note.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    leading: Icon(
+                      note.isDeleted
+                          ? Icons.delete_outline
+                          : Icons.description_outlined,
+                    ),
+                    title: Text(
+                      note.title.trim().isEmpty ? 'Başlıksız not' : note.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     subtitle: Text(
-                      note.document.plainText.trim().isEmpty ? 'İçerik yok' : note.document.plainText.replaceAll('\n', ' '),
+                      note.document.plainText.trim().isEmpty
+                          ? 'İçerik yok'
+                          : note.document.plainText.replaceAll('\n', ' '),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     trailing: note.isDeleted
                         ? PopupMenuButton<String>(
                             onSelected: (value) async {
-                              if (value == 'restore') await repository.restore(note.id);
+                              if (value == 'restore')
+                                await repository.restore(note.id);
                               if (value == 'delete') {
-                                final bool confirmed = await showDialog<bool>(
+                                final bool confirmed =
+                                    await showDialog<bool>(
                                       context: context,
                                       builder: (context) => AlertDialog(
-                                        title: const Text('Kalıcı olarak silinsin mi?'),
-                                        content: const Text('Bu işlem bu cihazdaki notu geri alınamayacak şekilde kaldırır ve buluta silme kaydı gönderir.'),
+                                        title: const Text(
+                                          'Kalıcı olarak silinsin mi?',
+                                        ),
+                                        content: const Text(
+                                          'Bu işlem bu cihazdaki notu geri alınamayacak şekilde kaldırır ve buluta silme kaydı gönderir.',
+                                        ),
                                         actions: <Widget>[
-                                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Vazgeç')),
-                                          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Kalıcı sil')),
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(context, false),
+                                            child: const Text('Vazgeç'),
+                                          ),
+                                          FilledButton(
+                                            onPressed: () =>
+                                                Navigator.pop(context, true),
+                                            child: const Text('Kalıcı sil'),
+                                          ),
                                         ],
                                       ),
                                     ) ??
                                     false;
-                                if (confirmed) await repository.deletePermanently(note.id);
+                                if (confirmed)
+                                  await repository.deletePermanently(note.id);
                               }
                             },
                             itemBuilder: (_) => const <PopupMenuEntry<String>>[
-                              PopupMenuItem(value: 'restore', child: Text('Geri yükle')),
-                              PopupMenuItem(value: 'delete', child: Text('Kalıcı sil')),
+                              PopupMenuItem(
+                                value: 'restore',
+                                child: Text('Geri yükle'),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Kalıcı sil'),
+                              ),
                             ],
                           )
                         : IconButton(
-                            tooltip: note.isFavorite ? 'Favoriden çıkar' : 'Favoriye ekle',
-                            onPressed: () => repository.setFavorite(note.id, !note.isFavorite),
-                            icon: Icon(note.isFavorite ? Icons.star_rounded : Icons.star_border_rounded),
+                            tooltip: note.isFavorite
+                                ? 'Favoriden çıkar'
+                                : 'Favoriye ekle',
+                            onPressed: () => repository.setFavorite(
+                              note.id,
+                              !note.isFavorite,
+                            ),
+                            icon: Icon(
+                              note.isFavorite
+                                  ? Icons.star_rounded
+                                  : Icons.star_border_rounded,
+                            ),
                           ),
                     onTap: note.isDeleted
                         ? null
                         : () async {
                             await repository.markOpened(note.id);
                             if (!context.mounted) return;
-                            await AppRouter.push<void>(context, NoteEditorScreen(noteId: note.id));
+                            await AppRouter.push<void>(
+                              context,
+                              NoteEditorScreen(noteId: note.id),
+                            );
                           },
                   );
                 },

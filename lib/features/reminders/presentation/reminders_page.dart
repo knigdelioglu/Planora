@@ -4,7 +4,6 @@ class RemindersPage extends StatelessWidget {
   const RemindersPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Reminders')),
-      );
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: Text('Reminders')));
 }

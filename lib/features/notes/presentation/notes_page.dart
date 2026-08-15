@@ -4,7 +4,6 @@ class NotesPage extends StatelessWidget {
   const NotesPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Notes')),
-      );
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: Text('Notes')));
 }

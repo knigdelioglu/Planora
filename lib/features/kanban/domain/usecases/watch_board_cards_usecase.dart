@@ -6,7 +6,8 @@ final class WatchBoardCardsUseCase {
 
   final KanbanRepository _repository;
 
-  Stream<List<KanbanCard>> call(String boardId) => repository.watchBoardCards(boardId);
+  Stream<List<KanbanCard>> call(String boardId) =>
+      repository.watchBoardCards(boardId);
 
   KanbanRepository get repository => _repository;
 }

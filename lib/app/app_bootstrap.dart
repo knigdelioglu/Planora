@@ -37,7 +37,10 @@ final class AppBootstrap {
       AuthService auth;
       RemoteGateway remote;
       if (config.cloudConfigured) {
-        await Supabase.initialize(url: config.supabaseUrl, anonKey: config.supabasePublishableKey);
+        await Supabase.initialize(
+          url: config.supabaseUrl,
+          anonKey: config.supabasePublishableKey,
+        );
         final SupabaseClient client = Supabase.instance.client;
         auth = SupabaseAuthService(client);
         remote = SupabaseRemoteGateway(client);
@@ -49,8 +52,14 @@ final class AppBootstrap {
       final NetworkInfo network = ConnectivityNetworkInfo();
       final FileStorageService storage = SandboxFileStorageService();
       final FilePickerService picker = PlatformFilePickerService();
-      final SyncQueueRepository queue = DriftSyncQueueRepository(database: database, clock: clock);
-      final LocalEntityStore localStore = LocalEntityStore(database: database, clock: clock);
+      final SyncQueueRepository queue = DriftSyncQueueRepository(
+        database: database,
+        clock: clock,
+      );
+      final LocalEntityStore localStore = LocalEntityStore(
+        database: database,
+        clock: clock,
+      );
       final ConflictRepository conflicts = DriftConflictRepository(
         database: database,
         syncQueue: queue,
@@ -72,9 +81,20 @@ final class AppBootstrap {
         engine: engine,
         logger: logger,
       );
-      final AppSettingsRepository settings = DriftAppSettingsRepository(database, clock);
-      final NotesRepository notes = DriftNotesRepository(database: database, syncQueue: queue, clock: clock);
-      final KanbanRepository kanban = DriftKanbanRepository(database: database, syncQueue: queue, clock: clock);
+      final AppSettingsRepository settings = DriftAppSettingsRepository(
+        database,
+        clock,
+      );
+      final NotesRepository notes = DriftNotesRepository(
+        database: database,
+        syncQueue: queue,
+        clock: clock,
+      );
+      final KanbanRepository kanban = DriftKanbanRepository(
+        database: database,
+        syncQueue: queue,
+        clock: clock,
+      );
       final AttachmentsRepository attachments = DriftAttachmentsRepository(
         database: database,
         storage: storage,

@@ -30,10 +30,10 @@ final class NoteBlock {
   });
 
   factory NoteBlock.paragraph({String text = '', Uuid? uuid}) => NoteBlock(
-        id: (uuid ?? const Uuid()).v7(),
-        type: NoteBlockType.paragraph,
-        text: text,
-      );
+    id: (uuid ?? const Uuid()).v7(),
+    type: NoteBlockType.paragraph,
+    text: text,
+  );
 
   factory NoteBlock.fromJson(Map<String, Object?> json) {
     final String typeName = json['type'] as String? ?? 'unknown';
@@ -49,7 +49,9 @@ final class NoteBlock {
       checked: json['checked'] as bool?,
       url: json['url'] as String?,
       attachmentId: json['attachmentId'] as String?,
-      raw: type == NoteBlockType.unknown ? Map<String, Object?>.from(json) : null,
+      raw: type == NoteBlockType.unknown
+          ? Map<String, Object?>.from(json)
+          : null,
     );
   }
 
@@ -100,9 +102,9 @@ final class NoteDocument {
   const NoteDocument({required this.version, required this.blocks});
 
   factory NoteDocument.empty() => NoteDocument(
-        version: currentVersion,
-        blocks: <NoteBlock>[NoteBlock.paragraph()],
-      );
+    version: currentVersion,
+    blocks: <NoteBlock>[NoteBlock.paragraph()],
+  );
 
   factory NoteDocument.decode(String source) {
     try {
@@ -112,9 +114,11 @@ final class NoteDocument {
       final Object? rawBlocks = map['blocks'];
       final List<NoteBlock> blocks = rawBlocks is List
           ? rawBlocks
-              .whereType<Map>()
-              .map((raw) => NoteBlock.fromJson(Map<String, Object?>.from(raw)))
-              .toList(growable: false)
+                .whereType<Map>()
+                .map(
+                  (raw) => NoteBlock.fromJson(Map<String, Object?>.from(raw)),
+                )
+                .toList(growable: false)
           : <NoteBlock>[];
       return NoteDocument(
         version: map['version'] as int? ?? 1,
@@ -129,15 +133,13 @@ final class NoteDocument {
   final int version;
   final List<NoteBlock> blocks;
 
-  NoteDocument copyWith({List<NoteBlock>? blocks}) => NoteDocument(
-        version: currentVersion,
-        blocks: blocks ?? this.blocks,
-      );
+  NoteDocument copyWith({List<NoteBlock>? blocks}) =>
+      NoteDocument(version: currentVersion, blocks: blocks ?? this.blocks);
 
   String encode() => jsonEncode(<String, Object?>{
-        'version': currentVersion,
-        'blocks': blocks.map((block) => block.toJson()).toList(growable: false),
-      });
+    'version': currentVersion,
+    'blocks': blocks.map((block) => block.toJson()).toList(growable: false),
+  });
 
   String get plainText => blocks
       .where((block) => block.type != NoteBlockType.divider)

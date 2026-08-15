@@ -14,10 +14,10 @@ final class DriftNotesRepository implements NotesRepository {
     required SyncQueueRepository syncQueue,
     required AppClock clock,
     Uuid? uuid,
-  })  : _database = database,
-        _syncQueue = syncQueue,
-        _clock = clock,
-        _uuid = uuid ?? const Uuid();
+  }) : _database = database,
+       _syncQueue = syncQueue,
+       _clock = clock,
+       _uuid = uuid ?? const Uuid();
 
   final AppDatabase _database;
   final SyncQueueRepository _syncQueue;
@@ -34,7 +34,9 @@ final class DriftNotesRepository implements NotesRepository {
           (tbl) => OrderingTerm.desc(tbl.updatedAt),
         ]);
       case NoteFilter.favorites:
-        query.where((tbl) => tbl.deletedAt.isNull() & tbl.isFavorite.equals(true));
+        query.where(
+          (tbl) => tbl.deletedAt.isNull() & tbl.isFavorite.equals(true),
+        );
         query.orderBy(<OrderingTerm Function($NotesTable)>[
           (tbl) => OrderingTerm.desc(tbl.updatedAt),
         ]);
@@ -51,23 +53,22 @@ final class DriftNotesRepository implements NotesRepository {
           (tbl) => OrderingTerm.desc(tbl.deletedAt),
         ]);
     }
-    return query.watch().map(
-          (rows) => rows.map(_map).toList(growable: false),
-        );
+    return query.watch().map((rows) => rows.map(_map).toList(growable: false));
   }
 
   @override
   Stream<NoteEntity?> watchNote(String noteId) {
-    return (_database.select(_database.notes)..where((tbl) => tbl.id.equals(noteId)))
+    return (_database.select(_database.notes)
+          ..where((tbl) => tbl.id.equals(noteId)))
         .watchSingleOrNull()
         .map((row) => row == null ? null : _map(row));
   }
 
   @override
   Future<NoteEntity?> getNote(String noteId) async {
-    final Note? row = await (_database.select(_database.notes)
-          ..where((tbl) => tbl.id.equals(noteId)))
-        .getSingleOrNull();
+    final Note? row = await (_database.select(
+      _database.notes,
+    )..where((tbl) => tbl.id.equals(noteId))).getSingleOrNull();
     return row == null ? null : _map(row);
   }
 
@@ -77,7 +78,9 @@ final class DriftNotesRepository implements NotesRepository {
     final DateTime now = _clock.nowUtc();
     final NoteDocument document = NoteDocument.empty();
     await _database.transaction(() async {
-      await _database.into(_database.notes).insert(
+      await _database
+          .into(_database.notes)
+          .insert(
             NotesCompanion.insert(
               id: id,
               title: Value<String>(title.trim()),
@@ -150,9 +153,9 @@ final class DriftNotesRepository implements NotesRepository {
 
   @override
   Future<void> markOpened(String noteId) async {
-    await (_database.update(_database.notes)..where((tbl) => tbl.id.equals(noteId))).write(
-      NotesCompanion(lastOpenedAt: Value<DateTime>(_clock.nowUtc())),
-    );
+    await (_database.update(_database.notes)
+          ..where((tbl) => tbl.id.equals(noteId)))
+        .write(NotesCompanion(lastOpenedAt: Value<DateTime>(_clock.nowUtc())));
   }
 
   @override
@@ -186,13 +189,19 @@ final class DriftNotesRepository implements NotesRepository {
       throw StateError('Only trashed notes can be permanently deleted.');
     }
     await _database.transaction(() async {
-      await (_database.delete(_database.attachments)
-            ..where((tbl) => tbl.parentType.equals('note') & tbl.parentId.equals(noteId)))
+      await (_database.delete(_database.attachments)..where(
+            (tbl) =>
+                tbl.parentType.equals('note') & tbl.parentId.equals(noteId),
+          ))
           .go();
-      await (_database.delete(_database.reminders)
-            ..where((tbl) => tbl.parentType.equals('note') & tbl.parentId.equals(noteId)))
+      await (_database.delete(_database.reminders)..where(
+            (tbl) =>
+                tbl.parentType.equals('note') & tbl.parentId.equals(noteId),
+          ))
           .go();
-      await (_database.delete(_database.notes)..where((tbl) => tbl.id.equals(noteId))).go();
+      await (_database.delete(
+        _database.notes,
+      )..where((tbl) => tbl.id.equals(noteId))).go();
       await _database.deleteSearchEntry('note', noteId);
       await _syncQueue.enqueue(
         entityType: 'note',
@@ -210,9 +219,9 @@ final class DriftNotesRepository implements NotesRepository {
   }
 
   Future<Note> _require(String noteId) async {
-    final Note? row = await (_database.select(_database.notes)
-          ..where((tbl) => tbl.id.equals(noteId)))
-        .getSingleOrNull();
+    final Note? row = await (_database.select(
+      _database.notes,
+    )..where((tbl) => tbl.id.equals(noteId))).getSingleOrNull();
     if (row == null) throw StateError('Note not found: $noteId');
     return row;
   }
@@ -227,7 +236,9 @@ final class DriftNotesRepository implements NotesRepository {
     final DateTime now = _clock.nowUtc();
     final int newVersion = row.version + 1;
     await _database.transaction(() async {
-      await (_database.update(_database.notes)..where((tbl) => tbl.id.equals(row.id))).write(
+      await (_database.update(
+        _database.notes,
+      )..where((tbl) => tbl.id.equals(row.id))).write(
         NotesCompanion(
           title: Value<String>(title),
           contentJson: Value<String>(document.encode()),
@@ -289,14 +300,14 @@ final class DriftNotesRepository implements NotesRepository {
   }
 
   NoteEntity _map(Note row) => NoteEntity(
-        id: row.id,
-        title: row.title,
-        document: NoteDocument.decode(row.contentJson),
-        isFavorite: row.isFavorite,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        lastOpenedAt: row.lastOpenedAt,
-        version: row.version,
-        deletedAt: row.deletedAt,
-      );
+    id: row.id,
+    title: row.title,
+    document: NoteDocument.decode(row.contentJson),
+    isFavorite: row.isFavorite,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    lastOpenedAt: row.lastOpenedAt,
+    version: row.version,
+    deletedAt: row.deletedAt,
+  );
 }

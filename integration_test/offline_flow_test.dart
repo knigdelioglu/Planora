@@ -13,22 +13,52 @@ class _Clock implements AppClock {
 }
 
 void main() {
-  test('core offline journeys commit locally without a remote service', () async {
-    final db = AppDatabase(NativeDatabase.memory());
-    addTearDown(db.close);
-    final clock = _Clock();
-    final queue = DriftSyncQueueRepository(database: db, clock: clock);
-    final notes = DriftNotesRepository(database: db, syncQueue: queue, clock: clock);
-    final kanban = DriftKanbanRepository(database: db, syncQueue: queue, clock: clock);
+  test(
+    'core offline journeys commit locally without a remote service',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final clock = _Clock();
+      final queue = DriftSyncQueueRepository(database: db, clock: clock);
+      final notes = DriftNotesRepository(
+        database: db,
+        syncQueue: queue,
+        clock: clock,
+      );
+      final kanban = DriftKanbanRepository(
+        database: db,
+        syncQueue: queue,
+        clock: clock,
+      );
 
-    final noteId = await notes.createNote(title: 'Offline');
-    await notes.saveDocument(noteId, NoteDocument(version: 1, blocks: const <NoteBlock>[NoteBlock(id: 'p', type: NoteBlockType.paragraph, text: 'Yerel içerik')]));
-    final boardId = await kanban.createBoard(title: 'İşler');
-    final columnId = await kanban.createColumn(boardId: boardId, title: 'Yapılacak');
-    await kanban.createCard(boardId: boardId, columnId: columnId, title: 'Görev');
+      final noteId = await notes.createNote(title: 'Offline');
+      await notes.saveDocument(
+        noteId,
+        NoteDocument(
+          version: 1,
+          blocks: const <NoteBlock>[
+            NoteBlock(
+              id: 'p',
+              type: NoteBlockType.paragraph,
+              text: 'Yerel içerik',
+            ),
+          ],
+        ),
+      );
+      final boardId = await kanban.createBoard(title: 'İşler');
+      final columnId = await kanban.createColumn(
+        boardId: boardId,
+        title: 'Yapılacak',
+      );
+      await kanban.createCard(
+        boardId: boardId,
+        columnId: columnId,
+        title: 'Görev',
+      );
 
-    expect((await notes.getNote(noteId))?.document.plainText, 'Yerel içerik');
-    expect(await db.select(db.cards).get(), hasLength(1));
-    expect(await queue.dueOperations(), isNotEmpty);
-  });
+      expect((await notes.getNote(noteId))?.document.plainText, 'Yerel içerik');
+      expect(await db.select(db.cards).get(), hasLength(1));
+      expect(await queue.dueOperations(), isNotEmpty);
+    },
+  );
 }

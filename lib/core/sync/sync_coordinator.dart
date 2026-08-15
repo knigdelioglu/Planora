@@ -11,10 +11,10 @@ final class SyncCoordinator {
     required AuthService authService,
     required SyncEngine engine,
     required AppLogger logger,
-  })  : _networkInfo = networkInfo,
-        _authService = authService,
-        _engine = engine,
-        _logger = logger;
+  }) : _networkInfo = networkInfo,
+       _authService = authService,
+       _engine = engine,
+       _logger = logger;
 
   final NetworkInfo _networkInfo;
   final AuthService _authService;
@@ -26,20 +26,27 @@ final class SyncCoordinator {
 
   Future<void> start() async {
     await stop();
-    _networkSubscription = _networkInfo.onConnectivityChanged.listen((connected) {
+    _networkSubscription = _networkInfo.onConnectivityChanged.listen((
+      connected,
+    ) {
       if (connected) unawaited(syncNow());
     });
     _authSubscription = _authService.watchState().listen((state) {
       if (state.isSignedIn) unawaited(syncNow());
     });
-    _periodic = Timer.periodic(const Duration(minutes: 5), (_) => unawaited(syncNow()));
-    if (await _networkInfo.isConnected() && _authService.currentState.isSignedIn) {
+    _periodic = Timer.periodic(
+      const Duration(minutes: 5),
+      (_) => unawaited(syncNow()),
+    );
+    if (await _networkInfo.isConnected() &&
+        _authService.currentState.isSignedIn) {
       unawaited(syncNow());
     }
   }
 
   Future<SyncRunResult> syncNow() async {
-    if (!_authService.currentState.isSignedIn || !await _networkInfo.isConnected()) {
+    if (!_authService.currentState.isSignedIn ||
+        !await _networkInfo.isConnected()) {
       return const SyncRunResult(pushed: 0, pulled: 0, conflicts: 0);
     }
     try {

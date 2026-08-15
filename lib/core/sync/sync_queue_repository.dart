@@ -28,9 +28,9 @@ final class DriftSyncQueueRepository implements SyncQueueRepository {
     required AppDatabase database,
     required AppClock clock,
     Uuid? uuid,
-  })  : _database = database,
-        _clock = clock,
-        _uuid = uuid ?? const Uuid();
+  }) : _database = database,
+       _clock = clock,
+       _uuid = uuid ?? const Uuid();
 
   final AppDatabase _database;
   final AppClock _clock;
@@ -45,7 +45,9 @@ final class DriftSyncQueueRepository implements SyncQueueRepository {
     int? baseVersion,
   }) async {
     final DateTime now = _clock.nowUtc();
-    await _database.into(_database.syncQueue).insert(
+    await _database
+        .into(_database.syncQueue)
+        .insert(
           SyncQueueCompanion.insert(
             operationId: _uuid.v7(),
             entityType: entityType,
@@ -61,41 +63,38 @@ final class DriftSyncQueueRepository implements SyncQueueRepository {
   @override
   Future<List<SyncOperation>> dueOperations({int limit = 50}) async {
     final DateTime now = _clock.nowUtc();
-    final List<SyncQueueData> rows = await (_database.select(_database.syncQueue)
-          ..where(
-            (tbl) =>
-                tbl.status.isIn(<String>[
-                  SyncOperationStatus.pending.name,
-                  SyncOperationStatus.processing.name,
-                  SyncOperationStatus.retryWaiting.name,
-                  SyncOperationStatus.failedRecoverable.name,
-                ]) &
-                (tbl.nextAttemptAt.isNull() | tbl.nextAttemptAt.isSmallerOrEqualValue(now)),
-          )
-          ..orderBy(<OrderingTerm Function($SyncQueueTable)>[
-            (tbl) => OrderingTerm.asc(tbl.createdAt),
-          ])
-          ..limit(limit))
-        .get();
+    final List<SyncQueueData> rows =
+        await (_database.select(_database.syncQueue)
+              ..where(
+                (tbl) =>
+                    tbl.status.isIn(<String>[
+                      SyncOperationStatus.pending.name,
+                      SyncOperationStatus.processing.name,
+                      SyncOperationStatus.retryWaiting.name,
+                      SyncOperationStatus.failedRecoverable.name,
+                    ]) &
+                    (tbl.nextAttemptAt.isNull() |
+                        tbl.nextAttemptAt.isSmallerOrEqualValue(now)),
+              )
+              ..orderBy(<OrderingTerm Function($SyncQueueTable)>[
+                (tbl) => OrderingTerm.asc(tbl.createdAt),
+              ])
+              ..limit(limit))
+            .get();
     return rows.map(_map).toList(growable: false);
   }
 
   @override
-  Future<void> markProcessing(String operationId) => _setStatus(
-        operationId,
-        SyncOperationStatus.processing,
-        clearError: true,
-      );
+  Future<void> markProcessing(String operationId) =>
+      _setStatus(operationId, SyncOperationStatus.processing, clearError: true);
 
   @override
-  Future<void> markCompleted(String operationId) => _setStatus(
-        operationId,
-        SyncOperationStatus.completed,
-        clearError: true,
-      );
+  Future<void> markCompleted(String operationId) =>
+      _setStatus(operationId, SyncOperationStatus.completed, clearError: true);
 
   @override
-  Future<void> markConflict(String operationId, {required String error}) => _setStatus(
+  Future<void> markConflict(String operationId, {required String error}) =>
+      _setStatus(
         operationId,
         SyncOperationStatus.blockedConflict,
         error: error,
@@ -103,15 +102,15 @@ final class DriftSyncQueueRepository implements SyncQueueRepository {
 
   @override
   Future<void> markRetry(String operationId, {required String error}) async {
-    final SyncQueueData? row = await (_database.select(_database.syncQueue)
-          ..where((tbl) => tbl.operationId.equals(operationId)))
-        .getSingleOrNull();
+    final SyncQueueData? row = await (_database.select(
+      _database.syncQueue,
+    )..where((tbl) => tbl.operationId.equals(operationId))).getSingleOrNull();
     if (row == null) return;
     final int nextAttempt = row.attemptCount + 1;
     final Duration delay = retryDelay(nextAttempt, operationId.hashCode);
-    await (_database.update(_database.syncQueue)
-          ..where((tbl) => tbl.operationId.equals(operationId)))
-        .write(
+    await (_database.update(
+      _database.syncQueue,
+    )..where((tbl) => tbl.operationId.equals(operationId))).write(
       SyncQueueCompanion(
         status: Value<String>(SyncOperationStatus.retryWaiting.name),
         attemptCount: Value<int>(nextAttempt),
@@ -131,11 +130,10 @@ final class DriftSyncQueueRepository implements SyncQueueRepository {
   @override
   Stream<int> watchPendingCount() {
     final query = _database.select(_database.syncQueue)
-          ..where(
-            (tbl) => tbl.status.isNotIn(<String>[
-              SyncOperationStatus.completed.name,
-            ]),
-          );
+      ..where(
+        (tbl) =>
+            tbl.status.isNotIn(<String>[SyncOperationStatus.completed.name]),
+      );
     return query.watch().map((rows) => rows.length).distinct();
   }
 
@@ -145,17 +143,17 @@ final class DriftSyncQueueRepository implements SyncQueueRepository {
     String? error,
     bool clearError = false,
   }) {
-    return (_database.update(_database.syncQueue)
-          ..where((tbl) => tbl.operationId.equals(operationId)))
-        .write(
+    return (_database.update(
+      _database.syncQueue,
+    )..where((tbl) => tbl.operationId.equals(operationId))).write(
       SyncQueueCompanion(
         status: Value<String>(status.name),
         nextAttemptAt: const Value<DateTime?>.absent(),
         lastError: clearError
             ? const Value<String?>(null)
             : error == null
-                ? const Value<String?>.absent()
-                : Value<String?>(error),
+            ? const Value<String?>.absent()
+            : Value<String?>(error),
       ),
     );
   }
@@ -167,7 +165,9 @@ final class DriftSyncQueueRepository implements SyncQueueRepository {
       entityType: row.entityType,
       entityId: row.entityId,
       operationType: SyncOperationType.values.byName(row.operationType),
-      payload: decoded is Map ? Map<String, Object?>.from(decoded) : <String, Object?>{},
+      payload: decoded is Map
+          ? Map<String, Object?>.from(decoded)
+          : <String, Object?>{},
       baseVersion: row.baseVersion,
       createdAt: row.createdAt,
       attemptCount: row.attemptCount,

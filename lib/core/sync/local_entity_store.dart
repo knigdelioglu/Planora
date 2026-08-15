@@ -7,29 +7,35 @@ import 'package:not_app/core/utils/clock.dart';
 
 final class LocalEntityStore {
   LocalEntityStore({required AppDatabase database, required AppClock clock})
-      : _database = database,
-        _clock = clock;
+    : _database = database,
+      _clock = clock;
 
   final AppDatabase _database;
   final AppClock _clock;
 
   Future<bool> hasPendingMutation(String entityType, String entityId) async {
-    final row = await (_database.select(_database.syncQueue)
-          ..where(
-            (tbl) =>
-                tbl.entityType.equals(entityType) &
-                tbl.entityId.equals(entityId) &
-                tbl.status.isNotIn(<String>['completed']),
-          )
-          ..limit(1))
-        .getSingleOrNull();
+    final row =
+        await (_database.select(_database.syncQueue)
+              ..where(
+                (tbl) =>
+                    tbl.entityType.equals(entityType) &
+                    tbl.entityId.equals(entityId) &
+                    tbl.status.isNotIn(<String>['completed']),
+              )
+              ..limit(1))
+            .getSingleOrNull();
     return row != null;
   }
 
-  Future<Map<String, Object?>?> payloadFor(String entityType, String entityId) async {
+  Future<Map<String, Object?>?> payloadFor(
+    String entityType,
+    String entityId,
+  ) async {
     switch (entityType) {
       case 'note':
-        final row = await (_database.select(_database.notes)..where((tbl) => tbl.id.equals(entityId))).getSingleOrNull();
+        final row = await (_database.select(
+          _database.notes,
+        )..where((tbl) => tbl.id.equals(entityId))).getSingleOrNull();
         if (row == null) return null;
         return <String, Object?>{
           'id': row.id,
@@ -42,7 +48,9 @@ final class LocalEntityStore {
           'deletedAt': row.deletedAt?.toIso8601String(),
         };
       case 'board':
-        final row = await (_database.select(_database.boards)..where((tbl) => tbl.id.equals(entityId))).getSingleOrNull();
+        final row = await (_database.select(
+          _database.boards,
+        )..where((tbl) => tbl.id.equals(entityId))).getSingleOrNull();
         if (row == null) return null;
         return <String, Object?>{
           'id': row.id,
@@ -54,7 +62,9 @@ final class LocalEntityStore {
           'deletedAt': row.deletedAt?.toIso8601String(),
         };
       case 'column':
-        final row = await (_database.select(_database.boardColumns)..where((tbl) => tbl.id.equals(entityId))).getSingleOrNull();
+        final row = await (_database.select(
+          _database.boardColumns,
+        )..where((tbl) => tbl.id.equals(entityId))).getSingleOrNull();
         if (row == null) return null;
         return <String, Object?>{
           'id': row.id,
@@ -68,7 +78,9 @@ final class LocalEntityStore {
           'deletedAt': row.deletedAt?.toIso8601String(),
         };
       case 'card':
-        final row = await (_database.select(_database.cards)..where((tbl) => tbl.id.equals(entityId))).getSingleOrNull();
+        final row = await (_database.select(
+          _database.cards,
+        )..where((tbl) => tbl.id.equals(entityId))).getSingleOrNull();
         if (row == null) return null;
         return <String, Object?>{
           'id': row.id,
@@ -83,7 +95,9 @@ final class LocalEntityStore {
           'deletedAt': row.deletedAt?.toIso8601String(),
         };
       case 'attachment':
-        final row = await (_database.select(_database.attachments)..where((tbl) => tbl.id.equals(entityId))).getSingleOrNull();
+        final row = await (_database.select(
+          _database.attachments,
+        )..where((tbl) => tbl.id.equals(entityId))).getSingleOrNull();
         if (row == null) return null;
         return <String, Object?>{
           'id': row.id,
@@ -100,7 +114,9 @@ final class LocalEntityStore {
           'deletedAt': row.deletedAt?.toIso8601String(),
         };
       case 'reminder':
-        final row = await (_database.select(_database.reminders)..where((tbl) => tbl.id.equals(entityId))).getSingleOrNull();
+        final row = await (_database.select(
+          _database.reminders,
+        )..where((tbl) => tbl.id.equals(entityId))).getSingleOrNull();
         if (row == null) return null;
         return <String, Object?>{
           'id': row.id,
@@ -134,11 +150,16 @@ final class LocalEntityStore {
     await _database.transaction(() async {
       switch (remote.entityType) {
         case 'note':
-          await _database.into(_database.notes).insertOnConflictUpdate(
+          await _database
+              .into(_database.notes)
+              .insertOnConflictUpdate(
                 NotesCompanion.insert(
                   id: remote.entityId,
                   title: Value<String>((p['title'] ?? '').toString()),
-                  contentJson: Value<String>((p['contentJson'] ?? '{"version":1,"blocks":[]}').toString()),
+                  contentJson: Value<String>(
+                    (p['contentJson'] ?? '{"version":1,"blocks":[]}')
+                        .toString(),
+                  ),
                   isFavorite: Value<bool>(p['isFavorite'] == true),
                   createdAt: created,
                   updatedAt: updated,
@@ -157,7 +178,9 @@ final class LocalEntityStore {
             await _database.deleteSearchEntry('note', remote.entityId);
           }
         case 'board':
-          await _database.into(_database.boards).insertOnConflictUpdate(
+          await _database
+              .into(_database.boards)
+              .insertOnConflictUpdate(
                 BoardsCompanion.insert(
                   id: remote.entityId,
                   title: (p['title'] ?? '').toString(),
@@ -169,18 +192,27 @@ final class LocalEntityStore {
                 ),
               );
           if (deleted == null) {
-            await _database.upsertSearchEntry(entityType: 'board', entityId: remote.entityId, title: (p['title'] ?? '').toString(), body: '');
+            await _database.upsertSearchEntry(
+              entityType: 'board',
+              entityId: remote.entityId,
+              title: (p['title'] ?? '').toString(),
+              body: '',
+            );
           } else {
             await _database.deleteSearchEntry('board', remote.entityId);
           }
         case 'column':
-          await _database.into(_database.boardColumns).insertOnConflictUpdate(
+          await _database
+              .into(_database.boardColumns)
+              .insertOnConflictUpdate(
                 BoardColumnsCompanion.insert(
                   id: remote.entityId,
                   boardId: p['boardId']! as String,
                   title: (p['title'] ?? '').toString(),
                   colorHex: Value<String?>(p['colorHex'] as String?),
-                  rankKey: Value<String>((p['rankKey'] ?? 'hzzzzzzzzzzz').toString()),
+                  rankKey: Value<String>(
+                    (p['rankKey'] ?? 'hzzzzzzzzzzz').toString(),
+                  ),
                   createdAt: created,
                   updatedAt: updated,
                   version: Value<int>(remote.version),
@@ -188,14 +220,18 @@ final class LocalEntityStore {
                 ),
               );
         case 'card':
-          await _database.into(_database.cards).insertOnConflictUpdate(
+          await _database
+              .into(_database.cards)
+              .insertOnConflictUpdate(
                 CardsCompanion.insert(
                   id: remote.entityId,
                   boardId: p['boardId']! as String,
                   columnId: p['columnId']! as String,
                   title: (p['title'] ?? '').toString(),
                   description: Value<String?>(p['description'] as String?),
-                  rankKey: Value<String>((p['rankKey'] ?? 'hzzzzzzzzzzz').toString()),
+                  rankKey: Value<String>(
+                    (p['rankKey'] ?? 'hzzzzzzzzzzz').toString(),
+                  ),
                   createdAt: created,
                   updatedAt: updated,
                   version: Value<int>(remote.version),
@@ -203,13 +239,22 @@ final class LocalEntityStore {
                 ),
               );
           if (deleted == null) {
-            await _database.upsertSearchEntry(entityType: 'card', entityId: remote.entityId, title: (p['title'] ?? '').toString(), body: (p['description'] ?? '').toString());
+            await _database.upsertSearchEntry(
+              entityType: 'card',
+              entityId: remote.entityId,
+              title: (p['title'] ?? '').toString(),
+              body: (p['description'] ?? '').toString(),
+            );
           } else {
             await _database.deleteSearchEntry('card', remote.entityId);
           }
         case 'attachment':
-          final Attachment? existing = await (_database.select(_database.attachments)..where((tbl) => tbl.id.equals(remote.entityId))).getSingleOrNull();
-          await _database.into(_database.attachments).insertOnConflictUpdate(
+          final Attachment? existing = await (_database.select(
+            _database.attachments,
+          )..where((tbl) => tbl.id.equals(remote.entityId))).getSingleOrNull();
+          await _database
+              .into(_database.attachments)
+              .insertOnConflictUpdate(
                 AttachmentsCompanion.insert(
                   id: remote.entityId,
                   parentType: p['parentType']! as String,
@@ -229,8 +274,12 @@ final class LocalEntityStore {
                 ),
               );
         case 'reminder':
-          final Reminder? existing = await (_database.select(_database.reminders)..where((tbl) => tbl.id.equals(remote.entityId))).getSingleOrNull();
-          await _database.into(_database.reminders).insertOnConflictUpdate(
+          final Reminder? existing = await (_database.select(
+            _database.reminders,
+          )..where((tbl) => tbl.id.equals(remote.entityId))).getSingleOrNull();
+          await _database
+              .into(_database.reminders)
+              .insertOnConflictUpdate(
                 RemindersCompanion.insert(
                   id: remote.entityId,
                   parentType: p['parentType']! as String,
@@ -239,7 +288,9 @@ final class LocalEntityStore {
                   body: Value<String?>(p['body'] as String?),
                   scheduledAtUtc: _date(p['scheduledAtUtc']) ?? updated,
                   timeZoneId: (p['timeZoneId'] ?? 'UTC').toString(),
-                  notificationId: existing?.notificationId ?? _notificationIdFor(remote.entityId),
+                  notificationId:
+                      existing?.notificationId ??
+                      _notificationIdFor(remote.entityId),
                   enabled: Value<bool>(p['enabled'] != false),
                   schedulingStatus: const Value<String>('pending'),
                   createdAt: created,
@@ -254,7 +305,8 @@ final class LocalEntityStore {
     });
   }
 
-  DateTime? _date(Object? raw) => raw == null ? null : DateTime.tryParse(raw.toString())?.toUtc();
+  DateTime? _date(Object? raw) =>
+      raw == null ? null : DateTime.tryParse(raw.toString())?.toUtc();
 
   int _notificationIdFor(String id) {
     final String hex = id.replaceAll('-', '').padRight(8, '0').substring(0, 8);

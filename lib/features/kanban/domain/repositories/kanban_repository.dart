@@ -9,9 +9,16 @@ abstract interface class KanbanRepository {
   Future<String> createBoard({required String title, String? colorHex});
   Future<void> renameBoard(String boardId, String title);
   Future<void> deleteBoard(String boardId);
-  Future<String> createColumn({required String boardId, required String title, String? colorHex});
+  Future<String> createColumn({
+    required String boardId,
+    required String title,
+    String? colorHex,
+  });
   Future<void> renameColumn(String columnId, String title);
-  Future<void> reorderColumn({required String columnId, required int destinationIndex});
+  Future<void> reorderColumn({
+    required String columnId,
+    required int destinationIndex,
+  });
   Future<void> deleteColumn(String columnId, {String? moveCardsToColumnId});
   Future<String> createCard({
     required String boardId,
@@ -19,7 +26,11 @@ abstract interface class KanbanRepository {
     required String title,
     String? description,
   });
-  Future<void> updateCard({required String cardId, required String title, String? description});
+  Future<void> updateCard({
+    required String cardId,
+    required String title,
+    String? description,
+  });
   Future<void> moveCard({
     required String cardId,
     required String destinationColumnId,

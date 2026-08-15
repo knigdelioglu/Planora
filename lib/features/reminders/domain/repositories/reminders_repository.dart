@@ -3,7 +3,10 @@ import 'package:not_app/features/reminders/domain/entities/reminder.dart';
 abstract interface class RemindersRepository {
   Stream<List<ReminderEntity>> watchUpcoming();
   Stream<List<ReminderEntity>> watchPast();
-  Stream<List<ReminderEntity>> watchForParent(String parentType, String parentId);
+  Stream<List<ReminderEntity>> watchForParent(
+    String parentType,
+    String parentId,
+  );
   Future<ReminderEntity> create({
     required String parentType,
     required String parentId,

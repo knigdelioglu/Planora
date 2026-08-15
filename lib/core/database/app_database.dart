@@ -31,48 +31,49 @@ part 'app_database.g.dart';
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
-  static Future<AppDatabase> open() async => AppDatabase(await openNativeConnection());
+  static Future<AppDatabase> open() async =>
+      AppDatabase(await openNativeConnection());
 
   @override
   int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (Migrator migrator) async {
-          await migrator.createAll();
-          await _createSearchFts();
-        },
-        onUpgrade: (Migrator migrator, int from, int to) async {
-          if (from < 2) {
-            await migrator.addColumn(notes, notes.isFavorite);
-            await migrator.addColumn(notes, notes.lastOpenedAt);
-            await migrator.addColumn(boards, boards.colorHex);
-            await migrator.addColumn(boardColumns, boardColumns.colorHex);
-            await migrator.addColumn(boardColumns, boardColumns.rankKey);
-            await migrator.addColumn(cards, cards.rankKey);
-            await migrator.addColumn(attachments, attachments.isCache);
-            await migrator.addColumn(attachments, attachments.lastAccessedAt);
-            await migrator.addColumn(attachments, attachments.transferState);
-            await migrator.addColumn(reminders, reminders.body);
-            await migrator.addColumn(reminders, reminders.schedulingStatus);
-            await migrator.addColumn(reminders, reminders.lastReconciledAt);
-            await migrator.createTable(appSettings);
-            await migrator.createTable(conflicts);
-            await migrator.createTable(syncMeta);
-            await _migrateLegacyRanks();
-            await _createSearchFts();
-          }
-          if (from == 2) {
-            await migrator.addColumn(conflicts, conflicts.resolution);
-          }
-        },
-        beforeOpen: (OpeningDetails details) async {
-          await customStatement('PRAGMA foreign_keys = ON');
-          await customStatement('PRAGMA journal_mode = WAL');
-          await customStatement('PRAGMA busy_timeout = 5000');
-          await _createSearchFts();
-        },
-      );
+    onCreate: (Migrator migrator) async {
+      await migrator.createAll();
+      await _createSearchFts();
+    },
+    onUpgrade: (Migrator migrator, int from, int to) async {
+      if (from < 2) {
+        await migrator.addColumn(notes, notes.isFavorite);
+        await migrator.addColumn(notes, notes.lastOpenedAt);
+        await migrator.addColumn(boards, boards.colorHex);
+        await migrator.addColumn(boardColumns, boardColumns.colorHex);
+        await migrator.addColumn(boardColumns, boardColumns.rankKey);
+        await migrator.addColumn(cards, cards.rankKey);
+        await migrator.addColumn(attachments, attachments.isCache);
+        await migrator.addColumn(attachments, attachments.lastAccessedAt);
+        await migrator.addColumn(attachments, attachments.transferState);
+        await migrator.addColumn(reminders, reminders.body);
+        await migrator.addColumn(reminders, reminders.schedulingStatus);
+        await migrator.addColumn(reminders, reminders.lastReconciledAt);
+        await migrator.createTable(appSettings);
+        await migrator.createTable(conflicts);
+        await migrator.createTable(syncMeta);
+        await _migrateLegacyRanks();
+        await _createSearchFts();
+      }
+      if (from == 2) {
+        await migrator.addColumn(conflicts, conflicts.resolution);
+      }
+    },
+    beforeOpen: (OpeningDetails details) async {
+      await customStatement('PRAGMA foreign_keys = ON');
+      await customStatement('PRAGMA journal_mode = WAL');
+      await customStatement('PRAGMA busy_timeout = 5000');
+      await _createSearchFts();
+    },
+  );
 
   Future<void> _createSearchFts() async {
     await customStatement('''
@@ -88,17 +89,20 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> _migrateLegacyRanks() async {
     final List<BoardColumn> columns = await select(boardColumns).get();
-    final Map<String, List<BoardColumn>> byBoard = <String, List<BoardColumn>>{};
+    final Map<String, List<BoardColumn>> byBoard =
+        <String, List<BoardColumn>>{};
     for (final BoardColumn column in columns) {
       (byBoard[column.boardId] ??= <BoardColumn>[]).add(column);
     }
     for (final List<BoardColumn> group in byBoard.values) {
-      group.sort((BoardColumn a, BoardColumn b) => (a.rank ?? 0).compareTo(b.rank ?? 0));
+      group.sort(
+        (BoardColumn a, BoardColumn b) => (a.rank ?? 0).compareTo(b.rank ?? 0),
+      );
       final List<String> ranks = FractionalIndexing.rebalance(group.length);
       for (int index = 0; index < group.length; index++) {
-        await (update(boardColumns)..where((tbl) => tbl.id.equals(group[index].id))).write(
-          BoardColumnsCompanion(rankKey: Value<String>(ranks[index])),
-        );
+        await (update(boardColumns)
+              ..where((tbl) => tbl.id.equals(group[index].id)))
+            .write(BoardColumnsCompanion(rankKey: Value<String>(ranks[index])));
       }
     }
 
@@ -111,14 +115,14 @@ class AppDatabase extends _$AppDatabase {
       group.sort((Card a, Card b) => (a.rank ?? 0).compareTo(b.rank ?? 0));
       final List<String> ranks = FractionalIndexing.rebalance(group.length);
       for (int index = 0; index < group.length; index++) {
-        await (update(cards)..where((tbl) => tbl.id.equals(group[index].id))).write(
-          CardsCompanion(rankKey: Value<String>(ranks[index])),
-        );
+        await (update(cards)..where((tbl) => tbl.id.equals(group[index].id)))
+            .write(CardsCompanion(rankKey: Value<String>(ranks[index])));
       }
     }
   }
 
-  Future<T> inTransaction<T>(Future<T> Function() action) => transaction(action);
+  Future<T> inTransaction<T>(Future<T> Function() action) =>
+      transaction(action);
 
   Future<void> upsertSearchEntry({
     required String entityType,

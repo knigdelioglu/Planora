@@ -42,7 +42,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
     setState(() => _busy = true);
     final data = await ref.read(searchRepositoryProvider).search(value);
-    if (mounted) setState(() { _results = data; _busy = false; });
+    if (mounted)
+      setState(() {
+        _results = data;
+        _busy = false;
+      });
   }
 
   @override
@@ -55,43 +59,91 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _open(SearchResultEntity result) {
     switch (result.entityType) {
       case 'note':
-        AppRouter.push<void>(context, NoteEditorScreen(noteId: result.entityId));
+        AppRouter.push<void>(
+          context,
+          NoteEditorScreen(noteId: result.entityId),
+        );
       case 'card':
-        AppRouter.push<void>(context, CardDetailScreen(cardId: result.entityId));
+        AppRouter.push<void>(
+          context,
+          CardDetailScreen(cardId: result.entityId),
+        );
       case 'board':
-        AppRouter.push<void>(context, KanbanBoardScreen(boardId: result.entityId));
+        AppRouter.push<void>(
+          context,
+          KanbanBoardScreen(boardId: result.entityId),
+        );
     }
   }
 
   @override
   Widget build(BuildContext context) => Column(
-        children: <Widget>[
-          const AppPageHeader(title: 'Arama', subtitle: 'Notlar, kartlar ve panolar arasında tamamen yerel arama.'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: TextField(
-              controller: _query,
-              autofocus: widget.autofocus,
-              decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: 'Ara…', suffixIcon: _busy ? const Padding(padding: EdgeInsets.all(12), child: SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))) : null),
-            ),
+    children: <Widget>[
+      const AppPageHeader(
+        title: 'Arama',
+        subtitle: 'Notlar, kartlar ve panolar arasında tamamen yerel arama.',
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: TextField(
+          controller: _query,
+          autofocus: widget.autofocus,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search),
+            hintText: 'Ara…',
+            suffixIcon: _busy
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : null,
           ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: _query.text.trim().isEmpty
-                ? const EmptyState(icon: Icons.search_rounded, title: 'Ne arıyorsunuz?', message: 'Not başlığı/içeriği, kart açıklaması veya pano adı yazın.')
-                : _results.isEmpty && !_busy
-                    ? const EmptyState(icon: Icons.search_off_rounded, title: 'Sonuç bulunamadı', message: 'Farklı bir kelime deneyin.')
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-                        itemCount: _results.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final result = _results[index];
-                          final icon = switch (result.entityType) { 'note' => Icons.description_outlined, 'card' => Icons.view_agenda_outlined, _ => Icons.view_kanban_outlined };
-                          return ListTile(leading: Icon(icon), title: Text(result.title.isEmpty ? 'Başlıksız' : result.title), subtitle: Text(result.preview, maxLines: 2, overflow: TextOverflow.ellipsis), onTap: () => _open(result));
-                        },
-                      ),
-          ),
-        ],
-      );
+        ),
+      ),
+      const SizedBox(height: 12),
+      Expanded(
+        child: _query.text.trim().isEmpty
+            ? const EmptyState(
+                icon: Icons.search_rounded,
+                title: 'Ne arıyorsunuz?',
+                message:
+                    'Not başlığı/içeriği, kart açıklaması veya pano adı yazın.',
+              )
+            : _results.isEmpty && !_busy
+            ? const EmptyState(
+                icon: Icons.search_off_rounded,
+                title: 'Sonuç bulunamadı',
+                message: 'Farklı bir kelime deneyin.',
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+                itemCount: _results.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final result = _results[index];
+                  final icon = switch (result.entityType) {
+                    'note' => Icons.description_outlined,
+                    'card' => Icons.view_agenda_outlined,
+                    _ => Icons.view_kanban_outlined,
+                  };
+                  return ListTile(
+                    leading: Icon(icon),
+                    title: Text(
+                      result.title.isEmpty ? 'Başlıksız' : result.title,
+                    ),
+                    subtitle: Text(
+                      result.preview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => _open(result),
+                  );
+                },
+              ),
+      ),
+    ],
+  );
 }

@@ -27,25 +27,35 @@ final class DriftAppSettingsRepository implements AppSettingsRepository {
   }
 
   @override
-  Stream<int> watchCacheLimitBytes() => _watch('cache_limit_bytes', '${512 * 1024 * 1024}')
-      .map((value) => int.tryParse(value) ?? 512 * 1024 * 1024);
+  Stream<int> watchCacheLimitBytes() => _watch(
+    'cache_limit_bytes',
+    '${512 * 1024 * 1024}',
+  ).map((value) => int.tryParse(value) ?? 512 * 1024 * 1024);
 
   @override
   Future<void> setCacheLimitBytes(int bytes) {
-    if (bytes < 50 * 1024 * 1024) throw ArgumentError('Cache limit must be at least 50 MiB.');
+    if (bytes < 50 * 1024 * 1024)
+      throw ArgumentError('Cache limit must be at least 50 MiB.');
     return _set('cache_limit_bytes', bytes.toString());
   }
 
   Stream<String> _watch(String key, String fallback) {
-    return (_database.select(_database.appSettings)..where((tbl) => tbl.key.equals(key)))
+    return (_database.select(_database.appSettings)
+          ..where((tbl) => tbl.key.equals(key)))
         .watchSingleOrNull()
         .map((row) => row?.value ?? fallback)
         .distinct();
   }
 
   Future<void> _set(String key, String value) {
-    return _database.into(_database.appSettings).insertOnConflictUpdate(
-          AppSettingsCompanion.insert(key: key, value: value, updatedAt: _clock.nowUtc()),
+    return _database
+        .into(_database.appSettings)
+        .insertOnConflictUpdate(
+          AppSettingsCompanion.insert(
+            key: key,
+            value: value,
+            updatedAt: _clock.nowUtc(),
+          ),
         );
   }
 }

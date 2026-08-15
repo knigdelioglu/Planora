@@ -11,19 +11,36 @@ class _Clock implements AppClock {
 }
 
 void main() {
-  test('cards reorder and move between columns without list reindex dependency', () async {
-    final db = AppDatabase(NativeDatabase.memory());
-    addTearDown(db.close);
-    final clock = _Clock();
-    final queue = DriftSyncQueueRepository(database: db, clock: clock);
-    final repo = DriftKanbanRepository(database: db, syncQueue: queue, clock: clock);
-    final board = await repo.createBoard(title: 'Board');
-    final left = await repo.createColumn(boardId: board, title: 'Todo');
-    final right = await repo.createColumn(boardId: board, title: 'Done');
-    final card = await repo.createCard(boardId: board, columnId: left, title: 'Task');
-    await repo.moveCard(cardId: card, destinationColumnId: right, destinationIndex: 0);
-    final row = await (db.select(db.cards)..where((tbl) => tbl.id.equals(card))).getSingle();
-    expect(row.columnId, right);
-    expect(row.rankKey, hasLength(12));
-  });
+  test(
+    'cards reorder and move between columns without list reindex dependency',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final clock = _Clock();
+      final queue = DriftSyncQueueRepository(database: db, clock: clock);
+      final repo = DriftKanbanRepository(
+        database: db,
+        syncQueue: queue,
+        clock: clock,
+      );
+      final board = await repo.createBoard(title: 'Board');
+      final left = await repo.createColumn(boardId: board, title: 'Todo');
+      final right = await repo.createColumn(boardId: board, title: 'Done');
+      final card = await repo.createCard(
+        boardId: board,
+        columnId: left,
+        title: 'Task',
+      );
+      await repo.moveCard(
+        cardId: card,
+        destinationColumnId: right,
+        destinationIndex: 0,
+      );
+      final row = await (db.select(
+        db.cards,
+      )..where((tbl) => tbl.id.equals(card))).getSingle();
+      expect(row.columnId, right);
+      expect(row.rankKey, hasLength(12));
+    },
+  );
 }

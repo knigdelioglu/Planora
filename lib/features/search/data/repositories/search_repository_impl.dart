@@ -11,7 +11,10 @@ final class DriftSearchRepository implements SearchRepository {
   final AppDatabase _database;
 
   @override
-  Future<List<SearchResultEntity>> search(String query, {int limit = 60}) async {
+  Future<List<SearchResultEntity>> search(
+    String query, {
+    int limit = 60,
+  }) async {
     final String normalized = query.trim();
     if (normalized.isEmpty) return const <SearchResultEntity>[];
     final List<String> tokens = normalized
@@ -20,8 +23,9 @@ final class DriftSearchRepository implements SearchRepository {
         .map((token) => '"${token.replaceAll('"', '""')}"*')
         .toList(growable: false);
     final String expression = tokens.join(' AND ');
-    final rows = await _database.customSelect(
-      '''
+    final rows = await _database
+        .customSelect(
+          '''
       SELECT entity_type, entity_id, title,
              snippet(search_fts, 3, '', '', ' … ', 18) AS preview
       FROM search_fts
@@ -29,12 +33,13 @@ final class DriftSearchRepository implements SearchRepository {
       ORDER BY bm25(search_fts)
       LIMIT ?
       ''',
-      variables: <Variable<Object>>[
-        Variable<String>(expression),
-        Variable<int>(limit.clamp(1, 200)),
-      ],
-      readsFrom: <ResultSetImplementation>{},
-    ).get();
+          variables: <Variable<Object>>[
+            Variable<String>(expression),
+            Variable<int>(limit.clamp(1, 200)),
+          ],
+          readsFrom: <ResultSetImplementation>{},
+        )
+        .get();
     return rows
         .map(
           (row) => SearchResultEntity(
@@ -50,18 +55,30 @@ final class DriftSearchRepository implements SearchRepository {
   @override
   Future<void> rebuildIndex() async {
     await _database.customStatement('DELETE FROM search_fts');
-    final notes = await (_database.select(_database.notes)..where((tbl) => tbl.deletedAt.isNull())).get();
+    final notes = await (_database.select(
+      _database.notes,
+    )..where((tbl) => tbl.deletedAt.isNull())).get();
     for (final note in notes) {
       String body = '';
       try {
         final Object? decoded = jsonDecode(note.contentJson);
-        if (decoded is Map) body = NoteDocument.fromJson(Map<String, Object?>.from(decoded)).plainText;
+        if (decoded is Map)
+          body = NoteDocument.fromJson(
+            Map<String, Object?>.from(decoded),
+          ).plainText;
       } catch (_) {
         body = '';
       }
-      await _database.upsertSearchEntry(entityType: 'note', entityId: note.id, title: note.title, body: body);
+      await _database.upsertSearchEntry(
+        entityType: 'note',
+        entityId: note.id,
+        title: note.title,
+        body: body,
+      );
     }
-    final cards = await (_database.select(_database.cards)..where((tbl) => tbl.deletedAt.isNull())).get();
+    final cards = await (_database.select(
+      _database.cards,
+    )..where((tbl) => tbl.deletedAt.isNull())).get();
     for (final card in cards) {
       await _database.upsertSearchEntry(
         entityType: 'card',
@@ -70,9 +87,16 @@ final class DriftSearchRepository implements SearchRepository {
         body: card.description ?? '',
       );
     }
-    final boards = await (_database.select(_database.boards)..where((tbl) => tbl.deletedAt.isNull())).get();
+    final boards = await (_database.select(
+      _database.boards,
+    )..where((tbl) => tbl.deletedAt.isNull())).get();
     for (final board in boards) {
-      await _database.upsertSearchEntry(entityType: 'board', entityId: board.id, title: board.title, body: '');
+      await _database.upsertSearchEntry(
+        entityType: 'board',
+        entityId: board.id,
+        title: board.title,
+        body: '',
+      );
     }
   }
 }

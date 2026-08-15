@@ -5,7 +5,8 @@ import 'package:drift/drift.dart';
 class Notes extends Table {
   TextColumn get id => text()();
   TextColumn get title => text().withDefault(const Constant(''))();
-  TextColumn get contentJson => text().withDefault(const Constant('{"version":1,"blocks":[]}'))();
+  TextColumn get contentJson =>
+      text().withDefault(const Constant('{"version":1,"blocks":[]}'))();
   BoolColumn get isFavorite => boolean().withDefault(const Constant(false))();
   DateTimeColumn get lastOpenedAt => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime()();

@@ -20,10 +20,10 @@ final class DriftKanbanRepository implements KanbanRepository {
     required SyncQueueRepository syncQueue,
     required AppClock clock,
     Uuid? uuid,
-  })  : _database = database,
-        _syncQueue = syncQueue,
-        _clock = clock,
-        _uuid = uuid ?? const Uuid();
+  }) : _database = database,
+       _syncQueue = syncQueue,
+       _clock = clock,
+       _uuid = uuid ?? const Uuid();
 
   final AppDatabase _database;
   final SyncQueueRepository _syncQueue;
@@ -37,28 +37,41 @@ final class DriftKanbanRepository implements KanbanRepository {
       ..orderBy(<OrderingTerm Function($BoardsTable)>[
         (tbl) => OrderingTerm.desc(tbl.updatedAt),
       ]);
-    return query.watch().map((rows) => rows.map(_mapBoard).toList(growable: false));
+    return query.watch().map(
+      (rows) => rows.map(_mapBoard).toList(growable: false),
+    );
   }
 
   @override
   Stream<KanbanSnapshot?> watchBoard(String boardId) {
-    final boardStream = (_database.select(_database.boards)
-          ..where((tbl) => tbl.id.equals(boardId) & tbl.deletedAt.isNull()))
-        .watchSingleOrNull();
-    final columnStream = (_database.select(_database.boardColumns)
-          ..where((tbl) => tbl.boardId.equals(boardId) & tbl.deletedAt.isNull())
-          ..orderBy(<OrderingTerm Function($BoardColumnsTable)>[
-            (tbl) => OrderingTerm.asc(tbl.rankKey),
-          ]))
-        .watch();
-    final cardStream = (_database.select(_database.cards)
-          ..where((tbl) => tbl.boardId.equals(boardId) & tbl.deletedAt.isNull())
-          ..orderBy(<OrderingTerm Function($CardsTable)>[
-            (tbl) => OrderingTerm.asc(tbl.rankKey),
-          ]))
-        .watch();
+    final boardStream =
+        (_database.select(_database.boards)
+              ..where((tbl) => tbl.id.equals(boardId) & tbl.deletedAt.isNull()))
+            .watchSingleOrNull();
+    final columnStream =
+        (_database.select(_database.boardColumns)
+              ..where(
+                (tbl) => tbl.boardId.equals(boardId) & tbl.deletedAt.isNull(),
+              )
+              ..orderBy(<OrderingTerm Function($BoardColumnsTable)>[
+                (tbl) => OrderingTerm.asc(tbl.rankKey),
+              ]))
+            .watch();
+    final cardStream =
+        (_database.select(_database.cards)
+              ..where(
+                (tbl) => tbl.boardId.equals(boardId) & tbl.deletedAt.isNull(),
+              )
+              ..orderBy(<OrderingTerm Function($CardsTable)>[
+                (tbl) => OrderingTerm.asc(tbl.rankKey),
+              ]))
+            .watch();
 
-    return _combine3(boardStream, columnStream, cardStream, (board, columns, cards) {
+    return _combine3(boardStream, columnStream, cardStream, (
+      board,
+      columns,
+      cards,
+    ) {
       if (board == null) return null;
       final Map<String, List<KanbanCard>> grouped = <String, List<KanbanCard>>{
         for (final BoardColumn column in columns) column.id: <KanbanCard>[],
@@ -76,9 +89,11 @@ final class DriftKanbanRepository implements KanbanRepository {
 
   @override
   Stream<KanbanCard?> watchCard(String cardId) {
-    return (_database.select(_database.cards)..where((tbl) => tbl.id.equals(cardId)))
-        .watchSingleOrNull()
-        .map((row) => row == null || row.deletedAt != null ? null : _mapCard(row));
+    return (_database.select(
+      _database.cards,
+    )..where((tbl) => tbl.id.equals(cardId))).watchSingleOrNull().map(
+      (row) => row == null || row.deletedAt != null ? null : _mapCard(row),
+    );
   }
 
   @override
@@ -88,7 +103,9 @@ final class DriftKanbanRepository implements KanbanRepository {
     final String id = _uuid.v7();
     final DateTime now = _clock.nowUtc();
     await _database.transaction(() async {
-      await _database.into(_database.boards).insert(
+      await _database
+          .into(_database.boards)
+          .insert(
             BoardsCompanion.insert(
               id: id,
               title: cleanTitle,
@@ -122,7 +139,9 @@ final class DriftKanbanRepository implements KanbanRepository {
     final DateTime now = _clock.nowUtc();
     final int version = row.version + 1;
     await _database.transaction(() async {
-      await (_database.update(_database.boards)..where((tbl) => tbl.id.equals(boardId))).write(
+      await (_database.update(
+        _database.boards,
+      )..where((tbl) => tbl.id.equals(boardId))).write(
         BoardsCompanion(
           title: Value<String>(clean),
           updatedAt: Value<DateTime>(now),
@@ -139,7 +158,15 @@ final class DriftKanbanRepository implements KanbanRepository {
         entityType: 'board',
         entityId: boardId,
         operationType: SyncOperationType.upsert,
-        payload: _boardPayload(boardId, clean, row.colorHex, row.createdAt, now, version, row.deletedAt),
+        payload: _boardPayload(
+          boardId,
+          clean,
+          row.colorHex,
+          row.createdAt,
+          now,
+          version,
+          row.deletedAt,
+        ),
         baseVersion: row.version,
       );
     });
@@ -150,19 +177,25 @@ final class DriftKanbanRepository implements KanbanRepository {
     final Board board = await _requireBoard(boardId);
     final DateTime now = _clock.nowUtc();
     await _database.transaction(() async {
-      final List<BoardColumn> columns = await (_database.select(_database.boardColumns)
-            ..where((tbl) => tbl.boardId.equals(boardId) & tbl.deletedAt.isNull()))
-          .get();
-      final List<Card> cards = await (_database.select(_database.cards)
-            ..where((tbl) => tbl.boardId.equals(boardId) & tbl.deletedAt.isNull()))
-          .get();
+      final List<BoardColumn> columns =
+          await (_database.select(_database.boardColumns)..where(
+                (tbl) => tbl.boardId.equals(boardId) & tbl.deletedAt.isNull(),
+              ))
+              .get();
+      final List<Card> cards =
+          await (_database.select(_database.cards)..where(
+                (tbl) => tbl.boardId.equals(boardId) & tbl.deletedAt.isNull(),
+              ))
+              .get();
       for (final Card card in cards) {
         await _tombstoneCard(card, now);
       }
       for (final BoardColumn column in columns) {
         await _tombstoneColumn(column, now);
       }
-      await (_database.update(_database.boards)..where((tbl) => tbl.id.equals(boardId))).write(
+      await (_database.update(
+        _database.boards,
+      )..where((tbl) => tbl.id.equals(boardId))).write(
         BoardsCompanion(
           deletedAt: Value<DateTime?>(now),
           updatedAt: Value<DateTime>(now),
@@ -174,23 +207,38 @@ final class DriftKanbanRepository implements KanbanRepository {
         entityType: 'board',
         entityId: boardId,
         operationType: SyncOperationType.delete,
-        payload: <String, Object?>{'id': boardId, 'version': board.version + 1, 'updatedAt': now.toIso8601String(), 'deletedAt': now.toIso8601String()},
+        payload: <String, Object?>{
+          'id': boardId,
+          'version': board.version + 1,
+          'updatedAt': now.toIso8601String(),
+          'deletedAt': now.toIso8601String(),
+        },
         baseVersion: board.version,
       );
     });
   }
 
   @override
-  Future<String> createColumn({required String boardId, required String title, String? colorHex}) async {
+  Future<String> createColumn({
+    required String boardId,
+    required String title,
+    String? colorHex,
+  }) async {
     await _requireBoard(boardId);
     final String clean = title.trim();
     if (clean.isEmpty) throw ArgumentError('Column title cannot be empty.');
     final List<BoardColumn> existing = await _columns(boardId);
-    final String rank = await _rankForColumnInsert(boardId, existing.length, existing);
+    final String rank = await _rankForColumnInsert(
+      boardId,
+      existing.length,
+      existing,
+    );
     final String id = _uuid.v7();
     final DateTime now = _clock.nowUtc();
     await _database.transaction(() async {
-      await _database.into(_database.boardColumns).insert(
+      await _database
+          .into(_database.boardColumns)
+          .insert(
             BoardColumnsCompanion.insert(
               id: id,
               boardId: boardId,
@@ -206,7 +254,17 @@ final class DriftKanbanRepository implements KanbanRepository {
         entityType: 'column',
         entityId: id,
         operationType: SyncOperationType.upsert,
-        payload: _columnPayload(id, boardId, clean, colorHex, rank, now, now, 1, null),
+        payload: _columnPayload(
+          id,
+          boardId,
+          clean,
+          colorHex,
+          rank,
+          now,
+          now,
+          1,
+          null,
+        ),
         baseVersion: 0,
       );
     });
@@ -221,7 +279,9 @@ final class DriftKanbanRepository implements KanbanRepository {
     final DateTime now = _clock.nowUtc();
     final int version = row.version + 1;
     await _database.transaction(() async {
-      await (_database.update(_database.boardColumns)..where((tbl) => tbl.id.equals(columnId))).write(
+      await (_database.update(
+        _database.boardColumns,
+      )..where((tbl) => tbl.id.equals(columnId))).write(
         BoardColumnsCompanion(
           title: Value<String>(clean),
           updatedAt: Value<DateTime>(now),
@@ -249,35 +309,53 @@ final class DriftKanbanRepository implements KanbanRepository {
   }
 
   @override
-  Future<void> reorderColumn({required String columnId, required int destinationIndex}) async {
+  Future<void> reorderColumn({
+    required String columnId,
+    required int destinationIndex,
+  }) async {
     final BoardColumn row = await _requireColumn(columnId);
     final List<BoardColumn> columns = await _columns(row.boardId);
-    final List<BoardColumn> without = columns.where((column) => column.id != columnId).toList();
+    final List<BoardColumn> without = columns
+        .where((column) => column.id != columnId)
+        .toList();
     final int index = destinationIndex.clamp(0, without.length);
     final String rank = await _rankForColumnInsert(row.boardId, index, without);
     await _writeColumnRank(row, rank);
   }
 
   @override
-  Future<void> deleteColumn(String columnId, {String? moveCardsToColumnId}) async {
+  Future<void> deleteColumn(
+    String columnId, {
+    String? moveCardsToColumnId,
+  }) async {
     final BoardColumn row = await _requireColumn(columnId);
     final List<Card> cards = await _cards(columnId);
     if (cards.isNotEmpty && moveCardsToColumnId == null) {
-      throw StateError('Column contains cards; choose a destination column before deleting.');
+      throw StateError(
+        'Column contains cards; choose a destination column before deleting.',
+      );
     }
     if (moveCardsToColumnId == columnId) {
-      throw ArgumentError('Destination column must be different from deleted column.');
+      throw ArgumentError(
+        'Destination column must be different from deleted column.',
+      );
     }
     if (moveCardsToColumnId != null) await _requireColumn(moveCardsToColumnId);
     final DateTime now = _clock.nowUtc();
     await _database.transaction(() async {
       if (moveCardsToColumnId != null) {
         final List<Card> destination = await _cards(moveCardsToColumnId);
-        final List<String> ranks = FractionalIndexing.rebalance(destination.length + cards.length);
+        final List<String> ranks = FractionalIndexing.rebalance(
+          destination.length + cards.length,
+        );
         int rankIndex = 0;
         for (final Card card in destination) {
           if (card.rankKey != ranks[rankIndex]) {
-            await _writeCardPosition(card, moveCardsToColumnId, ranks[rankIndex]);
+            await _writeCardPosition(
+              card,
+              moveCardsToColumnId,
+              ranks[rankIndex],
+            );
           }
           rankIndex++;
         }
@@ -298,15 +376,22 @@ final class DriftKanbanRepository implements KanbanRepository {
     String? description,
   }) async {
     final BoardColumn column = await _requireColumn(columnId);
-    if (column.boardId != boardId) throw StateError('Column does not belong to board.');
+    if (column.boardId != boardId)
+      throw StateError('Column does not belong to board.');
     final String clean = title.trim();
     if (clean.isEmpty) throw ArgumentError('Card title cannot be empty.');
     final List<Card> existing = await _cards(columnId);
-    final String rank = await _rankForCardInsert(columnId, existing.length, existing);
+    final String rank = await _rankForCardInsert(
+      columnId,
+      existing.length,
+      existing,
+    );
     final String id = _uuid.v7();
     final DateTime now = _clock.nowUtc();
     await _database.transaction(() async {
-      await _database.into(_database.cards).insert(
+      await _database
+          .into(_database.cards)
+          .insert(
             CardsCompanion.insert(
               id: id,
               boardId: boardId,
@@ -348,7 +433,11 @@ final class DriftKanbanRepository implements KanbanRepository {
   }
 
   @override
-  Future<void> updateCard({required String cardId, required String title, String? description}) async {
+  Future<void> updateCard({
+    required String cardId,
+    required String title,
+    String? description,
+  }) async {
     final Card row = await _requireCard(cardId);
     final String clean = title.trim();
     if (clean.isEmpty) throw ArgumentError('Card title cannot be empty.');
@@ -356,7 +445,9 @@ final class DriftKanbanRepository implements KanbanRepository {
     final int version = row.version + 1;
     final String? cleanDescription = _cleanNullable(description);
     await _database.transaction(() async {
-      await (_database.update(_database.cards)..where((tbl) => tbl.id.equals(cardId))).write(
+      await (_database.update(
+        _database.cards,
+      )..where((tbl) => tbl.id.equals(cardId))).write(
         CardsCompanion(
           title: Value<String>(clean),
           description: Value<String?>(cleanDescription),
@@ -398,14 +489,22 @@ final class DriftKanbanRepository implements KanbanRepository {
     required int destinationIndex,
   }) async {
     final Card row = await _requireCard(cardId);
-    final BoardColumn destinationColumn = await _requireColumn(destinationColumnId);
+    final BoardColumn destinationColumn = await _requireColumn(
+      destinationColumnId,
+    );
     if (destinationColumn.boardId != row.boardId) {
       throw StateError('Cards cannot be moved across boards.');
     }
     final List<Card> destination = await _cards(destinationColumnId);
-    final List<Card> without = destination.where((card) => card.id != cardId).toList();
+    final List<Card> without = destination
+        .where((card) => card.id != cardId)
+        .toList();
     final int index = destinationIndex.clamp(0, without.length);
-    final String rank = await _rankForCardInsert(destinationColumnId, index, without);
+    final String rank = await _rankForCardInsert(
+      destinationColumnId,
+      index,
+      without,
+    );
     await _database.transaction(() async {
       await _writeCardPosition(row, destinationColumnId, rank);
     });
@@ -430,7 +529,9 @@ final class DriftKanbanRepository implements KanbanRepository {
 
   Future<List<Card>> _cards(String columnId) {
     return (_database.select(_database.cards)
-          ..where((tbl) => tbl.columnId.equals(columnId) & tbl.deletedAt.isNull())
+          ..where(
+            (tbl) => tbl.columnId.equals(columnId) & tbl.deletedAt.isNull(),
+          )
           ..orderBy(<OrderingTerm Function($CardsTable)>[
             (tbl) => OrderingTerm.asc(tbl.rankKey),
           ]))
@@ -457,7 +558,11 @@ final class DriftKanbanRepository implements KanbanRepository {
     }
   }
 
-  Future<String> _rankForCardInsert(String columnId, int index, List<Card> ordered) async {
+  Future<String> _rankForCardInsert(
+    String columnId,
+    int index,
+    List<Card> ordered,
+  ) async {
     try {
       return FractionalIndexing.between(
         index == 0 ? null : ordered[index - 1].rankKey,
@@ -473,7 +578,10 @@ final class DriftKanbanRepository implements KanbanRepository {
     }
   }
 
-  Future<void> _rebalanceColumns(String boardId, List<BoardColumn> ordered) async {
+  Future<void> _rebalanceColumns(
+    String boardId,
+    List<BoardColumn> ordered,
+  ) async {
     final List<String> ranks = FractionalIndexing.rebalance(ordered.length);
     await _database.transaction(() async {
       for (int index = 0; index < ordered.length; index++) {
@@ -498,7 +606,9 @@ final class DriftKanbanRepository implements KanbanRepository {
   Future<void> _writeColumnRank(BoardColumn row, String rank) async {
     final DateTime now = _clock.nowUtc();
     final int version = row.version + 1;
-    await (_database.update(_database.boardColumns)..where((tbl) => tbl.id.equals(row.id))).write(
+    await (_database.update(
+      _database.boardColumns,
+    )..where((tbl) => tbl.id.equals(row.id))).write(
       BoardColumnsCompanion(
         rankKey: Value<String>(rank),
         updatedAt: Value<DateTime>(now),
@@ -524,10 +634,16 @@ final class DriftKanbanRepository implements KanbanRepository {
     );
   }
 
-  Future<void> _writeCardPosition(Card row, String columnId, String rank) async {
+  Future<void> _writeCardPosition(
+    Card row,
+    String columnId,
+    String rank,
+  ) async {
     final DateTime now = _clock.nowUtc();
     final int version = row.version + 1;
-    await (_database.update(_database.cards)..where((tbl) => tbl.id.equals(row.id))).write(
+    await (_database.update(
+      _database.cards,
+    )..where((tbl) => tbl.id.equals(row.id))).write(
       CardsCompanion(
         columnId: Value<String>(columnId),
         rankKey: Value<String>(rank),
@@ -556,7 +672,9 @@ final class DriftKanbanRepository implements KanbanRepository {
   }
 
   Future<void> _tombstoneCard(Card row, DateTime now) async {
-    await (_database.update(_database.cards)..where((tbl) => tbl.id.equals(row.id))).write(
+    await (_database.update(
+      _database.cards,
+    )..where((tbl) => tbl.id.equals(row.id))).write(
       CardsCompanion(
         deletedAt: Value<DateTime?>(now),
         updatedAt: Value<DateTime>(now),
@@ -568,13 +686,20 @@ final class DriftKanbanRepository implements KanbanRepository {
       entityType: 'card',
       entityId: row.id,
       operationType: SyncOperationType.delete,
-      payload: <String, Object?>{'id': row.id, 'version': row.version + 1, 'updatedAt': now.toIso8601String(), 'deletedAt': now.toIso8601String()},
+      payload: <String, Object?>{
+        'id': row.id,
+        'version': row.version + 1,
+        'updatedAt': now.toIso8601String(),
+        'deletedAt': now.toIso8601String(),
+      },
       baseVersion: row.version,
     );
   }
 
   Future<void> _tombstoneColumn(BoardColumn row, DateTime now) async {
-    await (_database.update(_database.boardColumns)..where((tbl) => tbl.id.equals(row.id))).write(
+    await (_database.update(
+      _database.boardColumns,
+    )..where((tbl) => tbl.id.equals(row.id))).write(
       BoardColumnsCompanion(
         deletedAt: Value<DateTime?>(now),
         updatedAt: Value<DateTime>(now),
@@ -585,69 +710,77 @@ final class DriftKanbanRepository implements KanbanRepository {
       entityType: 'column',
       entityId: row.id,
       operationType: SyncOperationType.delete,
-      payload: <String, Object?>{'id': row.id, 'version': row.version + 1, 'updatedAt': now.toIso8601String(), 'deletedAt': now.toIso8601String()},
+      payload: <String, Object?>{
+        'id': row.id,
+        'version': row.version + 1,
+        'updatedAt': now.toIso8601String(),
+        'deletedAt': now.toIso8601String(),
+      },
       baseVersion: row.version,
     );
   }
 
   Future<Board> _requireBoard(String id) async {
-    final Board? row = await (_database.select(_database.boards)
-          ..where((tbl) => tbl.id.equals(id) & tbl.deletedAt.isNull()))
-        .getSingleOrNull();
+    final Board? row =
+        await (_database.select(_database.boards)
+              ..where((tbl) => tbl.id.equals(id) & tbl.deletedAt.isNull()))
+            .getSingleOrNull();
     if (row == null) throw StateError('Board not found: $id');
     return row;
   }
 
   Future<BoardColumn> _requireColumn(String id) async {
-    final BoardColumn? row = await (_database.select(_database.boardColumns)
-          ..where((tbl) => tbl.id.equals(id) & tbl.deletedAt.isNull()))
-        .getSingleOrNull();
+    final BoardColumn? row =
+        await (_database.select(_database.boardColumns)
+              ..where((tbl) => tbl.id.equals(id) & tbl.deletedAt.isNull()))
+            .getSingleOrNull();
     if (row == null) throw StateError('Column not found: $id');
     return row;
   }
 
   Future<Card> _requireCard(String id) async {
-    final Card? row = await (_database.select(_database.cards)
-          ..where((tbl) => tbl.id.equals(id) & tbl.deletedAt.isNull()))
-        .getSingleOrNull();
+    final Card? row =
+        await (_database.select(_database.cards)
+              ..where((tbl) => tbl.id.equals(id) & tbl.deletedAt.isNull()))
+            .getSingleOrNull();
     if (row == null) throw StateError('Card not found: $id');
     return row;
   }
 
   BoardEntity _mapBoard(Board row) => BoardEntity(
-        id: row.id,
-        title: row.title,
-        colorHex: row.colorHex,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        version: row.version,
-        deletedAt: row.deletedAt,
-      );
+    id: row.id,
+    title: row.title,
+    colorHex: row.colorHex,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    version: row.version,
+    deletedAt: row.deletedAt,
+  );
 
   BoardColumnEntity _mapColumn(BoardColumn row) => BoardColumnEntity(
-        id: row.id,
-        boardId: row.boardId,
-        title: row.title,
-        colorHex: row.colorHex,
-        rankKey: row.rankKey,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        version: row.version,
-        deletedAt: row.deletedAt,
-      );
+    id: row.id,
+    boardId: row.boardId,
+    title: row.title,
+    colorHex: row.colorHex,
+    rankKey: row.rankKey,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    version: row.version,
+    deletedAt: row.deletedAt,
+  );
 
   KanbanCard _mapCard(Card row) => KanbanCard(
-        id: row.id,
-        boardId: row.boardId,
-        columnId: row.columnId,
-        title: row.title,
-        description: row.description,
-        rankKey: row.rankKey,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        version: row.version,
-        deletedAt: row.deletedAt,
-      );
+    id: row.id,
+    boardId: row.boardId,
+    columnId: row.columnId,
+    title: row.title,
+    description: row.description,
+    rankKey: row.rankKey,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    version: row.version,
+    deletedAt: row.deletedAt,
+  );
 
   String? _cleanNullable(String? value) {
     final String? clean = value?.trim();
@@ -663,14 +796,14 @@ final class DriftKanbanRepository implements KanbanRepository {
     int version,
     DateTime? deletedAt,
   ) => <String, Object?>{
-        'id': id,
-        'title': title,
-        'colorHex': colorHex,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'version': version,
-        'deletedAt': deletedAt?.toIso8601String(),
-      };
+    'id': id,
+    'title': title,
+    'colorHex': colorHex,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'version': version,
+    'deletedAt': deletedAt?.toIso8601String(),
+  };
 
   Map<String, Object?> _columnPayload(
     String id,
@@ -683,16 +816,16 @@ final class DriftKanbanRepository implements KanbanRepository {
     int version,
     DateTime? deletedAt,
   ) => <String, Object?>{
-        'id': id,
-        'boardId': boardId,
-        'title': title,
-        'colorHex': colorHex,
-        'rankKey': rankKey,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'version': version,
-        'deletedAt': deletedAt?.toIso8601String(),
-      };
+    'id': id,
+    'boardId': boardId,
+    'title': title,
+    'colorHex': colorHex,
+    'rankKey': rankKey,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'version': version,
+    'deletedAt': deletedAt?.toIso8601String(),
+  };
 
   Map<String, Object?> _cardPayload(
     String id,
@@ -706,17 +839,17 @@ final class DriftKanbanRepository implements KanbanRepository {
     int version,
     DateTime? deletedAt,
   ) => <String, Object?>{
-        'id': id,
-        'boardId': boardId,
-        'columnId': columnId,
-        'title': title,
-        'description': description,
-        'rankKey': rankKey,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'version': version,
-        'deletedAt': deletedAt?.toIso8601String(),
-      };
+    'id': id,
+    'boardId': boardId,
+    'columnId': columnId,
+    'title': title,
+    'description': description,
+    'rankKey': rankKey,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'version': version,
+    'deletedAt': deletedAt?.toIso8601String(),
+  };
 }
 
 Stream<R> _combine3<A, B, C, R>(
@@ -744,9 +877,21 @@ Stream<R> _combine3<A, B, C, R>(
 
   controller = StreamController<R>(
     onListen: () {
-      sa = a.listen((value) { av = value; hasA = true; emit(); }, onError: controller.addError);
-      sb = b.listen((value) { bv = value; hasB = true; emit(); }, onError: controller.addError);
-      sc = c.listen((value) { cv = value; hasC = true; emit(); }, onError: controller.addError);
+      sa = a.listen((value) {
+        av = value;
+        hasA = true;
+        emit();
+      }, onError: controller.addError);
+      sb = b.listen((value) {
+        bv = value;
+        hasB = true;
+        emit();
+      }, onError: controller.addError);
+      sc = c.listen((value) {
+        cv = value;
+        hasC = true;
+        emit();
+      }, onError: controller.addError);
     },
     onCancel: () async {
       await sa?.cancel();

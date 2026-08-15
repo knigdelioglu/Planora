@@ -16,10 +16,10 @@ final class BoardModel {
   final int version;
 
   Board toEntity() => Board(
-        id: id,
-        title: title,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
-        version: version,
-      );
+    id: id,
+    title: title,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+    version: version,
+  );
 }

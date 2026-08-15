@@ -34,7 +34,8 @@ final class DisabledAuthService implements AuthService {
   AuthSessionState get currentState => _state;
 
   @override
-  Stream<AuthSessionState> watchState() => Stream<AuthSessionState>.value(_state);
+  Stream<AuthSessionState> watchState() =>
+      Stream<AuthSessionState>.value(_state);
 
   @override
   Future<void> signIn({required String email, required String password}) {
@@ -56,11 +57,11 @@ final class SupabaseAuthService implements AuthService {
   final SupabaseClient _client;
 
   AuthSessionState _mapSession(Session? session) => AuthSessionState(
-        isConfigured: true,
-        isSignedIn: session != null,
-        userId: session?.user.id,
-        email: session?.user.email,
-      );
+    isConfigured: true,
+    isSignedIn: session != null,
+    userId: session?.user.id,
+    email: session?.user.email,
+  );
 
   @override
   AuthSessionState get currentState => _mapSession(_client.auth.currentSession);
@@ -68,7 +69,9 @@ final class SupabaseAuthService implements AuthService {
   @override
   Stream<AuthSessionState> watchState() async* {
     yield currentState;
-    yield* _client.auth.onAuthStateChange.map((event) => _mapSession(event.session));
+    yield* _client.auth.onAuthStateChange.map(
+      (event) => _mapSession(event.session),
+    );
   }
 
   @override
@@ -77,14 +80,19 @@ final class SupabaseAuthService implements AuthService {
     if (cleanEmail.isEmpty || password.isEmpty) {
       throw ArgumentError('Email and password are required.');
     }
-    await _client.auth.signInWithPassword(email: cleanEmail, password: password);
+    await _client.auth.signInWithPassword(
+      email: cleanEmail,
+      password: password,
+    );
   }
 
   @override
   Future<void> signUp({required String email, required String password}) async {
     final String cleanEmail = email.trim();
     if (cleanEmail.isEmpty || password.length < 8) {
-      throw ArgumentError('A valid email and password of at least 8 characters are required.');
+      throw ArgumentError(
+        'A valid email and password of at least 8 characters are required.',
+      );
     }
     await _client.auth.signUp(email: cleanEmail, password: password);
   }

@@ -13,7 +13,10 @@ void main() {
   test('rebalance returns strictly ascending fixed-width keys', () {
     final values = FractionalIndexing.rebalance(500);
     expect(values, hasLength(500));
-    expect(values.every((key) => key.length == FractionalIndexing.width), isTrue);
+    expect(
+      values.every((key) => key.length == FractionalIndexing.width),
+      isTrue,
+    );
     for (int index = 1; index < values.length; index++) {
       expect(values[index - 1].compareTo(values[index]), lessThan(0));
     }

@@ -24,13 +24,13 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
     required RemoteGateway remote,
     Dio? dio,
     Uuid? uuid,
-  })  : _database = database,
-        _storage = storage,
-        _syncQueue = syncQueue,
-        _clock = clock,
-        _remote = remote,
-        _dio = dio ?? Dio(),
-        _uuid = uuid ?? const Uuid();
+  }) : _database = database,
+       _storage = storage,
+       _syncQueue = syncQueue,
+       _clock = clock,
+       _remote = remote,
+       _dio = dio ?? Dio(),
+       _uuid = uuid ?? const Uuid();
 
   final AppDatabase _database;
   final FileStorageService _storage;
@@ -41,10 +41,20 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
   final Uuid _uuid;
 
   @override
-  Stream<List<AttachmentEntity>> watchForParent(String parentType, String parentId) {
+  Stream<List<AttachmentEntity>> watchForParent(
+    String parentType,
+    String parentId,
+  ) {
     final query = _database.select(_database.attachments)
-      ..where((tbl) => tbl.parentType.equals(parentType) & tbl.parentId.equals(parentId) & tbl.deletedAt.isNull())
-      ..orderBy(<OrderingTerm Function($AttachmentsTable)>[(tbl) => OrderingTerm.asc(tbl.createdAt)]);
+      ..where(
+        (tbl) =>
+            tbl.parentType.equals(parentType) &
+            tbl.parentId.equals(parentId) &
+            tbl.deletedAt.isNull(),
+      )
+      ..orderBy(<OrderingTerm Function($AttachmentsTable)>[
+        (tbl) => OrderingTerm.asc(tbl.createdAt),
+      ]);
     return query.watch().map((rows) => rows.map(_map).toList(growable: false));
   }
 
@@ -55,7 +65,11 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
     required File source,
   }) async {
     if (parentType != 'note' && parentType != 'card') {
-      throw ArgumentError.value(parentType, 'parentType', 'Only note and card attachments are supported.');
+      throw ArgumentError.value(
+        parentType,
+        'parentType',
+        'Only note and card attachments are supported.',
+      );
     }
     final String id = _uuid.v7();
     final StoredFile stored = await _storage.persist(source, attachmentId: id);
@@ -63,7 +77,9 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
     final String? mimeType = lookupMimeType(stored.fileName);
     try {
       await _database.transaction(() async {
-        await _database.into(_database.attachments).insert(
+        await _database
+            .into(_database.attachments)
+            .insert(
               AttachmentsCompanion.insert(
                 id: id,
                 parentType: parentType,
@@ -114,32 +130,48 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
       await _storage.deleteOwned(stored.localPath);
       rethrow;
     }
-    final row = await (_database.select(_database.attachments)..where((tbl) => tbl.id.equals(id))).getSingle();
+    final row = await (_database.select(
+      _database.attachments,
+    )..where((tbl) => tbl.id.equals(id))).getSingle();
     return _map(row);
   }
 
   @override
   Future<File> ensureLocal(String attachmentId) async {
-    final Attachment? row = await (_database.select(_database.attachments)..where((tbl) => tbl.id.equals(attachmentId))).getSingleOrNull();
-    if (row == null || row.deletedAt != null) throw StateError('Attachment does not exist.');
+    final Attachment? row = await (_database.select(
+      _database.attachments,
+    )..where((tbl) => tbl.id.equals(attachmentId))).getSingleOrNull();
+    if (row == null || row.deletedAt != null)
+      throw StateError('Attachment does not exist.');
     if (row.localPath.isNotEmpty && await _storage.exists(row.localPath)) {
       await _touch(row.id);
       return File(row.localPath);
     }
     if (row.remotePath == null || !_remote.available) {
-      throw FileSystemException('Attachment is not available on this device and cloud download is unavailable.');
+      throw FileSystemException(
+        'Attachment is not available on this device and cloud download is unavailable.',
+      );
     }
 
-    final String url = await _remote.createAttachmentDownloadUrl(row.remotePath!);
+    final String url = await _remote.createAttachmentDownloadUrl(
+      row.remotePath!,
+    );
     final Directory tempRoot = await getTemporaryDirectory();
-    final Directory tempDir = Directory(p.join(tempRoot.path, 'not_attachment_downloads', row.id));
+    final Directory tempDir = Directory(
+      p.join(tempRoot.path, 'not_attachment_downloads', row.id),
+    );
     await tempDir.create(recursive: true);
     final File temp = File(p.join(tempDir.path, row.fileName));
     await _dio.download(url, temp.path, deleteOnError: true);
-    final StoredFile cached = await _storage.persistCache(temp, attachmentId: row.id);
+    final StoredFile cached = await _storage.persistCache(
+      temp,
+      attachmentId: row.id,
+    );
     if (await temp.exists()) await temp.delete();
     final DateTime now = _clock.nowUtc();
-    await (_database.update(_database.attachments)..where((tbl) => tbl.id.equals(row.id))).write(
+    await (_database.update(
+      _database.attachments,
+    )..where((tbl) => tbl.id.equals(row.id))).write(
       AttachmentsCompanion(
         localPath: Value<String>(cached.localPath),
         isCache: const Value<bool>(true),
@@ -153,18 +185,24 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
   }
 
   Future<void> _touch(String id) async {
-    await (_database.update(_database.attachments)..where((tbl) => tbl.id.equals(id))).write(
+    await (_database.update(
+      _database.attachments,
+    )..where((tbl) => tbl.id.equals(id))).write(
       AttachmentsCompanion(lastAccessedAt: Value<DateTime?>(_clock.nowUtc())),
     );
   }
 
   @override
   Future<void> remove(String attachmentId) async {
-    final Attachment? row = await (_database.select(_database.attachments)..where((tbl) => tbl.id.equals(attachmentId))).getSingleOrNull();
+    final Attachment? row = await (_database.select(
+      _database.attachments,
+    )..where((tbl) => tbl.id.equals(attachmentId))).getSingleOrNull();
     if (row == null || row.deletedAt != null) return;
     final DateTime now = _clock.nowUtc();
     await _database.transaction(() async {
-      await (_database.update(_database.attachments)..where((tbl) => tbl.id.equals(attachmentId))).write(
+      await (_database.update(
+        _database.attachments,
+      )..where((tbl) => tbl.id.equals(attachmentId))).write(
         AttachmentsCompanion(
           deletedAt: Value<DateTime?>(now),
           updatedAt: Value<DateTime>(now),
@@ -198,24 +236,25 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
   Future<int> cacheSizeBytes() => _storage.cacheSizeBytes();
 
   @override
-  Future<void> evictCacheUntil(int maximumBytes) => _storage.evictCacheUntil(maximumBytes: maximumBytes);
+  Future<void> evictCacheUntil(int maximumBytes) =>
+      _storage.evictCacheUntil(maximumBytes: maximumBytes);
 
   AttachmentEntity _map(Attachment row) => AttachmentEntity(
-        id: row.id,
-        parentType: row.parentType,
-        parentId: row.parentId,
-        fileName: row.fileName,
-        localPath: row.localPath,
-        remotePath: row.remotePath,
-        mimeType: row.mimeType,
-        sizeBytes: row.sizeBytes,
-        checksum: row.checksum,
-        isCache: row.isCache,
-        lastAccessedAt: row.lastAccessedAt,
-        transferState: row.transferState,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        version: row.version,
-        deletedAt: row.deletedAt,
-      );
+    id: row.id,
+    parentType: row.parentType,
+    parentId: row.parentId,
+    fileName: row.fileName,
+    localPath: row.localPath,
+    remotePath: row.remotePath,
+    mimeType: row.mimeType,
+    sizeBytes: row.sizeBytes,
+    checksum: row.checksum,
+    isCache: row.isCache,
+    lastAccessedAt: row.lastAccessedAt,
+    transferState: row.transferState,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    version: row.version,
+    deletedAt: row.deletedAt,
+  );
 }

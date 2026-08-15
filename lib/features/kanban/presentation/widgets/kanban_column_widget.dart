@@ -26,7 +26,8 @@ class KanbanColumnWidget extends StatelessWidget {
           Expanded(
             child: ListView.builder(
               itemCount: cards.length,
-              itemBuilder: (context, index) => KanbanCardWidget(card: cards[index]),
+              itemBuilder: (context, index) =>
+                  KanbanCardWidget(card: cards[index]),
             ),
           ),
         ],

@@ -16,10 +16,17 @@ class ConflictsScreen extends ConsumerWidget {
       body: StreamBuilder<List<SyncConflictEntity>>(
         stream: repo.watchOpen(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) return ErrorState(message: snapshot.error.toString());
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (snapshot.hasError)
+            return ErrorState(message: snapshot.error.toString());
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
           final data = snapshot.requireData;
-          if (data.isEmpty) return const EmptyState(icon: Icons.check_circle_outline, title: 'Çakışma yok', message: 'Cihazlar arasındaki değişiklikler uyumlu.');
+          if (data.isEmpty)
+            return const EmptyState(
+              icon: Icons.check_circle_outline,
+              title: 'Çakışma yok',
+              message: 'Cihazlar arasındaki değişiklikler uyumlu.',
+            );
           return ListView.builder(
             padding: const EdgeInsets.all(20),
             itemCount: data.length,
@@ -30,7 +37,9 @@ class ConflictsScreen extends ConsumerWidget {
                 child: ExpansionTile(
                   leading: const Icon(Icons.compare_arrows_rounded),
                   title: Text('${item.entityType} · ${item.entityId}'),
-                  subtitle: Text('İki cihaz aynı kaydı farklı biçimde değiştirdi.'),
+                  subtitle: Text(
+                    'İki cihaz aynı kaydı farklı biçimde değiştirdi.',
+                  ),
                   childrenPadding: const EdgeInsets.all(16),
                   children: <Widget>[
                     _JsonPreview(label: 'Bu cihaz', raw: item.localJson),
@@ -41,9 +50,18 @@ class ConflictsScreen extends ConsumerWidget {
                       spacing: 8,
                       runSpacing: 8,
                       children: <Widget>[
-                        FilledButton(onPressed: () => repo.resolveUsingLocal(item.id), child: const Text('Bu sürümü kullan')),
-                        OutlinedButton(onPressed: () => repo.resolveUsingRemote(item.id), child: const Text('Diğer sürümü kullan')),
-                        OutlinedButton(onPressed: () => repo.resolveAsCopy(item.id), child: const Text('Kopya olarak sakla')),
+                        FilledButton(
+                          onPressed: () => repo.resolveUsingLocal(item.id),
+                          child: const Text('Bu sürümü kullan'),
+                        ),
+                        OutlinedButton(
+                          onPressed: () => repo.resolveUsingRemote(item.id),
+                          child: const Text('Diğer sürümü kullan'),
+                        ),
+                        OutlinedButton(
+                          onPressed: () => repo.resolveAsCopy(item.id),
+                          child: const Text('Kopya olarak sakla'),
+                        ),
                       ],
                     ),
                   ],
@@ -64,7 +82,21 @@ class _JsonPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String pretty = raw;
-    try { pretty = const JsonEncoder.withIndent('  ').convert(jsonDecode(raw)); } catch (_) {}
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[Text(label, style: Theme.of(context).textTheme.titleMedium), const SizedBox(height: 6), SelectableText(pretty, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'))]);
+    try {
+      pretty = const JsonEncoder.withIndent('  ').convert(jsonDecode(raw));
+    } catch (_) {}
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(label, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 6),
+        SelectableText(
+          pretty,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+        ),
+      ],
+    );
   }
 }

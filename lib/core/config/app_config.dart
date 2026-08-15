@@ -7,9 +7,14 @@ final class AppConfig {
 
   factory AppConfig.fromEnvironment() {
     return const AppConfig(
-      environment: String.fromEnvironment('APP_ENV', defaultValue: 'production'),
+      environment: String.fromEnvironment(
+        'APP_ENV',
+        defaultValue: 'production',
+      ),
       supabaseUrl: String.fromEnvironment('SUPABASE_URL'),
-      supabasePublishableKey: String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY'),
+      supabasePublishableKey: String.fromEnvironment(
+        'SUPABASE_PUBLISHABLE_KEY',
+      ),
     );
   }
 

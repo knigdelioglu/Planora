@@ -57,7 +57,10 @@ final class FractionalIndexing {
 
   static BigInt decode(String key) {
     if (key.length != width) {
-      throw FormatException('Rank must contain exactly $width characters.', key);
+      throw FormatException(
+        'Rank must contain exactly $width characters.',
+        key,
+      );
     }
     BigInt value = BigInt.zero;
     for (final int codeUnit in key.codeUnits) {

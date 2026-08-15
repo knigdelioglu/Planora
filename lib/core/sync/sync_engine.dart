@@ -12,7 +12,11 @@ import 'package:not_app/core/utils/clock.dart';
 import 'package:not_app/features/conflicts/domain/repositories/conflict_repository.dart';
 
 final class SyncRunResult {
-  const SyncRunResult({required this.pushed, required this.pulled, required this.conflicts});
+  const SyncRunResult({
+    required this.pushed,
+    required this.pulled,
+    required this.conflicts,
+  });
   final int pushed;
   final int pulled;
   final int conflicts;
@@ -27,13 +31,13 @@ final class SyncEngine {
     required ConflictRepository conflicts,
     required AppClock clock,
     required AppLogger logger,
-  })  : _database = database,
-        _queue = queue,
-        _remote = remote,
-        _localStore = localStore,
-        _conflicts = conflicts,
-        _clock = clock,
-        _logger = logger;
+  }) : _database = database,
+       _queue = queue,
+       _remote = remote,
+       _localStore = localStore,
+       _conflicts = conflicts,
+       _clock = clock,
+       _logger = logger;
 
   final AppDatabase _database;
   final SyncQueueRepository _queue;
@@ -45,7 +49,8 @@ final class SyncEngine {
   bool _running = false;
 
   Future<SyncRunResult> runOnce() async {
-    if (_running || !_remote.available) return const SyncRunResult(pushed: 0, pulled: 0, conflicts: 0);
+    if (_running || !_remote.available)
+      return const SyncRunResult(pushed: 0, pulled: 0, conflicts: 0);
     _running = true;
     int pushed = 0;
     int pulled = 0;
@@ -63,22 +68,42 @@ final class SyncEngine {
             await _queue.markCompleted(operation.id);
           }
         } catch (error, stackTrace) {
-          _logger.warning('Sync push failed for ${operation.entityType}/${operation.entityId}', error, stackTrace);
+          _logger.warning(
+            'Sync push failed for ${operation.entityType}/${operation.entityId}',
+            error,
+            stackTrace,
+          );
           await _queue.markRetry(operation.id, error: _safeError(error));
         }
       }
 
       int cursor = await _readCursor();
       while (true) {
-        final List<RemoteEntity> batch = await _remote.pull(afterRevision: cursor);
+        final List<RemoteEntity> batch = await _remote.pull(
+          afterRevision: cursor,
+        );
         if (batch.isEmpty) break;
         for (final RemoteEntity remote in batch) {
-          final int localVersion = await _localStore.localVersion(remote.entityType, remote.entityId);
-          final bool dirty = await _localStore.hasPendingMutation(remote.entityType, remote.entityId);
+          final int localVersion = await _localStore.localVersion(
+            remote.entityType,
+            remote.entityId,
+          );
+          final bool dirty = await _localStore.hasPendingMutation(
+            remote.entityType,
+            remote.entityId,
+          );
           if (dirty && localVersion > 0 && remote.version != localVersion) {
-            final Map<String, Object?>? local = await _localStore.payloadFor(remote.entityType, remote.entityId);
+            final Map<String, Object?>? local = await _localStore.payloadFor(
+              remote.entityType,
+              remote.entityId,
+            );
             if (local != null) {
-              await _conflicts.record(entityType: remote.entityType, entityId: remote.entityId, local: local, remote: remote);
+              await _conflicts.record(
+                entityType: remote.entityType,
+                entityId: remote.entityId,
+                local: local,
+                remote: remote,
+              );
               conflictCount++;
             }
           } else if (remote.version >= localVersion) {
@@ -90,7 +115,11 @@ final class SyncEngine {
         await _writeCursor(cursor);
         if (batch.length < 250) break;
       }
-      return SyncRunResult(pushed: pushed, pulled: pulled, conflicts: conflictCount);
+      return SyncRunResult(
+        pushed: pushed,
+        pulled: pulled,
+        conflicts: conflictCount,
+      );
     } finally {
       _running = false;
     }
@@ -101,10 +130,21 @@ final class SyncEngine {
       await _uploadAttachment(operation);
       return false;
     }
-    final Map<String, Object?> payload = Map<String, Object?>.from(operation.payload);
-    final int version = (payload['version'] as num?)?.toInt() ?? await _localStore.localVersion(operation.entityType, operation.entityId);
-    final DateTime updatedAt = DateTime.tryParse((payload['updatedAt'] ?? '').toString())?.toUtc() ?? _clock.nowUtc();
-    final DateTime? deletedAt = payload['deletedAt'] == null ? null : DateTime.tryParse(payload['deletedAt'].toString())?.toUtc();
+    final Map<String, Object?> payload = Map<String, Object?>.from(
+      operation.payload,
+    );
+    final int version =
+        (payload['version'] as num?)?.toInt() ??
+        await _localStore.localVersion(
+          operation.entityType,
+          operation.entityId,
+        );
+    final DateTime updatedAt =
+        DateTime.tryParse((payload['updatedAt'] ?? '').toString())?.toUtc() ??
+        _clock.nowUtc();
+    final DateTime? deletedAt = payload['deletedAt'] == null
+        ? null
+        : DateTime.tryParse(payload['deletedAt'].toString())?.toUtc();
     final RemoteApplyResult result = await _remote.apply(
       entityType: operation.entityType,
       entityId: operation.entityId,
@@ -115,11 +155,22 @@ final class SyncEngine {
       payload: payload,
     );
     if (result is RemoteApplyConflict) {
-      final Map<String, Object?>? local = await _localStore.payloadFor(operation.entityType, operation.entityId);
+      final Map<String, Object?>? local = await _localStore.payloadFor(
+        operation.entityType,
+        operation.entityId,
+      );
       if (local != null) {
-        await _conflicts.record(entityType: operation.entityType, entityId: operation.entityId, local: local, remote: result.remote);
+        await _conflicts.record(
+          entityType: operation.entityType,
+          entityId: operation.entityId,
+          local: local,
+          remote: result.remote,
+        );
       }
-      await _queue.markConflict(operation.id, error: 'Remote version changed while this device was offline.');
+      await _queue.markConflict(
+        operation.id,
+        error: 'Remote version changed while this device was offline.',
+      );
       return true;
     }
     return false;
@@ -127,18 +178,28 @@ final class SyncEngine {
 
   Future<void> _uploadAttachment(SyncOperation operation) async {
     final String localPath = (operation.payload['localPath'] ?? '').toString();
-    final String fileName = (operation.payload['fileName'] ?? 'attachment').toString();
-    if (localPath.isEmpty) throw StateError('Upload operation has no local file path.');
+    final String fileName = (operation.payload['fileName'] ?? 'attachment')
+        .toString();
+    if (localPath.isEmpty)
+      throw StateError('Upload operation has no local file path.');
     final String? uid = _remote.userId;
     if (uid == null) throw StateError('Cloud account is not signed in.');
-    final String remotePath = '$uid/${operation.entityId}/${_safeRemoteName(fileName)}';
-    await _remote.uploadAttachment(remotePath: remotePath, file: File(localPath));
-    final Attachment? row = await (_database.select(_database.attachments)..where((tbl) => tbl.id.equals(operation.entityId))).getSingleOrNull();
+    final String remotePath =
+        '$uid/${operation.entityId}/${_safeRemoteName(fileName)}';
+    await _remote.uploadAttachment(
+      remotePath: remotePath,
+      file: File(localPath),
+    );
+    final Attachment? row = await (_database.select(
+      _database.attachments,
+    )..where((tbl) => tbl.id.equals(operation.entityId))).getSingleOrNull();
     if (row == null || row.deletedAt != null) return;
     final DateTime now = _clock.nowUtc();
     final int nextVersion = row.version + 1;
     await _database.transaction(() async {
-      await (_database.update(_database.attachments)..where((tbl) => tbl.id.equals(row.id))).write(
+      await (_database.update(
+        _database.attachments,
+      )..where((tbl) => tbl.id.equals(row.id))).write(
         AttachmentsCompanion(
           remotePath: Value<String?>(remotePath),
           transferState: const Value<String>('synced'),
@@ -146,7 +207,10 @@ final class SyncEngine {
           version: Value<int>(nextVersion),
         ),
       );
-      final Map<String, Object?>? metadata = await _localStore.payloadFor('attachment', row.id);
+      final Map<String, Object?>? metadata = await _localStore.payloadFor(
+        'attachment',
+        row.id,
+      );
       if (metadata != null) {
         await _queue.enqueue(
           entityType: 'attachment',
@@ -159,16 +223,25 @@ final class SyncEngine {
     });
   }
 
-  String _safeRemoteName(String name) => name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+  String _safeRemoteName(String name) =>
+      name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
 
   Future<int> _readCursor() async {
-    final SyncMetaData? row = await (_database.select(_database.syncMeta)..where((tbl) => tbl.key.equals('remote_cursor'))).getSingleOrNull();
+    final SyncMetaData? row = await (_database.select(
+      _database.syncMeta,
+    )..where((tbl) => tbl.key.equals('remote_cursor'))).getSingleOrNull();
     return int.tryParse(row?.value ?? '0') ?? 0;
   }
 
   Future<void> _writeCursor(int value) async {
-    await _database.into(_database.syncMeta).insertOnConflictUpdate(
-          SyncMetaCompanion.insert(key: 'remote_cursor', value: value.toString(), updatedAt: _clock.nowUtc()),
+    await _database
+        .into(_database.syncMeta)
+        .insertOnConflictUpdate(
+          SyncMetaCompanion.insert(
+            key: 'remote_cursor',
+            value: value.toString(),
+            updatedAt: _clock.nowUtc(),
+          ),
         );
   }
 

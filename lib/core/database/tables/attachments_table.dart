@@ -14,7 +14,8 @@ class Attachments extends Table {
   TextColumn get checksum => text().nullable()();
   BoolColumn get isCache => boolean().withDefault(const Constant(false))();
   DateTimeColumn get lastAccessedAt => dateTime().nullable()();
-  TextColumn get transferState => text().withDefault(const Constant('localOnly'))();
+  TextColumn get transferState =>
+      text().withDefault(const Constant('localOnly'))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
   IntColumn get version => integer().withDefault(const Constant(1))();

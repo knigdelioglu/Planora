@@ -11,7 +11,8 @@ class BoardColumns extends Table {
   /// Kept nullable for schema-v1 migration compatibility. Product ordering
   /// uses [rankKey] exclusively.
   RealColumn get rank => real().nullable()();
-  TextColumn get rankKey => text().withDefault(const Constant('hzzzzzzzzzzz'))();
+  TextColumn get rankKey =>
+      text().withDefault(const Constant('hzzzzzzzzzzz'))();
 
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();

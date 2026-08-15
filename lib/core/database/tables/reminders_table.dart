@@ -12,7 +12,8 @@ class Reminders extends Table {
   TextColumn get timeZoneId => text()();
   IntColumn get notificationId => integer()();
   BoolColumn get enabled => boolean().withDefault(const Constant(true))();
-  TextColumn get schedulingStatus => text().withDefault(const Constant('pending'))();
+  TextColumn get schedulingStatus =>
+      text().withDefault(const Constant('pending'))();
   DateTimeColumn get lastReconciledAt => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();

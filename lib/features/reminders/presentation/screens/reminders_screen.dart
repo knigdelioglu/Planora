@@ -14,14 +14,18 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
   bool _past = false;
 
   Future<void> _requestPermissions() async {
-    final state = await ref.read(notificationServiceProvider).requestPermissions();
+    final state = await ref
+        .read(notificationServiceProvider)
+        .requestPermissions();
     if (!mounted) return;
     final String message = state.notificationsAllowed
         ? state.exactAlarmsAllowed
-            ? 'Bildirim izinleri hazır.'
-            : 'Bildirim izni açık; kesin alarm izni cihaz tarafından sınırlanıyor.'
+              ? 'Bildirim izinleri hazır.'
+              : 'Bildirim izni açık; kesin alarm izni cihaz tarafından sınırlanıyor.'
         : 'Bildirim izni verilmedi. Ayarlardan daha sonra açabilirsiniz.';
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
     await ref.read(remindersRepositoryProvider).reconcile();
   }
 
@@ -33,7 +37,13 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
         AppPageHeader(
           title: 'Hatırlatıcılar',
           subtitle: 'Not ve kartlara bağlı cihaz bildirimleri.',
-          actions: <Widget>[OutlinedButton.icon(onPressed: _requestPermissions, icon: const Icon(Icons.notifications_active_outlined), label: const Text('İzinleri kontrol et'))],
+          actions: <Widget>[
+            OutlinedButton.icon(
+              onPressed: _requestPermissions,
+              icon: const Icon(Icons.notifications_active_outlined),
+              label: const Text('İzinleri kontrol et'),
+            ),
+          ],
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -45,7 +55,8 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
                 ButtonSegment(value: true, label: Text('Geçmiş')),
               ],
               selected: <bool>{_past},
-              onSelectionChanged: (value) => setState(() => _past = value.first),
+              onSelectionChanged: (value) =>
+                  setState(() => _past = value.first),
               showSelectedIcon: false,
             ),
           ),
@@ -55,14 +66,17 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
           child: StreamBuilder<List<ReminderEntity>>(
             stream: _past ? repo.watchPast() : repo.watchUpcoming(),
             builder: (context, snapshot) {
-              if (snapshot.hasError) return ErrorState(message: snapshot.error.toString());
-              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              if (snapshot.hasError)
+                return ErrorState(message: snapshot.error.toString());
+              if (!snapshot.hasData)
+                return const Center(child: CircularProgressIndicator());
               final data = snapshot.requireData;
               if (data.isEmpty) {
                 return const EmptyState(
                   icon: Icons.notifications_none,
                   title: 'Hatırlatıcı yok',
-                  message: 'Not veya kart ayrıntısından bir tarih ve saat belirleyebilirsiniz.',
+                  message:
+                      'Not veya kart ayrıntısından bir tarih ve saat belirleyebilirsiniz.',
                 );
               }
               return ListView.separated(
@@ -72,10 +86,22 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
                 itemBuilder: (context, index) {
                   final item = data[index];
                   return ListTile(
-                    leading: Icon(item.schedulingStatus == 'scheduled' ? Icons.notifications_active_outlined : Icons.notifications_none),
+                    leading: Icon(
+                      item.schedulingStatus == 'scheduled'
+                          ? Icons.notifications_active_outlined
+                          : Icons.notifications_none,
+                    ),
                     title: Text(item.title),
-                    subtitle: Text('${MaterialLocalizations.of(context).formatFullDate(item.scheduledAtUtc.toLocal())} · ${TimeOfDay.fromDateTime(item.scheduledAtUtc.toLocal()).format(context)} · ${item.schedulingStatus}'),
-                    trailing: item.deletedAt == null ? IconButton(tooltip: 'Hatırlatıcıyı sil', onPressed: () => repo.remove(item.id), icon: const Icon(Icons.delete_outline)) : null,
+                    subtitle: Text(
+                      '${MaterialLocalizations.of(context).formatFullDate(item.scheduledAtUtc.toLocal())} · ${TimeOfDay.fromDateTime(item.scheduledAtUtc.toLocal()).format(context)} · ${item.schedulingStatus}',
+                    ),
+                    trailing: item.deletedAt == null
+                        ? IconButton(
+                            tooltip: 'Hatırlatıcıyı sil',
+                            onPressed: () => repo.remove(item.id),
+                            icon: const Icon(Icons.delete_outline),
+                          )
+                        : null,
                   );
                 },
               );

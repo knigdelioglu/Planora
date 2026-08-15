@@ -17,9 +17,21 @@ void main() {
     addTearDown(db.close);
     final clock = _Clock();
     final queue = DriftSyncQueueRepository(database: db, clock: clock);
-    final repo = DriftNotesRepository(database: db, syncQueue: queue, clock: clock);
+    final repo = DriftNotesRepository(
+      database: db,
+      syncQueue: queue,
+      clock: clock,
+    );
     final id = await repo.createNote(title: 'Test');
-    await repo.saveDocument(id, NoteDocument(version: 1, blocks: const <NoteBlock>[NoteBlock(id: 'x', type: NoteBlockType.paragraph, text: 'Merhaba') ]));
+    await repo.saveDocument(
+      id,
+      NoteDocument(
+        version: 1,
+        blocks: const <NoteBlock>[
+          NoteBlock(id: 'x', type: NoteBlockType.paragraph, text: 'Merhaba'),
+        ],
+      ),
+    );
     final note = await repo.getNote(id);
     expect(note?.title, 'Test');
     expect(note?.document.plainText, 'Merhaba');

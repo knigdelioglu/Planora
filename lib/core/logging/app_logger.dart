@@ -10,11 +10,23 @@ final class AppLogger {
 
   void warning(String message, [Object? error, StackTrace? stackTrace]) {
     if (!enabled) return;
-    developer.log(message, name: 'Not', level: 900, error: error, stackTrace: stackTrace);
+    developer.log(
+      message,
+      name: 'Not',
+      level: 900,
+      error: error,
+      stackTrace: stackTrace,
+    );
   }
 
   void error(String message, [Object? error, StackTrace? stackTrace]) {
     if (!enabled) return;
-    developer.log(message, name: 'Not', level: 1000, error: error, stackTrace: stackTrace);
+    developer.log(
+      message,
+      name: 'Not',
+      level: 1000,
+      error: error,
+      stackTrace: stackTrace,
+    );
   }
 }

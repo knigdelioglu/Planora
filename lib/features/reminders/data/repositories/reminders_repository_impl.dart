@@ -15,11 +15,11 @@ final class DriftRemindersRepository implements RemindersRepository {
     required SyncQueueRepository syncQueue,
     required AppClock clock,
     Uuid? uuid,
-  })  : _database = database,
-        _notifications = notifications,
-        _syncQueue = syncQueue,
-        _clock = clock,
-        _uuid = uuid ?? const Uuid();
+  }) : _database = database,
+       _notifications = notifications,
+       _syncQueue = syncQueue,
+       _clock = clock,
+       _uuid = uuid ?? const Uuid();
 
   final AppDatabase _database;
   final NotificationService _notifications;
@@ -31,8 +31,15 @@ final class DriftRemindersRepository implements RemindersRepository {
   Stream<List<ReminderEntity>> watchUpcoming() {
     final DateTime now = _clock.nowUtc();
     final query = _database.select(_database.reminders)
-      ..where((tbl) => tbl.deletedAt.isNull() & tbl.enabled.equals(true) & tbl.scheduledAtUtc.isBiggerOrEqualValue(now))
-      ..orderBy(<OrderingTerm Function($RemindersTable)>[(tbl) => OrderingTerm.asc(tbl.scheduledAtUtc)]);
+      ..where(
+        (tbl) =>
+            tbl.deletedAt.isNull() &
+            tbl.enabled.equals(true) &
+            tbl.scheduledAtUtc.isBiggerOrEqualValue(now),
+      )
+      ..orderBy(<OrderingTerm Function($RemindersTable)>[
+        (tbl) => OrderingTerm.asc(tbl.scheduledAtUtc),
+      ]);
     return query.watch().map((rows) => rows.map(_map).toList(growable: false));
   }
 
@@ -40,16 +47,31 @@ final class DriftRemindersRepository implements RemindersRepository {
   Stream<List<ReminderEntity>> watchPast() {
     final DateTime now = _clock.nowUtc();
     final query = _database.select(_database.reminders)
-      ..where((tbl) => tbl.deletedAt.isNull() & tbl.scheduledAtUtc.isSmallerThanValue(now))
-      ..orderBy(<OrderingTerm Function($RemindersTable)>[(tbl) => OrderingTerm.desc(tbl.scheduledAtUtc)]);
+      ..where(
+        (tbl) =>
+            tbl.deletedAt.isNull() & tbl.scheduledAtUtc.isSmallerThanValue(now),
+      )
+      ..orderBy(<OrderingTerm Function($RemindersTable)>[
+        (tbl) => OrderingTerm.desc(tbl.scheduledAtUtc),
+      ]);
     return query.watch().map((rows) => rows.map(_map).toList(growable: false));
   }
 
   @override
-  Stream<List<ReminderEntity>> watchForParent(String parentType, String parentId) {
+  Stream<List<ReminderEntity>> watchForParent(
+    String parentType,
+    String parentId,
+  ) {
     final query = _database.select(_database.reminders)
-      ..where((tbl) => tbl.parentType.equals(parentType) & tbl.parentId.equals(parentId) & tbl.deletedAt.isNull())
-      ..orderBy(<OrderingTerm Function($RemindersTable)>[(tbl) => OrderingTerm.asc(tbl.scheduledAtUtc)]);
+      ..where(
+        (tbl) =>
+            tbl.parentType.equals(parentType) &
+            tbl.parentId.equals(parentId) &
+            tbl.deletedAt.isNull(),
+      )
+      ..orderBy(<OrderingTerm Function($RemindersTable)>[
+        (tbl) => OrderingTerm.asc(tbl.scheduledAtUtc),
+      ]);
     return query.watch().map((rows) => rows.map(_map).toList(growable: false));
   }
 
@@ -67,7 +89,9 @@ final class DriftRemindersRepository implements RemindersRepository {
     final int notificationId = await _allocateNotificationId(id);
     final DateTime now = _clock.nowUtc();
     await _database.transaction(() async {
-      await _database.into(_database.reminders).insert(
+      await _database
+          .into(_database.reminders)
+          .insert(
             RemindersCompanion.insert(
               id: id,
               parentType: parentType,
@@ -82,10 +106,25 @@ final class DriftRemindersRepository implements RemindersRepository {
               updatedAt: now,
             ),
           );
-      await _enqueue(id, parentType, parentId, title.trim(), body, scheduledAtUtc, timeZoneId, notificationId, true, 1, 0, null);
+      await _enqueue(
+        id,
+        parentType,
+        parentId,
+        title.trim(),
+        body,
+        scheduledAtUtc,
+        timeZoneId,
+        notificationId,
+        true,
+        1,
+        0,
+        null,
+      );
     });
     await _scheduleAndMark(id);
-    final row = await (_database.select(_database.reminders)..where((tbl) => tbl.id.equals(id))).getSingle();
+    final row = await (_database.select(
+      _database.reminders,
+    )..where((tbl) => tbl.id.equals(id))).getSingle();
     return _map(row);
   }
 
@@ -98,13 +137,19 @@ final class DriftRemindersRepository implements RemindersRepository {
     required String timeZoneId,
     required bool enabled,
   }) async {
-    if (enabled) _validate('note', title, scheduledAtUtc, skipParentValidation: true);
-    final Reminder? row = await (_database.select(_database.reminders)..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
-    if (row == null || row.deletedAt != null) throw StateError('Reminder does not exist.');
+    if (enabled)
+      _validate('note', title, scheduledAtUtc, skipParentValidation: true);
+    final Reminder? row = await (_database.select(
+      _database.reminders,
+    )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
+    if (row == null || row.deletedAt != null)
+      throw StateError('Reminder does not exist.');
     final DateTime now = _clock.nowUtc();
     final int nextVersion = row.version + 1;
     await _database.transaction(() async {
-      await (_database.update(_database.reminders)..where((tbl) => tbl.id.equals(id))).write(
+      await (_database.update(
+        _database.reminders,
+      )..where((tbl) => tbl.id.equals(id))).write(
         RemindersCompanion(
           title: Value<String>(title.trim()),
           body: Value<String?>(_clean(body)),
@@ -116,7 +161,20 @@ final class DriftRemindersRepository implements RemindersRepository {
           version: Value<int>(nextVersion),
         ),
       );
-      await _enqueue(id, row.parentType, row.parentId, title.trim(), body, scheduledAtUtc, timeZoneId, row.notificationId, enabled, nextVersion, row.version, null);
+      await _enqueue(
+        id,
+        row.parentType,
+        row.parentId,
+        title.trim(),
+        body,
+        scheduledAtUtc,
+        timeZoneId,
+        row.notificationId,
+        enabled,
+        nextVersion,
+        row.version,
+        null,
+      );
     });
     await _notifications.cancel(row.notificationId);
     if (enabled) await _scheduleAndMark(id);
@@ -124,11 +182,15 @@ final class DriftRemindersRepository implements RemindersRepository {
 
   @override
   Future<void> remove(String id) async {
-    final Reminder? row = await (_database.select(_database.reminders)..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
+    final Reminder? row = await (_database.select(
+      _database.reminders,
+    )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
     if (row == null || row.deletedAt != null) return;
     final DateTime now = _clock.nowUtc();
     await _database.transaction(() async {
-      await (_database.update(_database.reminders)..where((tbl) => tbl.id.equals(id))).write(
+      await (_database.update(
+        _database.reminders,
+      )..where((tbl) => tbl.id.equals(id))).write(
         RemindersCompanion(
           deletedAt: Value<DateTime?>(now),
           enabled: const Value<bool>(false),
@@ -156,18 +218,26 @@ final class DriftRemindersRepository implements RemindersRepository {
   @override
   Future<void> reconcile() async {
     final DateTime now = _clock.nowUtc();
-    final List<Reminder> rows = await _database.select(_database.reminders).get();
+    final List<Reminder> rows = await _database
+        .select(_database.reminders)
+        .get();
     final Set<int> pending = await _notifications.pendingIds();
     for (final Reminder row in rows) {
-      final bool shouldExist = row.deletedAt == null && row.enabled && row.scheduledAtUtc.isAfter(now);
+      final bool shouldExist =
+          row.deletedAt == null &&
+          row.enabled &&
+          row.scheduledAtUtc.isAfter(now);
       if (!shouldExist) {
-        if (pending.contains(row.notificationId)) await _notifications.cancel(row.notificationId);
+        if (pending.contains(row.notificationId))
+          await _notifications.cancel(row.notificationId);
         continue;
       }
       if (!pending.contains(row.notificationId)) {
         await _scheduleAndMark(row.id);
       } else {
-        await (_database.update(_database.reminders)..where((tbl) => tbl.id.equals(row.id))).write(
+        await (_database.update(
+          _database.reminders,
+        )..where((tbl) => tbl.id.equals(row.id))).write(
           RemindersCompanion(
             schedulingStatus: const Value<String>('scheduled'),
             lastReconciledAt: Value<DateTime?>(now),
@@ -178,7 +248,9 @@ final class DriftRemindersRepository implements RemindersRepository {
   }
 
   Future<void> _scheduleAndMark(String id) async {
-    final Reminder row = await (_database.select(_database.reminders)..where((tbl) => tbl.id.equals(id))).getSingle();
+    final Reminder row = await (_database.select(
+      _database.reminders,
+    )..where((tbl) => tbl.id.equals(id))).getSingle();
     try {
       await _notifications.schedule(
         id: row.notificationId,
@@ -188,14 +260,18 @@ final class DriftRemindersRepository implements RemindersRepository {
         timeZoneId: row.timeZoneId,
         payload: '${row.parentType}:${row.parentId}',
       );
-      await (_database.update(_database.reminders)..where((tbl) => tbl.id.equals(id))).write(
+      await (_database.update(
+        _database.reminders,
+      )..where((tbl) => tbl.id.equals(id))).write(
         RemindersCompanion(
           schedulingStatus: const Value<String>('scheduled'),
           lastReconciledAt: Value<DateTime?>(_clock.nowUtc()),
         ),
       );
     } catch (_) {
-      await (_database.update(_database.reminders)..where((tbl) => tbl.id.equals(id))).write(
+      await (_database.update(
+        _database.reminders,
+      )..where((tbl) => tbl.id.equals(id))).write(
         RemindersCompanion(
           schedulingStatus: const Value<String>('failed'),
           lastReconciledAt: Value<DateTime?>(_clock.nowUtc()),
@@ -206,20 +282,36 @@ final class DriftRemindersRepository implements RemindersRepository {
   }
 
   Future<int> _allocateNotificationId(String id) async {
-    int candidate = int.parse(id.replaceAll('-', '').substring(0, 8), radix: 16) & 0x7fffffff;
+    int candidate =
+        int.parse(id.replaceAll('-', '').substring(0, 8), radix: 16) &
+        0x7fffffff;
     if (candidate == 0) candidate = 1;
-    while (await (_database.select(_database.reminders)..where((tbl) => tbl.notificationId.equals(candidate))).getSingleOrNull() != null) {
+    while (await (_database.select(_database.reminders)
+              ..where((tbl) => tbl.notificationId.equals(candidate)))
+            .getSingleOrNull() !=
+        null) {
       candidate = candidate == 0x7fffffff ? 1 : candidate + 1;
     }
     return candidate;
   }
 
-  void _validate(String parentType, String title, DateTime scheduledAtUtc, {bool skipParentValidation = false}) {
+  void _validate(
+    String parentType,
+    String title,
+    DateTime scheduledAtUtc, {
+    bool skipParentValidation = false,
+  }) {
     if (!skipParentValidation && parentType != 'note' && parentType != 'card') {
-      throw ArgumentError.value(parentType, 'parentType', 'Only note and card reminders are supported.');
+      throw ArgumentError.value(
+        parentType,
+        'parentType',
+        'Only note and card reminders are supported.',
+      );
     }
-    if (title.trim().isEmpty) throw ArgumentError('Reminder title cannot be empty.');
-    if (!scheduledAtUtc.toUtc().isAfter(_clock.nowUtc())) throw ArgumentError('Reminder time must be in the future.');
+    if (title.trim().isEmpty)
+      throw ArgumentError('Reminder title cannot be empty.');
+    if (!scheduledAtUtc.toUtc().isAfter(_clock.nowUtc()))
+      throw ArgumentError('Reminder time must be in the future.');
   }
 
   String? _clean(String? value) {
@@ -264,20 +356,20 @@ final class DriftRemindersRepository implements RemindersRepository {
   }
 
   ReminderEntity _map(Reminder row) => ReminderEntity(
-        id: row.id,
-        parentType: row.parentType,
-        parentId: row.parentId,
-        title: row.title,
-        body: row.body,
-        scheduledAtUtc: row.scheduledAtUtc,
-        timeZoneId: row.timeZoneId,
-        notificationId: row.notificationId,
-        enabled: row.enabled,
-        schedulingStatus: row.schedulingStatus,
-        lastReconciledAt: row.lastReconciledAt,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        version: row.version,
-        deletedAt: row.deletedAt,
-      );
+    id: row.id,
+    parentType: row.parentType,
+    parentId: row.parentId,
+    title: row.title,
+    body: row.body,
+    scheduledAtUtc: row.scheduledAtUtc,
+    timeZoneId: row.timeZoneId,
+    notificationId: row.notificationId,
+    enabled: row.enabled,
+    schedulingStatus: row.schedulingStatus,
+    lastReconciledAt: row.lastReconciledAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    version: row.version,
+    deletedAt: row.deletedAt,
+  );
 }
