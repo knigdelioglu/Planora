@@ -1,0 +1,60 @@
+name: Bootstrap native platforms
+
+on:
+  push:
+    paths:
+      - tools/bootstrap_native.trigger
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - name: Generate native platform projects only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/not-preserve"
+          cp README.md "$RUNNER_TEMP/not-preserve/README.md"
+          cp pubspec.yaml "$RUNNER_TEMP/not-preserve/pubspec.yaml"
+          cp analysis_options.yaml "$RUNNER_TEMP/not-preserve/analysis_options.yaml"
+          cp .gitignore "$RUNNER_TEMP/not-preserve/.gitignore"
+          cp -R lib "$RUNNER_TEMP/not-preserve/lib"
+          cp -R docs "$RUNNER_TEMP/not-preserve/docs"
+          flutter create . \
+            --platforms=android,ios,macos \
+            --org=io.notapp \
+            --project-name=not_app
+          rm -rf lib docs
+          cp "$RUNNER_TEMP/not-preserve/README.md" README.md
+          cp "$RUNNER_TEMP/not-preserve/pubspec.yaml" pubspec.yaml
+          cp "$RUNNER_TEMP/not-preserve/analysis_options.yaml" analysis_options.yaml
+          cp "$RUNNER_TEMP/not-preserve/.gitignore" .gitignore
+          cp -R "$RUNNER_TEMP/not-preserve/lib" lib
+          cp -R "$RUNNER_TEMP/not-preserve/docs" docs
+          rm -f test/widget_test.dart
+      - name: Commit generated native folders
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android ios macos
+          if git diff --cached --quiet; then
+            echo "Native platform folders already match Flutter template."
+            exit 0
+          fi
+          git commit -m "phase 1: bootstrap Android iOS and macOS"
+          git push origin HEAD:main
