@@ -4,6 +4,14 @@ Not, Notion benzeri kişisel not alma ve Kanban çalışma alanı için tasarlan
 
 > Durum: Mimari iskelet. Bu repo ürün kodunun geliştirilmesi için başlangıç yapısını, sınırları ve teknik kararları içerir.
 
+## Tasarım ve UX
+
+Uygulamanın ekran, navigasyon, buton, form, Kanban, not editörü, hatırlatıcı, dosya/ek, arama, ayarlar, offline/sync durumları, responsive davranış, dark/light theme ve erişilebilirlik spesifikasyonu:
+
+**[docs/UX_DESIGN.md](docs/UX_DESIGN.md)**
+
+Bu belge UI geliştirmede bağlayıcı tasarım referansıdır. Yeni ekranlar ve ortak componentler burada tanımlanan design token, responsive ve etkileşim kurallarına uymalıdır.
+
 ## Ürün kapsamı
 
 - Notlar ve zengin içerik için ölçeklenebilir feature alanı
