@@ -22,6 +22,9 @@ jobs:
           set -euo pipefail
           cat tools/product_overlay.part-* | base64 --decode > "$RUNNER_TEMP/product-overlay.tar.gz"
           tar -xzf "$RUNNER_TEMP/product-overlay.tar.gz" -C .
+          # Workflow files are installed separately through the GitHub connector,
+          # because GITHUB_TOKEN cannot create/update workflows in this repository.
+          rm -f .github/workflows/phase18_validation.yml .github/workflows/release.yml
           rm -f tools/product_overlay.part-* tools/product_overlay.ready
       - name: Commit product implementation
         shell: bash
