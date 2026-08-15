@@ -15,11 +15,17 @@ import 'package:not_app/core/sync/sync_engine.dart';
 import 'package:not_app/core/sync/sync_queue_repository.dart';
 import 'package:not_app/core/utils/clock.dart';
 import 'package:not_app/features/attachments/data/repositories/attachments_repository_impl.dart';
+import 'package:not_app/features/attachments/domain/repositories/attachments_repository.dart';
 import 'package:not_app/features/conflicts/data/repositories/conflict_repository_impl.dart';
+import 'package:not_app/features/conflicts/domain/repositories/conflict_repository.dart';
 import 'package:not_app/features/kanban/data/repositories/kanban_repository_impl.dart';
+import 'package:not_app/features/kanban/domain/repositories/kanban_repository.dart';
 import 'package:not_app/features/notes/data/repositories/notes_repository_impl.dart';
+import 'package:not_app/features/notes/domain/repositories/notes_repository.dart';
 import 'package:not_app/features/reminders/data/repositories/reminders_repository_impl.dart';
+import 'package:not_app/features/reminders/domain/repositories/reminders_repository.dart';
 import 'package:not_app/features/search/data/repositories/search_repository_impl.dart';
+import 'package:not_app/features/search/domain/repositories/search_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 final class AppBootstrap {
@@ -39,7 +45,7 @@ final class AppBootstrap {
       if (config.cloudConfigured) {
         await Supabase.initialize(
           url: config.supabaseUrl,
-          anonKey: config.supabasePublishableKey,
+          publishableKey: config.supabasePublishableKey,
         );
         final SupabaseClient client = Supabase.instance.client;
         auth = SupabaseAuthService(client);
