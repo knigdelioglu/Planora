@@ -14,8 +14,9 @@ class HomeScreen extends ConsumerWidget {
 
   Future<void> _quickNote(BuildContext context, WidgetRef ref) async {
     final String id = await ref.read(notesRepositoryProvider).createNote();
-    if (context.mounted)
+    if (context.mounted) {
       await AppRouter.push<void>(context, NoteEditorScreen(noteId: id));
+    }
   }
 
   @override
@@ -89,35 +90,38 @@ class _Section<T> extends StatelessWidget {
     required this.empty,
     required this.itemBuilder,
   });
+
   final String title;
   final Stream<List<T>> stream;
   final String empty;
   final Widget Function(T value) itemBuilder;
+
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
-    child: SectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          StreamBuilder<List<T>>(
-            stream: stream,
-            builder: (context, snapshot) {
-              final data = snapshot.data ?? const <T>[];
-              if (data.isEmpty)
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(empty),
-                );
-              return Column(
-                children: data.take(5).map(itemBuilder).toList(growable: false),
-              );
-            },
+        padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
+        child: SectionCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              StreamBuilder<List<T>>(
+                stream: stream,
+                builder: (context, snapshot) {
+                  final List<T> data = snapshot.data ?? <T>[];
+                  if (data.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(empty),
+                    );
+                  }
+                  return Column(
+                    children: data.take(5).map(itemBuilder).toList(growable: false),
+                  );
+                },
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 }
