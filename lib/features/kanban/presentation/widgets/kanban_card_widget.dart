@@ -6,11 +6,13 @@ class KanbanCardWidget extends StatelessWidget {
     required this.card,
     super.key,
     this.feedback = false,
+    this.backgroundColor,
     this.onTap,
     this.onMovePrev,
     this.onMoveNext,
     this.onMoveTop,
     this.onMoveBottom,
+    this.onChangeColor,
     this.onDelete,
     this.hasPreviousColumn = false,
     this.hasNextColumn = false,
@@ -21,11 +23,13 @@ class KanbanCardWidget extends StatelessWidget {
 
   final KanbanCard card;
   final bool feedback;
+  final Color? backgroundColor;
   final VoidCallback? onTap;
   final VoidCallback? onMovePrev;
   final VoidCallback? onMoveNext;
   final VoidCallback? onMoveTop;
   final VoidCallback? onMoveBottom;
+  final VoidCallback? onChangeColor;
   final VoidCallback? onDelete;
   final bool hasPreviousColumn;
   final bool hasNextColumn;
@@ -42,6 +46,7 @@ class KanbanCardWidget extends StatelessWidget {
             onMoveNext != null ||
             onMoveTop != null ||
             onMoveBottom != null ||
+            onChangeColor != null ||
             onTap != null ||
             onDelete != null);
 
@@ -49,6 +54,7 @@ class KanbanCardWidget extends StatelessWidget {
       label: 'Kanban kartı: ${card.title}',
       button: onTap != null,
       child: Card(
+        color: backgroundColor,
         margin: const EdgeInsets.symmetric(vertical: 3),
         elevation: feedback ? 6 : 1,
         shape: RoundedRectangleBorder(
@@ -58,7 +64,9 @@ class KanbanCardWidget extends StatelessWidget {
                   color: Theme.of(context).colorScheme.primary,
                   width: 1.5,
                 )
-              : BorderSide.none,
+              : BorderSide(
+                  color: Theme.of(context).dividerColor.withOpacity(0.45),
+                ),
         ),
         child: InkWell(
           onTap: feedback ? null : onTap,
@@ -100,6 +108,9 @@ class KanbanCardWidget extends StatelessWidget {
                               break;
                             case 'move_bottom':
                               onMoveBottom?.call();
+                              break;
+                            case 'change_color':
+                              onChangeColor?.call();
                               break;
                             case 'detail':
                               onTap?.call();
@@ -182,6 +193,24 @@ class KanbanCardWidget extends StatelessWidget {
                               ],
                             ),
                           ),
+                          if (onChangeColor != null)
+                            const PopupMenuItem<String>(
+                              key: ValueKey<String>('menu_change_color'),
+                              value: 'change_color',
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  Icon(Icons.palette_outlined, size: 18),
+                                  SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      'Rengi değiştir',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           if (onTap != null || onDelete != null)
                             const PopupMenuDivider(),
                           if (onTap != null)
