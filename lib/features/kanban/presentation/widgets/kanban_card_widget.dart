@@ -52,6 +52,7 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final bool dark = theme.brightness == Brightness.dark;
     final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
     final Duration motion = reduceMotion
         ? Duration.zero
@@ -64,7 +65,10 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
         (_hovered || _focused || MediaQuery.sizeOf(context).width < 600);
     final Color baseSurface =
         widget.backgroundColor ?? theme.colorScheme.surface;
-    final double tintAlpha = theme.brightness == Brightness.dark ? 0.22 : 0.15;
+
+    // Cards intentionally use a stronger version of the column accent so the
+    // card boundary stays obvious even on pure-black dark canvases.
+    final double tintAlpha = dark ? 0.42 : 0.28;
     final Color surface = widget.accentColor == null
         ? baseSurface
         : Color.alphaBlend(
@@ -72,8 +76,9 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
             baseSurface,
           );
     final Color borderColor = widget.accentColor == null
-        ? theme.dividerColor.withValues(alpha: 0.7)
-        : widget.accentColor!.withValues(alpha: 0.36);
+        ? theme.dividerColor.withValues(alpha: dark ? 0.9 : 0.72)
+        : widget.accentColor!.withValues(alpha: dark ? 0.68 : 0.48);
+    final double borderWidth = dark ? 1.2 : 1.0;
 
     return Semantics(
       label: 'Kanban kartı: ${widget.card.title}',
@@ -102,8 +107,9 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
                     borderRadius: BorderRadius.circular(AppRadius.surface),
                     border: Border.all(
                       color: widget.feedback
-                          ? theme.colorScheme.primary.withValues(alpha: 0.75)
+                          ? theme.colorScheme.primary.withValues(alpha: 0.82)
                           : borderColor,
+                      width: widget.feedback ? 1.5 : borderWidth,
                     ),
                   ),
                   child: Row(
