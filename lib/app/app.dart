@@ -38,6 +38,18 @@ class _NotAppState extends ConsumerState<NotApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsRepositoryProvider);
+    final ThemeData baseDarkTheme = AppTheme.dark();
+    final ThemeData pureBlackDarkTheme = baseDarkTheme.copyWith(
+      scaffoldBackgroundColor: Colors.black,
+      canvasColor: Colors.black,
+      colorScheme: baseDarkTheme.colorScheme.copyWith(
+        surfaceContainerLowest: Colors.black,
+      ),
+      appBarTheme: baseDarkTheme.appBarTheme.copyWith(
+        backgroundColor: Colors.black,
+      ),
+    );
+
     return StreamBuilder<String>(
       stream: settings.watchThemeMode(),
       initialData: 'system',
@@ -48,12 +60,12 @@ class _NotAppState extends ConsumerState<NotApp> with WidgetsBindingObserver {
           _ => ThemeMode.system,
         };
         return MaterialApp(
-          title: 'Not',
+          title: 'Planora',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light(),
-          darkTheme: AppTheme.dark(),
+          darkTheme: pureBlackDarkTheme,
           themeMode: mode,
-          builder: (context, child) => _AppFocusDismissLayer(
+          builder: (context, child) => _AppTextFocusBehavior(
             child: child ?? const SizedBox.shrink(),
           ),
           home: const AppShell(),
@@ -63,34 +75,25 @@ class _NotAppState extends ConsumerState<NotApp> with WidgetsBindingObserver {
   }
 }
 
-/// Clears text-field focus whenever the user taps outside the currently
-/// focused editable area. Using a pointer listener at the MaterialApp root
-/// makes the behavior consistent across screens, dialogs, and nested routes
-/// without competing with child tap gestures.
-class _AppFocusDismissLayer extends StatelessWidget {
-  const _AppFocusDismissLayer({required this.child});
+/// Makes taps outside editable fields dismiss the keyboard on every platform,
+/// while still honoring TextFieldTapRegion helpers such as slash-command and
+/// formatting overlays that logically belong to the active editor.
+class _AppTextFocusBehavior extends StatelessWidget {
+  const _AppTextFocusBehavior({required this.child});
 
   final Widget child;
 
-  void _handlePointerDown(PointerDownEvent event) {
-    final FocusNode? focus = FocusManager.instance.primaryFocus;
-    if (focus == null || !focus.hasFocus) return;
-
-    final BuildContext? focusContext = focus.context;
-    final RenderObject? renderObject = focusContext?.findRenderObject();
-    if (renderObject is RenderBox && renderObject.hasSize) {
-      final Offset localPosition = renderObject.globalToLocal(event.position);
-      final Rect focusBounds = Offset.zero & renderObject.size;
-      if (focusBounds.contains(localPosition)) return;
-    }
-
-    focus.unfocus();
-  }
-
   @override
-  Widget build(BuildContext context) => Listener(
-    behavior: HitTestBehavior.translucent,
-    onPointerDown: _handlePointerDown,
+  Widget build(BuildContext context) => Actions(
+    actions: <Type, Action<Intent>>{
+      EditableTextTapOutsideIntent:
+          CallbackAction<EditableTextTapOutsideIntent>(
+            onInvoke: (intent) {
+              intent.focusNode.unfocus();
+              return null;
+            },
+          ),
+    },
     child: child,
   );
 }
