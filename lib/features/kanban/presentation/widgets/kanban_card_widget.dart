@@ -107,7 +107,7 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
                     ),
                   ),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       AppEntityColorIndicator(
                         color: widget.accentColor,
