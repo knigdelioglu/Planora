@@ -22,11 +22,73 @@ Color? colorFromHex(String? value) {
   return Color(0xFF000000 | rgb);
 }
 
+Color tintedSurface(
+  BuildContext context,
+  Color? base, {
+  double opacity = 0.12,
+}) {
+  final Color surface = Theme.of(context).colorScheme.surface;
+  if (base == null) return surface;
+  return Color.alphaBlend(base.withOpacity(opacity.clamp(0.0, 1.0)), surface);
+}
+
 class TitleColorValue {
   const TitleColorValue({required this.title, required this.colorHex});
 
   final String title;
   final String? colorHex;
+}
+
+class ColorPickerValue {
+  const ColorPickerValue(this.colorHex);
+  final String? colorHex;
+}
+
+Future<ColorPickerValue?> showEntityColorDialog(
+  BuildContext context, {
+  required String dialogTitle,
+  String? initialColorHex,
+  String defaultLabel = 'Varsayılan',
+}) async {
+  String? selected = initialColorHex;
+  return showDialog<ColorPickerValue>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: Text(dialogTitle),
+        content: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            ChoiceChip(
+              label: Text(defaultLabel),
+              selected: selected == null,
+              onSelected: (_) => setDialogState(() => selected = null),
+            ),
+            ...kanbanColorPalette.map(
+              (hex) => ChoiceChip(
+                avatar: CircleAvatar(backgroundColor: colorFromHex(hex)),
+                label: const Text(''),
+                selected: selected == hex,
+                onSelected: (_) => setDialogState(() => selected = hex),
+                tooltip: hex,
+              ),
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, ColorPickerValue(selected)),
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 Future<TitleColorValue?> showTitleColorDialog(
