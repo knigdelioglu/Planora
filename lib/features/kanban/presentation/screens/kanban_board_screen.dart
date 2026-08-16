@@ -343,196 +343,231 @@ class _KanbanColumn extends ConsumerWidget {
         final Color? columnColor = colorFromHex(
           colorSnapshot.data ?? column.colorHex,
         );
-        return Card(
-          color: tintedSurface(context, columnColor, opacity: 0.08),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color:
-                  columnColor?.withOpacity(0.38) ?? Theme.of(context).dividerColor,
-            ),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 6, 8),
-                child: Row(
-                  children: <Widget>[
-                    if (columnColor != null) ...<Widget>[
-                      Container(
-                        width: 8,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: columnColor,
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    Expanded(
-                      child: Text(
-                        '${column.title}  ${cards.length}',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                    _ColumnMenu(
-                      snapshot: snapshot,
-                      column: column,
-                      columnIndex: columnIndex,
-                    ),
-                  ],
+        return DragTarget<_CardDragData>(
+          onWillAcceptWithDetails: (details) =>
+              details.data.card.columnId != column.id,
+          onAcceptWithDetails: (details) => ref
+              .read(kanbanRepositoryProvider)
+              .moveCard(
+                cardId: details.data.card.id,
+                destinationColumnId: column.id,
+                destinationIndex: cards.length,
+              ),
+          builder: (context, candidateData, rejectedData) {
+            final bool crossColumnHover = candidateData.any(
+              (drag) => drag.card.columnId != column.id,
+            );
+            return Card(
+              color: tintedSurface(context, columnColor, opacity: 0.08),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: crossColumnHover
+                      ? Theme.of(context).colorScheme.primary
+                      : columnColor?.withOpacity(0.38) ??
+                            Theme.of(context).dividerColor,
+                  width: crossColumnHover ? 2 : 1,
                 ),
               ),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-                  itemCount: cards.length * 2 + 1,
-                  itemBuilder: (context, rawIndex) {
-                    if (rawIndex.isEven) {
-                      final int destination = rawIndex ~/ 2;
-                      return _DropZone(
-                        onDrop: (drag) => ref
-                            .read(kanbanRepositoryProvider)
-                            .moveCard(
-                              cardId: drag.card.id,
-                              destinationColumnId: column.id,
-                              destinationIndex: destination,
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 6, 8),
+                    child: Row(
+                      children: <Widget>[
+                        if (columnColor != null) ...<Widget>[
+                          Container(
+                            width: 8,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: columnColor,
+                              borderRadius: BorderRadius.circular(99),
                             ),
-                      );
-                    }
-                    final int cardIndex = rawIndex ~/ 2;
-                    final KanbanCard card = cards[cardIndex];
-                    final bool canTop = cardIndex > 0;
-                    final bool canBottom = cardIndex < cards.length - 1;
-
-                    return StreamBuilder<String?>(
-                      stream: settings.watchEntityColor('card', card.id),
-                      builder: (context, cardColorSnapshot) {
-                        final Color? selectedCardColor = colorFromHex(
-                          cardColorSnapshot.data,
-                        );
-                        final Color cardSurface = tintedSurface(
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        Expanded(
+                          child: Text(
+                            '${column.title}  ${cards.length}',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        _ColumnMenu(
+                          snapshot: snapshot,
+                          column: column,
+                          columnIndex: columnIndex,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (crossColumnHover)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
                           context,
-                          selectedCardColor ?? columnColor,
-                          opacity: selectedCardColor == null ? 0.18 : 0.21,
-                        );
+                        ).colorScheme.primaryContainer.withOpacity(0.75),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Center(child: Text('Bu kolona bırak')),
+                    ),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                      itemCount: cards.length * 2 + 1,
+                      itemBuilder: (context, rawIndex) {
+                        if (rawIndex.isEven) {
+                          final int destination = rawIndex ~/ 2;
+                          return _DropZone(
+                            columnId: column.id,
+                            onDrop: (drag) => ref
+                                .read(kanbanRepositoryProvider)
+                                .moveCard(
+                                  cardId: drag.card.id,
+                                  destinationColumnId: column.id,
+                                  destinationIndex: destination,
+                                ),
+                          );
+                        }
+                        final int cardIndex = rawIndex ~/ 2;
+                        final KanbanCard card = cards[cardIndex];
+                        final bool canTop = cardIndex > 0;
+                        final bool canBottom = cardIndex < cards.length - 1;
 
-                        return LongPressDraggable<_CardDragData>(
-                          data: _CardDragData(card),
-                          onDragUpdate: (details) =>
-                              onDragUpdate(details.globalPosition),
-                          onDragEnd: (_) => onDragEnd(),
-                          onDraggableCanceled: (_, _) => onDragEnd(),
-                          onDragCompleted: () => onDragEnd(),
-                          feedback: Material(
-                            color: Colors.transparent,
-                            child: SizedBox(
-                              width: 292,
+                        return StreamBuilder<String?>(
+                          stream: settings.watchEntityColor('card', card.id),
+                          builder: (context, cardColorSnapshot) {
+                            final Color? selectedCardColor = colorFromHex(
+                              cardColorSnapshot.data,
+                            );
+                            final Color cardSurface = tintedSurface(
+                              context,
+                              selectedCardColor ?? columnColor,
+                              opacity: selectedCardColor == null ? 0.18 : 0.21,
+                            );
+
+                            return LongPressDraggable<_CardDragData>(
+                              data: _CardDragData(card),
+                              onDragUpdate: (details) =>
+                                  onDragUpdate(details.globalPosition),
+                              onDragEnd: (_) => onDragEnd(),
+                              onDraggableCanceled: (_, _) => onDragEnd(),
+                              onDragCompleted: () => onDragEnd(),
+                              feedback: Material(
+                                color: Colors.transparent,
+                                child: SizedBox(
+                                  width: 292,
+                                  child: KanbanCardWidget(
+                                    card: card,
+                                    feedback: true,
+                                    backgroundColor: cardSurface,
+                                  ),
+                                ),
+                              ),
+                              childWhenDragging: Opacity(
+                                opacity: 0.25,
+                                child: KanbanCardWidget(
+                                  card: card,
+                                  backgroundColor: cardSurface,
+                                  hasPreviousColumn: hasPrev,
+                                  hasNextColumn: hasNext,
+                                  canMoveToTop: canTop,
+                                  canMoveToBottom: canBottom,
+                                ),
+                              ),
                               child: KanbanCardWidget(
                                 card: card,
-                                feedback: true,
                                 backgroundColor: cardSurface,
+                                hasPreviousColumn: hasPrev,
+                                hasNextColumn: hasNext,
+                                canMoveToTop: canTop,
+                                canMoveToBottom: canBottom,
+                                onTap: () => AppRouter.push<void>(
+                                  context,
+                                  CardDetailScreen(cardId: card.id),
+                                ),
+                                onChangeColor: () =>
+                                    _changeCardColor(context, ref, card),
+                                onMovePrev: hasPrev
+                                    ? () => ref
+                                          .read(kanbanRepositoryProvider)
+                                          .moveCard(
+                                            cardId: card.id,
+                                            destinationColumnId: snapshot
+                                                .columns[columnIndex - 1]
+                                                .id,
+                                            destinationIndex:
+                                                snapshot
+                                                    .cardsByColumn[snapshot
+                                                        .columns[columnIndex - 1]
+                                                        .id]
+                                                    ?.length ??
+                                                0,
+                                          )
+                                    : null,
+                                onMoveNext: hasNext
+                                    ? () => ref
+                                          .read(kanbanRepositoryProvider)
+                                          .moveCard(
+                                            cardId: card.id,
+                                            destinationColumnId: snapshot
+                                                .columns[columnIndex + 1]
+                                                .id,
+                                            destinationIndex:
+                                                snapshot
+                                                    .cardsByColumn[snapshot
+                                                        .columns[columnIndex + 1]
+                                                        .id]
+                                                    ?.length ??
+                                                0,
+                                          )
+                                    : null,
+                                onMoveTop: canTop
+                                    ? () => ref
+                                          .read(kanbanRepositoryProvider)
+                                          .moveCard(
+                                            cardId: card.id,
+                                            destinationColumnId: column.id,
+                                            destinationIndex: 0,
+                                          )
+                                    : null,
+                                onMoveBottom: canBottom
+                                    ? () => ref
+                                          .read(kanbanRepositoryProvider)
+                                          .moveCard(
+                                            cardId: card.id,
+                                            destinationColumnId: column.id,
+                                            destinationIndex: cards.length - 1,
+                                          )
+                                    : null,
+                                onDelete: () => ref
+                                    .read(kanbanRepositoryProvider)
+                                    .deleteCard(card.id),
                               ),
-                            ),
-                          ),
-                          childWhenDragging: Opacity(
-                            opacity: 0.25,
-                            child: KanbanCardWidget(
-                              card: card,
-                              backgroundColor: cardSurface,
-                              hasPreviousColumn: hasPrev,
-                              hasNextColumn: hasNext,
-                              canMoveToTop: canTop,
-                              canMoveToBottom: canBottom,
-                            ),
-                          ),
-                          child: KanbanCardWidget(
-                            card: card,
-                            backgroundColor: cardSurface,
-                            hasPreviousColumn: hasPrev,
-                            hasNextColumn: hasNext,
-                            canMoveToTop: canTop,
-                            canMoveToBottom: canBottom,
-                            onTap: () => AppRouter.push<void>(
-                              context,
-                              CardDetailScreen(cardId: card.id),
-                            ),
-                            onChangeColor: () =>
-                                _changeCardColor(context, ref, card),
-                            onMovePrev: hasPrev
-                                ? () => ref
-                                      .read(kanbanRepositoryProvider)
-                                      .moveCard(
-                                        cardId: card.id,
-                                        destinationColumnId:
-                                            snapshot.columns[columnIndex - 1].id,
-                                        destinationIndex:
-                                            snapshot
-                                                .cardsByColumn[snapshot
-                                                    .columns[columnIndex - 1]
-                                                    .id]
-                                                ?.length ??
-                                            0,
-                                      )
-                                : null,
-                            onMoveNext: hasNext
-                                ? () => ref
-                                      .read(kanbanRepositoryProvider)
-                                      .moveCard(
-                                        cardId: card.id,
-                                        destinationColumnId:
-                                            snapshot.columns[columnIndex + 1].id,
-                                        destinationIndex:
-                                            snapshot
-                                                .cardsByColumn[snapshot
-                                                    .columns[columnIndex + 1]
-                                                    .id]
-                                                ?.length ??
-                                            0,
-                                      )
-                                : null,
-                            onMoveTop: canTop
-                                ? () => ref
-                                      .read(kanbanRepositoryProvider)
-                                      .moveCard(
-                                        cardId: card.id,
-                                        destinationColumnId: column.id,
-                                        destinationIndex: 0,
-                                      )
-                                : null,
-                            onMoveBottom: canBottom
-                                ? () => ref
-                                      .read(kanbanRepositoryProvider)
-                                      .moveCard(
-                                        cardId: card.id,
-                                        destinationColumnId: column.id,
-                                        destinationIndex: cards.length - 1,
-                                      )
-                                : null,
-                            onDelete: () => ref
-                                .read(kanbanRepositoryProvider)
-                                .deleteCard(card.id),
-                          ),
+                            );
+                          },
                         );
                       },
-                    );
-                  },
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: TextButton.icon(
-                    onPressed: () => _newCard(context, ref),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Kart ekle'),
+                    ),
                   ),
-                ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: () => _newCard(context, ref),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Kart ekle'),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -540,10 +575,14 @@ class _KanbanColumn extends ConsumerWidget {
 }
 
 class _DropZone extends StatelessWidget {
-  const _DropZone({required this.onDrop});
+  const _DropZone({required this.columnId, required this.onDrop});
+  final String columnId;
   final ValueChanged<_CardDragData> onDrop;
+
   @override
   Widget build(BuildContext context) => DragTarget<_CardDragData>(
+    onWillAcceptWithDetails: (details) =>
+        details.data.card.columnId == columnId,
     onAcceptWithDetails: (details) => onDrop(details.data),
     builder: (context, candidates, rejects) => AnimatedContainer(
       duration: const Duration(milliseconds: 120),
