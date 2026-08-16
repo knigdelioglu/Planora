@@ -109,12 +109,12 @@ final class NoteDocument {
   factory NoteDocument.decode(String source) {
     try {
       final Object? decoded = jsonDecode(source);
-      if (decoded is! Map) return NoteDocument.empty();
+      if (decoded is! Map<Object?, Object?>) return NoteDocument.empty();
       final Map<String, Object?> map = Map<String, Object?>.from(decoded);
       final Object? rawBlocks = map['blocks'];
-      final List<NoteBlock> blocks = rawBlocks is List
+      final List<NoteBlock> blocks = rawBlocks is List<Object?>
           ? rawBlocks
-                .whereType<Map>()
+                .whereType<Map<Object?, Object?>>()
                 .map(
                   (raw) => NoteBlock.fromJson(Map<String, Object?>.from(raw)),
                 )
