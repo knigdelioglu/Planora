@@ -4,6 +4,7 @@ class AppSearchField extends StatelessWidget {
   const AppSearchField({
     super.key,
     required this.controller,
+    this.textFieldKey,
     this.focusNode,
     this.autofocus = false,
     this.hintText = 'Ara…',
@@ -13,6 +14,7 @@ class AppSearchField extends StatelessWidget {
     this.onSubmitted,
   });
 
+  final Key? textFieldKey;
   final TextEditingController controller;
   final FocusNode? focusNode;
   final bool autofocus;
@@ -25,6 +27,7 @@ class AppSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextField(
+      key: textFieldKey,
       controller: controller,
       focusNode: focusNode,
       autofocus: autofocus,
