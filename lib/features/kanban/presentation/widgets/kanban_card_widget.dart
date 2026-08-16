@@ -52,8 +52,16 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final Duration motion = reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 120);
+    final Duration quickMotion = reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 110);
     final bool showActions =
-        !widget.feedback && (_hovered || _focused || MediaQuery.sizeOf(context).width < 600);
+        !widget.feedback &&
+        (_hovered || _focused || MediaQuery.sizeOf(context).width < 600);
     final Color surface = widget.backgroundColor ?? theme.colorScheme.surface;
 
     return Semantics(
@@ -66,8 +74,8 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
           onEnter: (_) => setState(() => _hovered = true),
           onExit: (_) => setState(() => _hovered = false),
           child: AnimatedScale(
-            duration: const Duration(milliseconds: 120),
-            scale: widget.feedback ? 0.98 : 1,
+            duration: motion,
+            scale: widget.feedback && !reduceMotion ? 0.98 : 1,
             child: Material(
               color: surface,
               elevation: widget.feedback ? 8 : (_hovered ? 1 : 0),
@@ -105,7 +113,8 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
                               maxLines: 3,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            if (widget.card.description?.trim().isNotEmpty == true) ...<Widget>[
+                            if (widget.card.description?.trim().isNotEmpty ==
+                                true) ...<Widget>[
                               const SizedBox(height: 5),
                               Text(
                                 widget.card.description!,
@@ -115,11 +124,12 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
                               ),
                             ],
                             if (!widget.feedback &&
-                                (widget.onMovePrev != null || widget.onMoveNext != null)) ...<Widget>[
+                                (widget.onMovePrev != null ||
+                                    widget.onMoveNext != null)) ...<Widget>[
                               const SizedBox(height: 6),
                               AnimatedOpacity(
                                 opacity: showActions ? 1 : 0.46,
-                                duration: const Duration(milliseconds: 110),
+                                duration: quickMotion,
                                 child: Row(
                                   children: <Widget>[
                                     if (widget.onMovePrev != null)
@@ -150,7 +160,7 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
                       if (widget.showMenu && !widget.feedback)
                         AnimatedOpacity(
                           opacity: showActions ? 1 : 0.62,
-                          duration: const Duration(milliseconds: 110),
+                          duration: quickMotion,
                           child: _CardMenu(widget: widget),
                         ),
                     ],
@@ -184,7 +194,7 @@ class _QuickMoveButton extends StatelessWidget {
         icon: Icon(icon, size: 17),
         visualDensity: VisualDensity.compact,
         padding: EdgeInsets.zero,
-        constraints: const BoxConstraints.tightFor(width: 34, height: 32),
+        constraints: const BoxConstraints.tightFor(width: 44, height: 44),
         style: IconButton.styleFrom(
           foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
