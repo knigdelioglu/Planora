@@ -47,10 +47,8 @@ final class FractionalIndexing {
 
   static String encode(BigInt value) {
     if (value < BigInt.zero || value > maxValue) {
-      throw RangeError.value(
-        value,
-        'value',
-        'Rank must be between 0 and $maxValue.',
+      throw RangeError(
+        'Rank value $value must be between 0 and $maxValue.',
       );
     }
     BigInt remaining = value;
