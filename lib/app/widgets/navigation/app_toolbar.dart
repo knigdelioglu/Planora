@@ -22,64 +22,69 @@ class AppToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final double horizontal = MediaQuery.sizeOf(context).width < 600 ? 16 : 24;
-    return Container(
-      constraints: BoxConstraints(minHeight: compact ? 50 : 54),
-      padding: EdgeInsets.symmetric(horizontal: horizontal, vertical: 6),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.55),
+    return SafeArea(
+      left: false,
+      right: false,
+      bottom: false,
+      child: Container(
+        constraints: BoxConstraints(minHeight: compact ? 50 : 54),
+        padding: EdgeInsets.symmetric(horizontal: horizontal, vertical: 6),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          border: Border(
+            bottom: BorderSide(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.55),
+            ),
           ),
         ),
-      ),
-      child: Row(
-        children: <Widget>[
-          if (leading != null) ...<Widget>[leading!, const SizedBox(width: 8)],
-          Expanded(
-            child: Row(
-              minAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Flexible(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      if (breadcrumb != null && breadcrumb!.isNotEmpty)
-                        Text(
-                          breadcrumb!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
+        child: Row(
+          children: <Widget>[
+            if (leading != null) ...<Widget>[leading!, const SizedBox(width: 8)],
+            Expanded(
+              child: Row(
+                minAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Flexible(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        if (breadcrumb != null && breadcrumb!.isNotEmpty)
+                          Text(
+                            breadcrumb!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
                         ),
-                      Semantics(
-                        header: true,
-                        child: Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                if (status != null) ...<Widget>[
-                  const SizedBox(width: 10),
-                  Flexible(child: status!),
+                  if (status != null) ...<Widget>[
+                    const SizedBox(width: 10),
+                    Flexible(child: status!),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          if (actions.isNotEmpty) ...<Widget>[
-            const SizedBox(width: 12),
-            Wrap(
-              spacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: actions,
-            ),
+            if (actions.isNotEmpty) ...<Widget>[
+              const SizedBox(width: 12),
+              Wrap(
+                spacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: actions,
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
