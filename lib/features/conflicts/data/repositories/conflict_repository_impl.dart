@@ -79,17 +79,48 @@ final class DriftConflictRepository implements ConflictRepository {
     final int remoteVersion = (remote['version'] as num?)?.toInt() ?? 0;
     final int localVersion =
         (local['version'] as num?)?.toInt() ?? remoteVersion + 1;
+    final int resolvedVersion = localVersion <= remoteVersion
+        ? remoteVersion + 1
+        : localVersion;
+    final DateTime now = _clock.nowUtc();
+    final DateTime? deletedAt = local['deletedAt'] == null
+        ? null
+        : DateTime.tryParse(local['deletedAt'].toString())?.toUtc();
+    final int remoteRevision = (remote['syncRevision'] as num?)?.toInt() ?? 0;
+    final Map<String, Object?> resolvedPayload = <String, Object?>{
+      ...local,
+      'version': resolvedVersion,
+      'updatedAt': now.toIso8601String(),
+      'deletedAt': deletedAt?.toIso8601String(),
+    };
+    final Map<String, Object?> localPayload =
+        Map<String, Object?>.from(resolvedPayload)
+          ..remove('version')
+          ..remove('updatedAt')
+          ..remove('deletedAt')
+          ..remove('syncRevision');
+
+    await _localStore.applyRemote(
+      RemoteEntity(
+        entityType: row.entityType,
+        entityId: row.entityId,
+        version: resolvedVersion,
+        updatedAt: now,
+        deletedAt: deletedAt,
+        payload: localPayload,
+        syncRevision: remoteRevision,
+      ),
+    );
     await _syncQueue.enqueue(
       entityType: row.entityType,
       entityId: row.entityId,
       operationType: SyncOperationType.upsert,
       baseVersion: remoteVersion,
-      payload: <String, Object?>{
-        ...local,
-        'version': localVersion <= remoteVersion
-            ? remoteVersion + 1
-            : localVersion,
-      },
+      payload: resolvedPayload,
+    );
+    await _syncQueue.resolveBlockedConflicts(
+      entityType: row.entityType,
+      entityId: row.entityId,
     );
     await _resolve(row.id, 'local');
   }
@@ -121,6 +152,10 @@ final class DriftConflictRepository implements ConflictRepository {
         payload: payload,
         syncRevision: revision,
       ),
+    );
+    await _syncQueue.resolveBlockedConflicts(
+      entityType: row.entityType,
+      entityId: row.entityId,
     );
     await _resolve(row.id, 'remote');
   }
