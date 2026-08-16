@@ -25,7 +25,6 @@ import 'package:not_app/core/sync/sync_queue_repository.dart';
 import 'package:not_app/core/utils/clock.dart';
 import 'package:not_app/features/attachments/data/repositories/attachments_repository_impl.dart';
 import 'package:not_app/features/conflicts/data/repositories/conflict_repository_impl.dart';
-import 'package:not_app/features/conflicts/presentation/screens/conflicts_screen.dart';
 import 'package:not_app/features/kanban/data/repositories/kanban_repository_impl.dart';
 import 'package:not_app/features/notes/data/repositories/notes_repository_impl.dart';
 import 'package:not_app/features/reminders/data/repositories/reminders_repository_impl.dart';
@@ -95,7 +94,6 @@ void main() {
           final initialOps = await queue.allOperations();
           expect(initialOps.length, 4);
 
-          final opNote1 = initialOps.firstWhere((o) => o.entityId == 'note-1');
           final opCard1 = initialOps.firstWhere((o) => o.entityId == 'card-1');
           final opAtt1 = initialOps.firstWhere((o) => o.entityId == 'att-1');
           final opNote2 = initialOps.firstWhere((o) => o.entityId == 'note-2');
@@ -183,7 +181,7 @@ void main() {
 
           // retry single
           await queue.retryOperation(op1.id);
-          var reloaded1 = (await queue.allOperations()).firstWhere(
+          final reloaded1 = (await queue.allOperations()).firstWhere(
             (o) => o.id == op1.id,
           );
           expect(reloaded1.status, SyncOperationStatus.pending);
@@ -191,7 +189,7 @@ void main() {
 
           // retryAll
           await queue.retryAll();
-          var reloaded2 = (await queue.allOperations()).firstWhere(
+          final reloaded2 = (await queue.allOperations()).firstWhere(
             (o) => o.id == op2.id,
           );
           expect(reloaded2.status, SyncOperationStatus.pending);

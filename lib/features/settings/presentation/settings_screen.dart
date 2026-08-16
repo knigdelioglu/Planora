@@ -303,7 +303,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         child: const Row(
                           children: <Widget>[
                             Icon(Icons.info_outline, color: Colors.orange),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 'Kesin alarm izni kapalı. Hatırlatıcılar inexact modda planlanarak zaman kaybı önlenir; tam zaman doğruluğu için ayarları kontrol edin.',

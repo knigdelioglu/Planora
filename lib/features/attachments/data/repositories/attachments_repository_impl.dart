@@ -18,31 +18,32 @@ import 'package:uuid/uuid.dart';
 
 final class DriftAttachmentsRepository implements AttachmentsRepository {
   DriftAttachmentsRepository({
-    required AppDatabase database,
-    required FileStorageService storage,
-    required SyncQueueRepository syncQueue,
-    required AppClock clock,
-    required RemoteGateway remote,
+    required this.database,
+    required this.storage,
+    required this.syncQueue,
+    required this.clock,
+    required this.remote,
     Dio? dio,
     Uuid? uuid,
-    Future<Directory> Function()? tempDirectoryProvider,
-  }) : _database = database,
-       _storage = storage,
-       _syncQueue = syncQueue,
-       _clock = clock,
-       _remote = remote,
-       _dio = dio ?? Dio(),
-       _uuid = uuid ?? const Uuid(),
-       _tempDirectoryProvider = tempDirectoryProvider;
+    this.tempDirectoryProvider,
+  }) : _dio = dio ?? Dio(),
+       _uuid = uuid ?? const Uuid();
 
-  final AppDatabase _database;
-  final FileStorageService _storage;
-  final SyncQueueRepository _syncQueue;
-  final AppClock _clock;
-  final RemoteGateway _remote;
+  final AppDatabase database;
+  final FileStorageService storage;
+  final SyncQueueRepository syncQueue;
+  final AppClock clock;
+  final RemoteGateway remote;
   final Dio _dio;
   final Uuid _uuid;
-  final Future<Directory> Function()? _tempDirectoryProvider;
+  final Future<Directory> Function()? tempDirectoryProvider;
+
+  AppDatabase get _database => database;
+  FileStorageService get _storage => storage;
+  SyncQueueRepository get _syncQueue => syncQueue;
+  AppClock get _clock => clock;
+  RemoteGateway get _remote => remote;
+  Future<Directory> Function()? get _tempDirectoryProvider => tempDirectoryProvider;
   final StreamController<AttachmentTransferProgress> _progressController =
       StreamController<AttachmentTransferProgress>.broadcast();
   final Map<String, double> _activeProgress = <String, double>{};
@@ -301,7 +302,7 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
       row.remotePath!,
     );
     final Directory tempRoot = _tempDirectoryProvider != null
-        ? await _tempDirectoryProvider()
+        ? await _tempDirectoryProvider!()
         : await getTemporaryDirectory();
     final Directory tempDir = Directory(
       p.join(tempRoot.path, 'not_attachment_downloads', row.id),

@@ -30,13 +30,13 @@ final class _TestClock implements AppClock {
 }
 
 final class _FakeRemoteGateway implements RemoteGateway {
-  _FakeRemoteGateway({this.available = true, this.userId = 'test-user'});
+  _FakeRemoteGateway();
 
   @override
-  final bool available;
+  final bool available = true;
 
   @override
-  final String? userId;
+  final String? userId = 'test-user';
 
   @override
   Future<RemoteApplyResult> apply({

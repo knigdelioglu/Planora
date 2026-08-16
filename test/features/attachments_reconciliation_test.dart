@@ -26,13 +26,13 @@ final class _TestClock implements AppClock {
 }
 
 final class _FakeRemoteGateway implements RemoteGateway {
-  _FakeRemoteGateway({this.available = true, this.userId = 'test-user'});
+  _FakeRemoteGateway();
 
   @override
-  final bool available;
+  final bool available = true;
 
   @override
-  final String? userId;
+  final String? userId = 'test-user';
 
   final Map<String, String> uploads = <String, String>{};
 
@@ -341,7 +341,7 @@ void main() {
             ),
           );
 
-      final result = await repository.reconcile();
+      await repository.reconcile();
 
       // Sensitive file outside sandbox MUST remain intact!
       expect(sensitiveFile.existsSync(), isTrue);

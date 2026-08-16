@@ -58,20 +58,21 @@ abstract interface class FileStorageService {
 
 final class SandboxFileStorageService implements FileStorageService {
   SandboxFileStorageService({
-    Future<Directory> Function()? rootDirectoryProvider,
-    Future<Directory> Function()? tempDirectoryProvider,
+    this.rootDirectoryProvider,
+    this.tempDirectoryProvider,
     Uuid? uuid,
-  }) : _rootDirectoryProvider = rootDirectoryProvider,
-       _tempDirectoryProvider = tempDirectoryProvider,
-       _uuid = uuid ?? const Uuid();
+  }) : _uuid = uuid ?? const Uuid();
 
-  final Future<Directory> Function()? _rootDirectoryProvider;
-  final Future<Directory> Function()? _tempDirectoryProvider;
+  final Future<Directory> Function()? rootDirectoryProvider;
+  final Future<Directory> Function()? tempDirectoryProvider;
   final Uuid _uuid;
+
+  Future<Directory> Function()? get _rootDirectoryProvider => rootDirectoryProvider;
+  Future<Directory> Function()? get _tempDirectoryProvider => tempDirectoryProvider;
 
   Future<Directory> _supportRoot() async {
     final Directory base = _rootDirectoryProvider != null
-        ? await _rootDirectoryProvider()
+        ? await _rootDirectoryProvider!()
         : await getApplicationSupportDirectory();
     final Directory root = Directory(p.join(base.path, 'app_storage'));
     await root.create(recursive: true);
@@ -80,7 +81,7 @@ final class SandboxFileStorageService implements FileStorageService {
 
   Future<Directory> _tempRoot() async {
     final Directory base = _tempDirectoryProvider != null
-        ? await _tempDirectoryProvider()
+        ? await _tempDirectoryProvider!()
         : await getTemporaryDirectory();
     final Directory temp = Directory(
       p.join(base.path, 'not_attachment_downloads'),

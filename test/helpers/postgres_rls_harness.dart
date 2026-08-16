@@ -850,8 +850,9 @@ VALUES (
         .where((l) => l.isNotEmpty && l != 'SET')
         .toList();
     final String lastLine = lines.isNotEmpty ? lines.last : '';
-    if (lastLine.isEmpty || lastLine == '[]')
+    if (lastLine.isEmpty || lastLine == '[]') {
       return const <Map<String, dynamic>>[];
+    }
     try {
       final dynamic decoded = jsonDecode(lastLine);
       if (decoded is List) {

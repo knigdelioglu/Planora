@@ -15,7 +15,6 @@ import 'package:not_app/core/sync/sync_engine.dart';
 import 'package:not_app/core/sync/sync_queue_repository.dart';
 import 'package:not_app/core/utils/clock.dart';
 import 'package:not_app/features/attachments/data/repositories/attachments_repository_impl.dart';
-import 'package:not_app/features/attachments/domain/repositories/attachments_repository.dart';
 import 'package:not_app/features/conflicts/data/repositories/conflict_repository_impl.dart';
 import 'package:not_app/features/conflicts/domain/repositories/conflict_repository.dart';
 import 'package:not_app/features/kanban/data/repositories/kanban_repository_impl.dart';

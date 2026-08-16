@@ -212,8 +212,9 @@ void main() {
             final List<Map<String, dynamic>> rows = await session
                 .selectEntities(whereClause: "entity_id = 'note_b_target'");
             expect(rows.length, equals(1));
-            final dynamic payload = rows.first['payload'];
-            expect(payload, isA<Map>());
+            final Map<String, dynamic> payload =
+                rows.first['payload'] as Map<String, dynamic>;
+            expect(payload, isA<Map<String, dynamic>>());
             expect(payload['title'], equals('Target Note User B'));
             expect(payload['hacked'], isNull);
           });
@@ -298,8 +299,10 @@ void main() {
                 .selectEntities(whereClause: "entity_id = 'shared_id_1'");
             expect(userARows.length, equals(1));
             expect(userARows.first['user_id'], equals(userAId));
+            final Map<String, dynamic> payloadA =
+                userARows.first['payload'] as Map<String, dynamic>;
             expect(
-              userARows.first['payload']['title'],
+              payloadA['title'],
               equals('User A Cloned ID Note'),
             );
           });
@@ -311,8 +314,10 @@ void main() {
             expect(userBRows.length, equals(1));
             expect(userBRows.first['user_id'], equals(userBId));
             expect(userBRows.first['version'], equals(1));
+            final Map<String, dynamic> payloadB =
+                userBRows.first['payload'] as Map<String, dynamic>;
             expect(
-              userBRows.first['payload']['title'],
+              payloadB['title'],
               equals('User B Official Note'),
             );
           });
@@ -447,7 +452,8 @@ void main() {
                 whereClause: "name = '$userBAttachmentPath'",
               );
           expect(rows.length, equals(1));
-          final dynamic metadata = rows.first['metadata'];
+          final Map<String, dynamic> metadata =
+              rows.first['metadata'] as Map<String, dynamic>;
           expect(metadata['mimetype'], equals('image/png'));
           expect(metadata['corrupted'], isNull);
         });
