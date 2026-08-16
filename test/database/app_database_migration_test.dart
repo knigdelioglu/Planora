@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:not_app/core/database/app_database.dart';
@@ -40,7 +40,7 @@ void main() {
         "VALUES ('note-1', 'Legacy note', '{\"version\":1,\"blocks\":[]}', 1000, 1000)",
       );
     } finally {
-      raw.dispose();
+      raw.close();
     }
 
     AppDatabase db = AppDatabase(NativeDatabase(fixture.file));
@@ -115,7 +115,7 @@ void main() {
         ")",
       );
     } finally {
-      raw.dispose();
+      raw.close();
     }
 
     final AppDatabase db = AppDatabase(NativeDatabase(fixture.file));
@@ -186,7 +186,7 @@ final class _FixtureDatabase {
         }
       }
     } finally {
-      raw.dispose();
+      raw.close();
     }
     return _FixtureDatabase(directory, file);
   }
