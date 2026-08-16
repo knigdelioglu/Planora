@@ -53,9 +53,44 @@ class _NotAppState extends ConsumerState<NotApp> with WidgetsBindingObserver {
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: mode,
+          builder: (context, child) => _AppFocusDismissLayer(
+            child: child ?? const SizedBox.shrink(),
+          ),
           home: const AppShell(),
         );
       },
     );
   }
+}
+
+/// Clears text-field focus whenever the user taps outside the currently
+/// focused editable area. Using a pointer listener at the MaterialApp root
+/// makes the behavior consistent across screens, dialogs, and nested routes
+/// without competing with child tap gestures.
+class _AppFocusDismissLayer extends StatelessWidget {
+  const _AppFocusDismissLayer({required this.child});
+
+  final Widget child;
+
+  void _handlePointerDown(PointerDownEvent event) {
+    final FocusNode? focus = FocusManager.instance.primaryFocus;
+    if (focus == null || !focus.hasFocus) return;
+
+    final BuildContext? focusContext = focus.context;
+    final RenderObject? renderObject = focusContext?.findRenderObject();
+    if (renderObject is RenderBox && renderObject.hasSize) {
+      final Offset localPosition = renderObject.globalToLocal(event.position);
+      final Rect focusBounds = Offset.zero & renderObject.size;
+      if (focusBounds.contains(localPosition)) return;
+    }
+
+    focus.unfocus();
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    behavior: HitTestBehavior.translucent,
+    onPointerDown: _handlePointerDown,
+    child: child,
+  );
 }
