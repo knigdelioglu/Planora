@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
 import 'package:not_app/app/router/app_router.dart';
-import 'package:not_app/app/widgets/common_widgets.dart';
+import 'package:not_app/app/widgets/common_widgets.dart' show EmptyState;
 import 'package:not_app/app/widgets/content/app_content.dart';
 import 'package:not_app/app/widgets/inputs/app_search_field.dart';
 import 'package:not_app/app/widgets/navigation/app_toolbar.dart';
@@ -22,6 +22,23 @@ class SearchScreen extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
+}
+
+sealed class _DisplayItem {}
+
+class _SectionItem extends _DisplayItem {
+  _SectionItem(this.type, this.label, this.count);
+
+  final String type;
+  final String label;
+  final int count;
+}
+
+class _ResultItem extends _DisplayItem {
+  _ResultItem(this.result, this.flatIndex);
+
+  final SearchResultEntity result;
+  final int flatIndex;
 }
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
@@ -71,8 +88,64 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   List<SearchResultEntity> get _visibleResults {
-    if (_type == 'all') return _results;
-    return _results.where((item) => item.entityType == _type).toList(growable: false);
+    final List<SearchResultEntity> source = _type == 'all'
+        ? _results
+        : _results
+            .where((item) => item.entityType == _type)
+            .toList(growable: false);
+    if (_type != 'all') return source;
+    return <SearchResultEntity>[
+      ...source.where((item) => item.entityType == 'note'),
+      ...source.where((item) => item.entityType == 'card'),
+      ...source.where((item) => item.entityType == 'board'),
+      ...source.where(
+        (item) =>
+            item.entityType != 'note' &&
+            item.entityType != 'card' &&
+            item.entityType != 'board',
+      ),
+    ];
+  }
+
+  List<_DisplayItem> get _displayItems {
+    final List<SearchResultEntity> visible = _visibleResults;
+    if (_type != 'all') {
+      return <_DisplayItem>[
+        for (int i = 0; i < visible.length; i++) _ResultItem(visible[i], i),
+      ];
+    }
+
+    final List<_DisplayItem> output = <_DisplayItem>[];
+    int flatIndex = 0;
+    void appendGroup(String type, String label) {
+      final List<SearchResultEntity> group = visible
+          .where((item) => item.entityType == type)
+          .toList(growable: false);
+      if (group.isEmpty) return;
+      output.add(_SectionItem(type, label, group.length));
+      for (final SearchResultEntity item in group) {
+        output.add(_ResultItem(item, flatIndex++));
+      }
+    }
+
+    appendGroup('note', 'Notlar');
+    appendGroup('card', 'Kartlar');
+    appendGroup('board', 'Panolar');
+    final List<SearchResultEntity> others = visible
+        .where(
+          (item) =>
+              item.entityType != 'note' &&
+              item.entityType != 'card' &&
+              item.entityType != 'board',
+        )
+        .toList(growable: false);
+    if (others.isNotEmpty) {
+      output.add(_SectionItem('other', 'Diğer', others.length));
+      for (final SearchResultEntity item in others) {
+        output.add(_ResultItem(item, flatIndex++));
+      }
+    }
+    return output;
   }
 
   void _changed() {
@@ -87,7 +160,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       return;
     }
     setState(() {});
-    _debounce = Timer(const Duration(milliseconds: 170), _search);
+    _debounce = Timer(const Duration(milliseconds: 180), _search);
   }
 
   Future<void> _search() async {
@@ -99,7 +172,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (!mounted || value != _query.text.trim()) return;
     setState(() {
       _results = data;
-      _selectedIndex = data.isEmpty ? -1 : 0;
+      _selectedIndex = -1;
       _busy = false;
     });
   }
@@ -111,13 +184,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final List<SearchResultEntity> data = _visibleResults;
     if (event.logicalKey == LogicalKeyboardKey.arrowDown && data.isNotEmpty) {
       setState(() {
-        _selectedIndex = (_selectedIndex + 1).clamp(0, data.length - 1);
+        if (_selectedIndex < data.length - 1) {
+          _selectedIndex += 1;
+        } else {
+          _selectedIndex = data.length - 1;
+        }
       });
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowUp && data.isNotEmpty) {
       setState(() {
-        _selectedIndex = (_selectedIndex - 1).clamp(-1, data.length - 1);
+        _selectedIndex = _selectedIndex > 0 ? _selectedIndex - 1 : -1;
       });
       return KeyEventResult.handled;
     }
@@ -160,6 +237,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           KanbanBoardScreen(boardId: result.entityId),
         );
         return;
+      default:
+        return;
     }
   }
 
@@ -177,9 +256,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         _ => Icons.search_rounded,
       };
 
+  void _selectType(String type) {
+    setState(() {
+      _type = type;
+      _selectedIndex = -1;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<SearchResultEntity> visible = _visibleResults;
+    final List<_DisplayItem> display = _displayItems;
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () {
@@ -225,7 +312,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             },
                             onSubmitted: (_) {
                               if (visible.isNotEmpty) {
-                                _open(visible[_selectedIndex < 0 ? 0 : _selectedIndex]);
+                                _open(
+                                  visible[
+                                      _selectedIndex < 0 ? 0 : _selectedIndex],
+                                );
                               }
                             },
                           ),
@@ -245,34 +335,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               _TypeChip(
                                 label: 'Tümü',
                                 selected: _type == 'all',
-                                onSelected: () => setState(() {
-                                  _type = 'all';
-                                  _selectedIndex = _results.isEmpty ? -1 : 0;
-                                }),
+                                onSelected: () => _selectType('all'),
                               ),
                               _TypeChip(
                                 label: 'Notlar',
                                 selected: _type == 'note',
-                                onSelected: () => setState(() {
-                                  _type = 'note';
-                                  _selectedIndex = _visibleResults.isEmpty ? -1 : 0;
-                                }),
+                                onSelected: () => _selectType('note'),
                               ),
                               _TypeChip(
                                 label: 'Kartlar',
                                 selected: _type == 'card',
-                                onSelected: () => setState(() {
-                                  _type = 'card';
-                                  _selectedIndex = _visibleResults.isEmpty ? -1 : 0;
-                                }),
+                                onSelected: () => _selectType('card'),
                               ),
                               _TypeChip(
                                 label: 'Panolar',
                                 selected: _type == 'board',
-                                onSelected: () => setState(() {
-                                  _type = 'board';
-                                  _selectedIndex = _visibleResults.isEmpty ? -1 : 0;
-                                }),
+                                onSelected: () => _selectType('board'),
                               ),
                             ],
                           ),
@@ -285,7 +363,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           ? const EmptyState(
                               icon: Icons.search_rounded,
                               title: 'Ne arıyorsunuz?',
-                              message: 'Notlar, kartlar ve panolar cihazınızda aranır.',
+                              message:
+                                  'Notlar, kartlar ve panolar cihazınızda aranır.',
                             )
                           : visible.isEmpty && !_busy
                               ? const EmptyState(
@@ -295,7 +374,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                 )
                               : Center(
                                   child: ConstrainedBox(
-                                    constraints: const BoxConstraints(maxWidth: 800),
+                                    constraints:
+                                        const BoxConstraints(maxWidth: 800),
                                     child: ListView.builder(
                                       padding: EdgeInsets.fromLTRB(
                                         horizontal,
@@ -303,10 +383,35 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                         horizontal,
                                         32,
                                       ),
-                                      itemCount: visible.length,
+                                      itemCount: display.length,
                                       itemBuilder: (context, index) {
-                                        final SearchResultEntity result = visible[index];
-                                        final bool selected = index == _selectedIndex;
+                                        final _DisplayItem item = display[index];
+                                        if (item is _SectionItem) {
+                                          return Padding(
+                                            padding: const EdgeInsets.fromLTRB(
+                                              4,
+                                              14,
+                                              4,
+                                              5,
+                                            ),
+                                            child: Text(
+                                              '${item.label} (${item.count})',
+                                              key: ValueKey(
+                                                'search_section_${item.type}',
+                                              ),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .labelLarge,
+                                            ),
+                                          );
+                                        }
+                                        final _ResultItem resultItem =
+                                            item as _ResultItem;
+                                        final SearchResultEntity result =
+                                            resultItem.result;
+                                        final bool selected =
+                                            resultItem.flatIndex ==
+                                                _selectedIndex;
                                         return AppListRow(
                                           key: ValueKey(
                                             'search_result_${result.entityType}_${result.entityId}',
@@ -325,13 +430,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                             selected: selected,
                                           ),
                                           subtitle: result.preview.trim().isEmpty ||
-                                                  result.preview.trim() == result.title.trim()
-                                              ? Text(_typeLabel(result.entityType))
+                                                  result.preview.trim() ==
+                                                      result.title.trim()
+                                              ? Text(
+                                                  _typeLabel(
+                                                    result.entityType,
+                                                  ),
+                                                )
                                               : Column(
                                                   crossAxisAlignment:
                                                       CrossAxisAlignment.start,
                                                   children: <Widget>[
-                                                    Text(_typeLabel(result.entityType)),
+                                                    Text(
+                                                      _typeLabel(
+                                                        result.entityType,
+                                                      ),
+                                                    ),
                                                     _HighlightedText(
                                                       text: result.preview
                                                           .replaceAll('\n', ' '),
@@ -348,7 +462,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                                 )
                                               : null,
                                           onTap: () {
-                                            setState(() => _selectedIndex = index);
+                                            setState(
+                                              () => _selectedIndex =
+                                                  resultItem.flatIndex,
+                                            );
                                             _open(result);
                                           },
                                         );
@@ -411,13 +528,23 @@ class _HighlightedText extends StatelessWidget {
               fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
             );
     if (query.isEmpty) {
-      return Text(text, maxLines: maxLines, overflow: TextOverflow.ellipsis, style: base);
+      return Text(
+        text,
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+        style: base,
+      );
     }
     final String lower = text.toLowerCase();
     final String needle = query.toLowerCase();
     final int index = lower.indexOf(needle);
-    if (index < 0) {
-      return Text(text, maxLines: maxLines, overflow: TextOverflow.ellipsis, style: base);
+    if (index < 0 || index + query.length > text.length) {
+      return Text(
+        text,
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+        style: base,
+      );
     }
     return Text.rich(
       TextSpan(
@@ -427,7 +554,10 @@ class _HighlightedText extends StatelessWidget {
           TextSpan(
             text: text.substring(index, index + query.length),
             style: base?.copyWith(
-              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.14),
+              backgroundColor: Theme.of(context)
+                  .colorScheme
+                  .primary
+                  .withValues(alpha: 0.14),
               fontWeight: FontWeight.w700,
             ),
           ),
