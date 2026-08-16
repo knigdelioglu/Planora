@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:not_app/app/theme/app_theme.dart';
+import 'package:not_app/app/widgets/content/app_content.dart';
 import 'package:not_app/features/kanban/domain/entities/kanban_card.dart';
 
-class KanbanCardWidget extends StatelessWidget {
+class KanbanCardWidget extends StatefulWidget {
   const KanbanCardWidget({
     required this.card,
     super.key,
     this.feedback = false,
     this.backgroundColor,
+    this.accentColor,
     this.onTap,
     this.onMovePrev,
     this.onMoveNext,
@@ -24,6 +27,7 @@ class KanbanCardWidget extends StatelessWidget {
   final KanbanCard card;
   final bool feedback;
   final Color? backgroundColor;
+  final Color? accentColor;
   final VoidCallback? onTap;
   final VoidCallback? onMovePrev;
   final VoidCallback? onMoveNext;
@@ -38,272 +42,238 @@ class KanbanCardWidget extends StatelessWidget {
   final bool showMenu;
 
   @override
+  State<KanbanCardWidget> createState() => _KanbanCardWidgetState();
+}
+
+class _KanbanCardWidgetState extends State<KanbanCardWidget> {
+  bool _hovered = false;
+  bool _focused = false;
+
+  @override
   Widget build(BuildContext context) {
-    final bool hasActions =
-        showMenu &&
-        !feedback &&
-        (onMovePrev != null ||
-            onMoveNext != null ||
-            onMoveTop != null ||
-            onMoveBottom != null ||
-            onChangeColor != null ||
-            onTap != null ||
-            onDelete != null);
-    final bool showInlineMoveButtons =
-        !feedback && (onMovePrev != null || onMoveNext != null);
+    final theme = Theme.of(context);
+    final bool showActions =
+        !widget.feedback && (_hovered || _focused || MediaQuery.sizeOf(context).width < 600);
+    final Color surface = widget.backgroundColor ?? theme.colorScheme.surface;
 
     return Semantics(
-      label: 'Kanban kartı: ${card.title}',
-      button: onTap != null,
-      child: Card(
-        color: backgroundColor,
-        margin: const EdgeInsets.symmetric(vertical: 3),
-        elevation: feedback ? 6 : 1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: feedback
-              ? BorderSide(
-                  color: Theme.of(context).colorScheme.primary,
-                  width: 1.5,
-                )
-              : BorderSide(
-                  color: Theme.of(context).dividerColor.withOpacity(0.45),
-                ),
-        ),
-        child: InkWell(
-          onTap: feedback ? null : onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        card.title,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
+      label: 'Kanban kartı: ${widget.card.title}',
+      button: widget.onTap != null,
+      child: FocusableActionDetector(
+        onShowHoverHighlight: (value) => setState(() => _hovered = value),
+        onShowFocusHighlight: (value) => setState(() => _focused = value),
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: AnimatedScale(
+            duration: const Duration(milliseconds: 120),
+            scale: widget.feedback ? 0.98 : 1,
+            child: Material(
+              color: surface,
+              elevation: widget.feedback ? 8 : (_hovered ? 1 : 0),
+              shadowColor: Colors.black.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(AppRadius.surface),
+              child: InkWell(
+                onTap: widget.feedback ? null : widget.onTap,
+                borderRadius: BorderRadius.circular(AppRadius.surface),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 3),
+                  padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppRadius.surface),
+                    border: Border.all(
+                      color: widget.feedback
+                          ? theme.colorScheme.primary.withValues(alpha: 0.75)
+                          : theme.dividerColor.withValues(alpha: 0.7),
                     ),
-                    if (showInlineMoveButtons) ...<Widget>[
-                      const SizedBox(width: 4),
-                      if (onMovePrev != null)
-                        IconButton(
-                          key: ValueKey<String>('card_move_left_${card.id}'),
-                          tooltip: 'Önceki kolona taşı',
-                          onPressed: onMovePrev,
-                          icon: const Icon(Icons.arrow_back_rounded, size: 20),
-                          visualDensity: VisualDensity.compact,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints.tightFor(
-                            width: 34,
-                            height: 34,
-                          ),
-                        ),
-                      if (onMoveNext != null)
-                        IconButton(
-                          key: ValueKey<String>('card_move_right_${card.id}'),
-                          tooltip: 'Sonraki kolona taşı',
-                          onPressed: onMoveNext,
-                          icon: const Icon(Icons.arrow_forward_rounded, size: 20),
-                          visualDensity: VisualDensity.compact,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints.tightFor(
-                            width: 34,
-                            height: 34,
-                          ),
-                        ),
-                    ],
-                    if (hasActions) ...<Widget>[
-                      const SizedBox(width: 2),
-                      PopupMenuButton<String>(
-                        key: ValueKey<String>('card_menu_${card.id}'),
-                        icon: const Icon(Icons.more_vert, size: 18),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        tooltip: 'Kart seçenekleri',
-                        onSelected: (value) {
-                          switch (value) {
-                            case 'move_prev':
-                              onMovePrev?.call();
-                              break;
-                            case 'move_next':
-                              onMoveNext?.call();
-                              break;
-                            case 'move_top':
-                              onMoveTop?.call();
-                              break;
-                            case 'move_bottom':
-                              onMoveBottom?.call();
-                              break;
-                            case 'change_color':
-                              onChangeColor?.call();
-                              break;
-                            case 'detail':
-                              onTap?.call();
-                              break;
-                            case 'delete':
-                              onDelete?.call();
-                              break;
-                          }
-                        },
-                        itemBuilder: (context) => <PopupMenuEntry<String>>[
-                          PopupMenuItem<String>(
-                            key: const ValueKey<String>('menu_move_prev'),
-                            value: 'move_prev',
-                            enabled: hasPreviousColumn && onMovePrev != null,
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                Icon(Icons.arrow_back, size: 18),
-                                SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    'Önceki kolona taşı',
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          PopupMenuItem<String>(
-                            key: const ValueKey<String>('menu_move_next'),
-                            value: 'move_next',
-                            enabled: hasNextColumn && onMoveNext != null,
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                Icon(Icons.arrow_forward, size: 18),
-                                SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    'Sonraki kolona taşı',
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          PopupMenuItem<String>(
-                            key: const ValueKey<String>('menu_move_top'),
-                            value: 'move_top',
-                            enabled: canMoveToTop && onMoveTop != null,
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                Icon(Icons.vertical_align_top, size: 18),
-                                SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    'Kolonun en üstüne taşı',
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          PopupMenuItem<String>(
-                            key: const ValueKey<String>('menu_move_bottom'),
-                            value: 'move_bottom',
-                            enabled: canMoveToBottom && onMoveBottom != null,
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                Icon(Icons.vertical_align_bottom, size: 18),
-                                SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    'Kolonun en altına taşı',
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (onChangeColor != null)
-                            const PopupMenuItem<String>(
-                              key: ValueKey<String>('menu_change_color'),
-                              value: 'change_color',
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  Icon(Icons.palette_outlined, size: 18),
-                                  SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      'Rengi değiştir',
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          if (onTap != null || onDelete != null)
-                            const PopupMenuDivider(),
-                          if (onTap != null)
-                            const PopupMenuItem<String>(
-                              key: ValueKey<String>('menu_detail'),
-                              value: 'detail',
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  Icon(Icons.edit_outlined, size: 18),
-                                  SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      'Ayrıntılar',
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          if (onDelete != null)
-                            const PopupMenuItem<String>(
-                              key: ValueKey<String>('menu_delete'),
-                              value: 'delete',
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  Icon(
-                                    Icons.delete_outline,
-                                    size: 18,
-                                    color: Colors.red,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      'Sil',
-                                      style: TextStyle(color: Colors.red),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-                if (card.description?.trim().isNotEmpty == true) ...<Widget>[
-                  const SizedBox(height: 6),
-                  Text(
-                    card.description!,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
                   ),
-                ],
-              ],
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      AppEntityColorIndicator(
+                        color: widget.accentColor,
+                        vertical: true,
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              widget.card.title,
+                              style: theme.textTheme.titleMedium,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (widget.card.description?.trim().isNotEmpty == true) ...<Widget>[
+                              const SizedBox(height: 5),
+                              Text(
+                                widget.card.description!,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                            if (!widget.feedback &&
+                                (widget.onMovePrev != null || widget.onMoveNext != null)) ...<Widget>[
+                              const SizedBox(height: 6),
+                              AnimatedOpacity(
+                                opacity: showActions ? 1 : 0.46,
+                                duration: const Duration(milliseconds: 110),
+                                child: Row(
+                                  children: <Widget>[
+                                    if (widget.onMovePrev != null)
+                                      _QuickMoveButton(
+                                        key: ValueKey<String>(
+                                          'card_move_left_${widget.card.id}',
+                                        ),
+                                        tooltip: 'Önceki kolona taşı',
+                                        icon: Icons.arrow_back_rounded,
+                                        onPressed: widget.onMovePrev!,
+                                      ),
+                                    if (widget.onMoveNext != null)
+                                      _QuickMoveButton(
+                                        key: ValueKey<String>(
+                                          'card_move_right_${widget.card.id}',
+                                        ),
+                                        tooltip: 'Sonraki kolona taşı',
+                                        icon: Icons.arrow_forward_rounded,
+                                        onPressed: widget.onMoveNext!,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (widget.showMenu && !widget.feedback)
+                        AnimatedOpacity(
+                          opacity: showActions ? 1 : 0.62,
+                          duration: const Duration(milliseconds: 110),
+                          child: _CardMenu(widget: widget),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _QuickMoveButton extends StatelessWidget {
+  const _QuickMoveButton({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon, size: 17),
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 34, height: 32),
+        style: IconButton.styleFrom(
+          foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      );
+}
+
+class _CardMenu extends StatelessWidget {
+  const _CardMenu({required this.widget});
+
+  final KanbanCardWidget widget;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color danger = Theme.of(context).colorScheme.error;
+    return PopupMenuButton<String>(
+      key: ValueKey<String>('card_menu_${widget.card.id}'),
+      icon: const Icon(Icons.more_horiz_rounded, size: 18),
+      padding: EdgeInsets.zero,
+      tooltip: 'Kart seçenekleri',
+      onSelected: (value) {
+        switch (value) {
+          case 'move_prev':
+            widget.onMovePrev?.call();
+            break;
+          case 'move_next':
+            widget.onMoveNext?.call();
+            break;
+          case 'move_top':
+            widget.onMoveTop?.call();
+            break;
+          case 'move_bottom':
+            widget.onMoveBottom?.call();
+            break;
+          case 'change_color':
+            widget.onChangeColor?.call();
+            break;
+          case 'detail':
+            widget.onTap?.call();
+            break;
+          case 'delete':
+            widget.onDelete?.call();
+            break;
+        }
+      },
+      itemBuilder: (context) => <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          key: const ValueKey<String>('menu_move_prev'),
+          value: 'move_prev',
+          enabled: widget.hasPreviousColumn && widget.onMovePrev != null,
+          child: const Text('Önceki kolona taşı'),
+        ),
+        PopupMenuItem<String>(
+          key: const ValueKey<String>('menu_move_next'),
+          value: 'move_next',
+          enabled: widget.hasNextColumn && widget.onMoveNext != null,
+          child: const Text('Sonraki kolona taşı'),
+        ),
+        PopupMenuItem<String>(
+          key: const ValueKey<String>('menu_move_top'),
+          value: 'move_top',
+          enabled: widget.canMoveToTop && widget.onMoveTop != null,
+          child: const Text('Kolonun en üstüne taşı'),
+        ),
+        PopupMenuItem<String>(
+          key: const ValueKey<String>('menu_move_bottom'),
+          value: 'move_bottom',
+          enabled: widget.canMoveToBottom && widget.onMoveBottom != null,
+          child: const Text('Kolonun en altına taşı'),
+        ),
+        if (widget.onChangeColor != null)
+          const PopupMenuItem<String>(
+            key: ValueKey<String>('menu_change_color'),
+            value: 'change_color',
+            child: Text('Rengi değiştir'),
+          ),
+        if (widget.onTap != null)
+          const PopupMenuItem<String>(
+            key: ValueKey<String>('menu_detail'),
+            value: 'detail',
+            child: Text('Ayrıntılar'),
+          ),
+        if (widget.onDelete != null) const PopupMenuDivider(),
+        if (widget.onDelete != null)
+          PopupMenuItem<String>(
+            key: const ValueKey<String>('menu_delete'),
+            value: 'delete',
+            child: Text('Sil', style: TextStyle(color: danger)),
+          ),
+      ],
     );
   }
 }
