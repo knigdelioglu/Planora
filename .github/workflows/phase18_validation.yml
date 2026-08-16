@@ -32,13 +32,13 @@ jobs:
             exit 1
           fi
       - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib test integration_test
+        run: dart format --output=none --set-exit-if-changed lib test
       - name: Static analysis
         run: flutter analyze
       - name: Run unit database and widget tests
         run: flutter test --coverage
       - name: Run integration tests
-        run: flutter test integration_test
+        run: flutter test test/integration
 
   android-build:
     needs: test-and-analyze
