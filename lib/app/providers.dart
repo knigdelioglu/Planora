@@ -18,10 +18,11 @@ final class AppServiceRegistry {
   static AppServices? _current;
   static AppServices get current {
     final AppServices? value = _current;
-    if (value == null)
+    if (value == null) {
       throw StateError(
         'App services were accessed before bootstrap completed.',
       );
+    }
     return value;
   }
 
