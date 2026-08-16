@@ -96,8 +96,8 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
                 onTap: widget.feedback ? null : widget.onTap,
                 borderRadius: BorderRadius.circular(AppRadius.surface),
                 child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 3),
-                  padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                  padding: const EdgeInsets.fromLTRB(8, 6, 6, 6),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(AppRadius.surface),
                     border: Border.all(
@@ -107,73 +107,76 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
                     ),
                   ),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       AppEntityColorIndicator(
                         color: widget.accentColor,
                         vertical: true,
                       ),
-                      const SizedBox(width: 9),
+                      const SizedBox(width: 7),
                       Expanded(
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            Text(
-                              widget.card.title,
-                              style: theme.textTheme.titleMedium,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: <Widget>[
+                                if (!widget.feedback && widget.onMovePrev != null)
+                                  AnimatedOpacity(
+                                    opacity: showActions ? 1 : 0.58,
+                                    duration: quickMotion,
+                                    child: _QuickMoveButton(
+                                      key: ValueKey<String>(
+                                        'card_move_left_${widget.card.id}',
+                                      ),
+                                      tooltip: 'Önceki kolona taşı',
+                                      icon: Icons.arrow_back_rounded,
+                                      onPressed: widget.onMovePrev!,
+                                    ),
+                                  ),
+                                Expanded(
+                                  child: Text(
+                                    widget.card.title,
+                                    style: theme.textTheme.titleMedium,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (!widget.feedback && widget.onMoveNext != null)
+                                  AnimatedOpacity(
+                                    opacity: showActions ? 1 : 0.58,
+                                    duration: quickMotion,
+                                    child: _QuickMoveButton(
+                                      key: ValueKey<String>(
+                                        'card_move_right_${widget.card.id}',
+                                      ),
+                                      tooltip: 'Sonraki kolona taşı',
+                                      icon: Icons.arrow_forward_rounded,
+                                      onPressed: widget.onMoveNext!,
+                                    ),
+                                  ),
+                                if (widget.showMenu && !widget.feedback)
+                                  AnimatedOpacity(
+                                    opacity: showActions ? 1 : 0.62,
+                                    duration: quickMotion,
+                                    child: _CardMenu(widget: widget),
+                                  ),
+                              ],
                             ),
                             if (widget.card.description?.trim().isNotEmpty ==
                                 true) ...<Widget>[
-                              const SizedBox(height: 5),
+                              const SizedBox(height: 2),
                               Text(
                                 widget.card.description!,
-                                maxLines: 2,
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodySmall,
-                              ),
-                            ],
-                            if (!widget.feedback &&
-                                (widget.onMovePrev != null ||
-                                    widget.onMoveNext != null)) ...<Widget>[
-                              const SizedBox(height: 6),
-                              AnimatedOpacity(
-                                opacity: showActions ? 1 : 0.46,
-                                duration: quickMotion,
-                                child: Row(
-                                  children: <Widget>[
-                                    if (widget.onMovePrev != null)
-                                      _QuickMoveButton(
-                                        key: ValueKey<String>(
-                                          'card_move_left_${widget.card.id}',
-                                        ),
-                                        tooltip: 'Önceki kolona taşı',
-                                        icon: Icons.arrow_back_rounded,
-                                        onPressed: widget.onMovePrev!,
-                                      ),
-                                    if (widget.onMoveNext != null)
-                                      _QuickMoveButton(
-                                        key: ValueKey<String>(
-                                          'card_move_right_${widget.card.id}',
-                                        ),
-                                        tooltip: 'Sonraki kolona taşı',
-                                        icon: Icons.arrow_forward_rounded,
-                                        onPressed: widget.onMoveNext!,
-                                      ),
-                                  ],
-                                ),
                               ),
                             ],
                           ],
                         ),
                       ),
-                      if (widget.showMenu && !widget.feedback)
-                        AnimatedOpacity(
-                          opacity: showActions ? 1 : 0.62,
-                          duration: quickMotion,
-                          child: _CardMenu(widget: widget),
-                        ),
                     ],
                   ),
                 ),
@@ -202,10 +205,10 @@ class _QuickMoveButton extends StatelessWidget {
   Widget build(BuildContext context) => IconButton(
         tooltip: tooltip,
         onPressed: onPressed,
-        icon: Icon(icon, size: 17),
+        icon: Icon(icon, size: 16),
         visualDensity: VisualDensity.compact,
         padding: EdgeInsets.zero,
-        constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+        constraints: const BoxConstraints.tightFor(width: 34, height: 34),
         style: IconButton.styleFrom(
           foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
