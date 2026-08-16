@@ -14,7 +14,7 @@ Future<void> openLocalAttachment(
   String? mimeType,
   String? title,
 }) async {
-  if (mimeType?.startsWith('image/') == true) {
+  if (_isImage(file, mimeType)) {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => _ImageAttachmentPreview(
@@ -43,6 +43,21 @@ Future<void> openLocalAttachment(
       const SnackBar(content: Text('Dosya bu cihazda açılamadı.')),
     );
   }
+}
+
+bool _isImage(File file, String? mimeType) {
+  if (mimeType?.startsWith('image/') == true) return true;
+  final String path = file.path.toLowerCase();
+  return const <String>[
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.webp',
+    '.gif',
+    '.bmp',
+    '.heic',
+    '.heif',
+  ].any(path.endsWith);
 }
 
 class _ImageAttachmentPreview extends StatelessWidget {
