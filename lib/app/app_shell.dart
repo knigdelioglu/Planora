@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
 import 'package:not_app/app/router/app_router.dart';
 import 'package:not_app/app/theme/app_theme.dart';
-import 'package:not_app/app/widgets/common_widgets.dart';
+import 'package:not_app/app/widgets/feedback/app_feedback.dart';
 import 'package:not_app/app/widgets/navigation/app_sidebar_item.dart';
 import 'package:not_app/app/widgets/overlays/global_search_palette.dart';
 import 'package:not_app/core/sync/sync_coordinator.dart';
@@ -49,12 +49,12 @@ class _AppShellState extends ConsumerState<AppShell> {
   ];
 
   Widget _page(int index) => switch (index) {
-    0 => const HomeScreen(),
-    1 => const NotesScreen(),
-    2 => const BoardsScreen(),
-    3 => const RemindersScreen(),
-    _ => const SettingsScreen(),
-  };
+        0 => const HomeScreen(),
+        1 => const NotesScreen(),
+        2 => const BoardsScreen(),
+        3 => const RemindersScreen(),
+        _ => const SettingsScreen(),
+      };
 
   Future<void> _newNote() async {
     final String id = await ref.read(notesRepositoryProvider).createNote();
@@ -85,16 +85,21 @@ class _AppShellState extends ConsumerState<AppShell> {
           context,
           NoteEditorScreen(noteId: result.entityId),
         );
+        return;
       case 'card':
         await AppRouter.push<void>(
           context,
           CardDetailScreen(cardId: result.entityId),
         );
+        return;
       case 'board':
         await AppRouter.push<void>(
           context,
           KanbanBoardScreen(boardId: result.entityId),
         );
+        return;
+      default:
+        return;
     }
   }
 
@@ -175,208 +180,244 @@ class _AppShellState extends ConsumerState<AppShell> {
         builder: (context, healthSnapshot) {
           final SyncHealthState health =
               healthSnapshot.data ?? coordinator.currentHealth;
-          return SyncStatusIndicator(
-            pendingCount: pendingSnapshot.data ?? 0,
-            cloudConfigured: configured,
-            signedIn: signedIn,
-            isSyncing: health.isSyncing,
-            isOnline: health.isOnline,
-            lastSuccessfulSyncAt: health.lastSuccessfulSyncAt,
-            lastError: health.lastError,
-          );
+          final int pending = pendingSnapshot.data ?? 0;
+          final String label;
+          final IconData icon;
+          final AppBannerTone tone;
+          if (!configured) {
+            label = 'Yalnız cihaz';
+            icon = Icons.cloud_off_outlined;
+            tone = AppBannerTone.info;
+          } else if (!signedIn) {
+            label = 'Bulut bağlı değil';
+            icon = Icons.cloud_outlined;
+            tone = AppBannerTone.info;
+          } else if (health.isSyncing) {
+            label = 'Eşitleniyor…';
+            icon = Icons.sync_rounded;
+            tone = AppBannerTone.info;
+          } else if (health.isOnline == false) {
+            label = 'Çevrimdışı';
+            icon = Icons.cloud_off_outlined;
+            tone = AppBannerTone.warning;
+          } else if (health.lastError?.trim().isNotEmpty == true) {
+            label = 'Eşitleme sorunu';
+            icon = Icons.sync_problem_outlined;
+            tone = AppBannerTone.error;
+          } else if (pending > 0) {
+            label = '$pending değişiklik bekliyor';
+            icon = Icons.sync_rounded;
+            tone = AppBannerTone.warning;
+          } else {
+            label = 'Güncel';
+            icon = Icons.cloud_done_outlined;
+            tone = AppBannerTone.success;
+          }
+          return AppStatusChip(label: label, icon: icon, tone: tone);
         },
       ),
     );
   }
 
   Widget _expanded(bool configured, bool signedIn) => Scaffold(
-    body: Row(
-      children: <Widget>[
-        Container(
-          width: 228,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border: Border(
-              right: BorderSide(
-                color: Theme.of(context).dividerColor.withValues(alpha: 0.75),
+        body: Row(
+          children: <Widget>[
+            Container(
+              width: 228,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  right: BorderSide(
+                    color: Theme.of(context)
+                        .dividerColor
+                        .withValues(alpha: 0.75),
+                  ),
+                ),
+              ),
+              child: SafeArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                      child: Row(
+                        children: <Widget>[
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Text(
+                                'N',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onPrimary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Not',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 2, 8, 8),
+                      child: Material(
+                        color: Theme.of(context).colorScheme.surfaceContainer,
+                        borderRadius:
+                            BorderRadius.circular(AppRadius.control),
+                        child: InkWell(
+                          onTap: _openSearch,
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.control),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 9,
+                            ),
+                            child: Row(
+                              children: <Widget>[
+                                Icon(
+                                  Icons.search_rounded,
+                                  size: 19,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 9),
+                                Expanded(
+                                  child: Text(
+                                    'Ara',
+                                    style:
+                                        Theme.of(context).textTheme.bodyMedium,
+                                  ),
+                                ),
+                                Text(
+                                  '⌘K',
+                                  style: Theme.of(context).textTheme.labelSmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    ...List<Widget>.generate(
+                      _mainDestinations.length,
+                      (index) {
+                        final item = _mainDestinations[index];
+                        return AppSidebarItem(
+                          label: item.label,
+                          icon: item.icon,
+                          selectedIcon: item.selectedIcon,
+                          selected: _index == index,
+                          onTap: () => setState(() => _index = index),
+                        );
+                      },
+                    ),
+                    const Spacer(),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+                      child: _sync(configured, signedIn),
+                    ),
+                    AppSidebarItem(
+                      label: 'Ayarlar',
+                      icon: Icons.settings_outlined,
+                      selectedIcon: Icons.settings_rounded,
+                      selected: _index == 4,
+                      onTap: () => setState(() => _index = 4),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ),
               ),
             ),
-          ),
-          child: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                  child: Row(
-                    children: <Widget>[
-                      Container(
-                        width: 28,
-                        height: 28,
+            Expanded(child: _page(_index)),
+          ],
+        ),
+      );
+
+  Widget _medium(bool configured, bool signedIn) => Scaffold(
+        body: Row(
+          children: <Widget>[
+            SafeArea(
+              child: NavigationRail(
+                selectedIndex: _index,
+                onDestinationSelected: (value) =>
+                    setState(() => _index = value),
+                labelType: NavigationRailLabelType.selected,
+                leading: Column(
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        width: 30,
+                        height: 30,
                         decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.primary,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Center(
+                        child: Center(
                           child: Text(
                             'N',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: Theme.of(context).colorScheme.onPrimary,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Not',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ],
-                  ),
+                    ),
+                    IconButton(
+                      tooltip: 'Ara · ⌘K',
+                      onPressed: _openSearch,
+                      icon: const Icon(Icons.search_rounded),
+                    ),
+                  ],
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 2, 8, 8),
-                  child: Material(
-                    color: Theme.of(context).colorScheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(AppRadius.control),
-                    child: InkWell(
-                      onTap: _openSearch,
-                      borderRadius: BorderRadius.circular(AppRadius.control),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 9,
-                        ),
-                        child: Row(
-                          children: <Widget>[
-                            Icon(
-                              Icons.search_rounded,
-                              size: 19,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 9),
-                            Expanded(
-                              child: Text(
-                                'Ara',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ),
-                            Text(
-                              '⌘K',
-                              style: Theme.of(context).textTheme.labelSmall,
-                            ),
-                          ],
-                        ),
-                      ),
+                trailing: Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Tooltip(
+                    message: configured && signedIn
+                        ? 'Bulut bağlantısı açık'
+                        : 'Yalnız cihaz',
+                    child: Icon(
+                      configured && signedIn
+                          ? Icons.cloud_done_outlined
+                          : Icons.cloud_off_outlined,
+                      size: 18,
                     ),
                   ),
                 ),
-                const SizedBox(height: 2),
-                ...List<Widget>.generate(_mainDestinations.length, (index) {
-                  final item = _mainDestinations[index];
-                  return AppSidebarItem(
-                    label: item.label,
-                    icon: item.icon,
-                    selectedIcon: item.selectedIcon,
-                    selected: _index == index,
-                    onTap: () => setState(() => _index = index),
-                  );
-                }),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
-                  child: _sync(configured, signedIn),
-                ),
-                AppSidebarItem(
-                  label: 'Ayarlar',
-                  icon: Icons.settings_outlined,
-                  selectedIcon: Icons.settings_rounded,
-                  selected: _index == 4,
-                  onTap: () => setState(() => _index = 4),
-                ),
-                const SizedBox(height: 10),
-              ],
+                destinations: <NavigationRailDestination>[
+                  ..._mainDestinations.map(
+                    (item) => NavigationRailDestination(
+                      icon: Icon(item.icon),
+                      selectedIcon: Icon(item.selectedIcon),
+                      label: Text(item.label),
+                    ),
+                  ),
+                  const NavigationRailDestination(
+                    icon: Icon(Icons.settings_outlined),
+                    selectedIcon: Icon(Icons.settings_rounded),
+                    label: Text('Ayarlar'),
+                  ),
+                ],
+              ),
             ),
-          ),
+            const VerticalDivider(width: 1),
+            Expanded(child: _page(_index)),
+          ],
         ),
-        Expanded(child: _page(_index)),
-      ],
-    ),
-  );
-
-  Widget _medium(bool configured, bool signedIn) => Scaffold(
-    body: Row(
-      children: <Widget>[
-        SafeArea(
-          child: NavigationRail(
-            selectedIndex: _index.clamp(0, 4),
-            onDestinationSelected: (value) => setState(() => _index = value),
-            labelType: NavigationRailLabelType.selected,
-            leading: Column(
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'N',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Ara · ⌘K',
-                  onPressed: _openSearch,
-                  icon: const Icon(Icons.search_rounded),
-                ),
-              ],
-            ),
-            trailing: Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Tooltip(
-                message: 'Senkronizasyon durumu',
-                child: Icon(
-                  configured && signedIn
-                      ? Icons.cloud_done_outlined
-                      : Icons.cloud_off_outlined,
-                  size: 18,
-                ),
-              ),
-            ),
-            destinations: <NavigationRailDestination>[
-              ..._mainDestinations.map(
-                (item) => NavigationRailDestination(
-                  icon: Icon(item.icon),
-                  selectedIcon: Icon(item.selectedIcon),
-                  label: Text(item.label),
-                ),
-              ),
-              const NavigationRailDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings_rounded),
-                label: Text('Ayarlar'),
-              ),
-            ],
-          ),
-        ),
-        const VerticalDivider(width: 1),
-        Expanded(child: _page(_index)),
-      ],
-    ),
-  );
+      );
 
   Widget _compact(bool configured, bool signedIn) {
     final int bottomIndex = _index <= 3 ? _index : 4;
@@ -441,31 +482,31 @@ class _CompactMore extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
-    children: <Widget>[
-      Text('Daha', style: Theme.of(context).textTheme.headlineMedium),
-      const SizedBox(height: 14),
-      ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-        leading: const Icon(Icons.search_rounded),
-        title: const Text('Arama'),
-        onTap: onSearch,
-      ),
-      ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-        leading: const Icon(Icons.settings_outlined),
-        title: const Text('Ayarlar'),
-        onTap: onSettings,
-      ),
-      const SizedBox(height: 10),
-      Divider(color: Theme.of(context).dividerColor),
-      const SizedBox(height: 10),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: sync,
-      ),
-    ],
-  );
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
+        children: <Widget>[
+          Text('Daha', style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 14),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+            leading: const Icon(Icons.search_rounded),
+            title: const Text('Arama'),
+            onTap: onSearch,
+          ),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+            leading: const Icon(Icons.settings_outlined),
+            title: const Text('Ayarlar'),
+            onTap: onSettings,
+          ),
+          const SizedBox(height: 10),
+          Divider(color: Theme.of(context).dividerColor),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: sync,
+          ),
+        ],
+      );
 }
 
 class _Destination {
