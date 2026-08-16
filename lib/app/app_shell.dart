@@ -193,7 +193,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             ),
           ),
         ),
-        Expanded(child: _page(_index)),
+        Expanded(child: SafeArea(child: _page(_index))),
       ],
     ),
   );
@@ -226,7 +226,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           ),
         ),
         const VerticalDivider(width: 1),
-        Expanded(child: _page(_index)),
+        Expanded(child: SafeArea(child: _page(_index))),
       ],
     ),
   );
