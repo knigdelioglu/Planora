@@ -49,6 +49,8 @@ class KanbanCardWidget extends StatelessWidget {
             onChangeColor != null ||
             onTap != null ||
             onDelete != null);
+    final bool showInlineMoveButtons =
+        !feedback && (onMovePrev != null || onMoveNext != null);
 
     return Semantics(
       label: 'Kanban kartı: ${card.title}',
@@ -87,8 +89,37 @@ class KanbanCardWidget extends StatelessWidget {
                             ?.copyWith(fontWeight: FontWeight.w600),
                       ),
                     ),
-                    if (hasActions) ...<Widget>[
+                    if (showInlineMoveButtons) ...<Widget>[
                       const SizedBox(width: 4),
+                      if (onMovePrev != null)
+                        IconButton(
+                          key: ValueKey<String>('card_move_left_${card.id}'),
+                          tooltip: 'Önceki kolona taşı',
+                          onPressed: onMovePrev,
+                          icon: const Icon(Icons.arrow_back_rounded, size: 20),
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 34,
+                            height: 34,
+                          ),
+                        ),
+                      if (onMoveNext != null)
+                        IconButton(
+                          key: ValueKey<String>('card_move_right_${card.id}'),
+                          tooltip: 'Sonraki kolona taşı',
+                          onPressed: onMoveNext,
+                          icon: const Icon(Icons.arrow_forward_rounded, size: 20),
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 34,
+                            height: 34,
+                          ),
+                        ),
+                    ],
+                    if (hasActions) ...<Widget>[
+                      const SizedBox(width: 2),
                       PopupMenuButton<String>(
                         key: ValueKey<String>('card_menu_${card.id}'),
                         icon: const Icon(Icons.more_vert, size: 18),
