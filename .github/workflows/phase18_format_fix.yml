@@ -34,4 +34,5 @@ jobs:
             exit 0
           fi
           git commit -m "phase 18: apply canonical Dart formatting"
+          git pull --rebase origin main
           git push origin HEAD:main
