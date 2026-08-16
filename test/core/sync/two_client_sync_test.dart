@@ -1,0 +1,279 @@
+import 'dart:io';
+
+import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:not_app/core/database/app_database.dart';
+import 'package:not_app/core/logging/app_logger.dart';
+import 'package:not_app/core/remote/remote_gateway.dart';
+import 'package:not_app/core/remote/remote_models.dart';
+import 'package:not_app/core/sync/local_entity_store.dart';
+import 'package:not_app/core/sync/sync_engine.dart';
+import 'package:not_app/core/sync/sync_models.dart';
+import 'package:not_app/core/sync/sync_queue_repository.dart';
+import 'package:not_app/core/utils/clock.dart';
+import 'package:not_app/features/conflicts/data/repositories/conflict_repository_impl.dart';
+import 'package:not_app/features/notes/data/repositories/notes_repository_impl.dart';
+
+final class _MutableClock implements AppClock {
+  _MutableClock(this._now);
+
+  DateTime _now;
+
+  @override
+  DateTime nowUtc() => _now;
+
+  void advance(Duration duration) {
+    _now = _now.add(duration);
+  }
+}
+
+final class _MemoryRemoteGateway implements RemoteGateway {
+  final Map<String, RemoteEntity> _entities = <String, RemoteEntity>{};
+  int _revision = 0;
+  bool online = true;
+
+  @override
+  bool get available => online;
+
+  @override
+  String? get userId => 'test-user';
+
+  String _key(String entityType, String entityId) => '$entityType:$entityId';
+
+  @override
+  Future<RemoteApplyResult> apply({
+    required String entityType,
+    required String entityId,
+    required int? baseVersion,
+    required int version,
+    required DateTime updatedAt,
+    required DateTime? deletedAt,
+    required Map<String, Object?> payload,
+  }) async {
+    if (!online) throw StateError('remote unavailable');
+    final String key = _key(entityType, entityId);
+    final RemoteEntity? current = _entities[key];
+    if (current != null &&
+        baseVersion != null &&
+        current.version != baseVersion) {
+      return RemoteApplyConflict(current);
+    }
+    _revision++;
+    final RemoteEntity next = RemoteEntity(
+      entityType: entityType,
+      entityId: entityId,
+      version: version,
+      updatedAt: updatedAt,
+      deletedAt: deletedAt,
+      payload: Map<String, Object?>.from(payload),
+      syncRevision: _revision,
+    );
+    _entities[key] = next;
+    return RemoteApplySuccess(_revision);
+  }
+
+  @override
+  Future<List<RemoteEntity>> pull({
+    required int afterRevision,
+    int limit = 250,
+  }) async {
+    if (!online) throw StateError('remote unavailable');
+    final List<RemoteEntity> rows = _entities.values
+        .where((entity) => entity.syncRevision > afterRevision)
+        .toList()
+      ..sort(
+        (RemoteEntity a, RemoteEntity b) =>
+            a.syncRevision.compareTo(b.syncRevision),
+      );
+    return rows.take(limit).toList(growable: false);
+  }
+
+  @override
+  Future<void> uploadAttachment({
+    required String remotePath,
+    required File file,
+  }) async {
+    if (!online) throw StateError('remote unavailable');
+  }
+
+  @override
+  Future<String> createAttachmentDownloadUrl(String remotePath) async {
+    if (!online) throw StateError('remote unavailable');
+    return 'memory://$remotePath';
+  }
+
+  @override
+  Future<void> deleteAttachment(String remotePath) async {
+    if (!online) throw StateError('remote unavailable');
+  }
+}
+
+final class _ClientHarness {
+  _ClientHarness._({
+    required this.database,
+    required this.queue,
+    required this.localStore,
+    required this.conflicts,
+    required this.notes,
+    required this.engine,
+  });
+
+  final AppDatabase database;
+  final DriftSyncQueueRepository queue;
+  final LocalEntityStore localStore;
+  final DriftConflictRepository conflicts;
+  final DriftNotesRepository notes;
+  final SyncEngine engine;
+
+  static _ClientHarness create({
+    required RemoteGateway remote,
+    required AppClock clock,
+  }) {
+    final AppDatabase database = AppDatabase(NativeDatabase.memory());
+    final DriftSyncQueueRepository queue = DriftSyncQueueRepository(
+      database: database,
+      clock: clock,
+    );
+    final LocalEntityStore localStore = LocalEntityStore(
+      database: database,
+      clock: clock,
+    );
+    final DriftConflictRepository conflicts = DriftConflictRepository(
+      database: database,
+      syncQueue: queue,
+      localStore: localStore,
+      clock: clock,
+    );
+    final DriftNotesRepository notes = DriftNotesRepository(
+      database: database,
+      syncQueue: queue,
+      clock: clock,
+    );
+    final SyncEngine engine = SyncEngine(
+      database: database,
+      queue: queue,
+      remote: remote,
+      localStore: localStore,
+      conflicts: conflicts,
+      clock: clock,
+      logger: const AppLogger(enabled: false),
+    );
+    return _ClientHarness._(
+      database: database,
+      queue: queue,
+      localStore: localStore,
+      conflicts: conflicts,
+      notes: notes,
+      engine: engine,
+    );
+  }
+
+  Future<void> close() => database.close();
+}
+
+void main() {
+  test('two clients converge after an offline edit conflict is resolved', () async {
+    final _MutableClock clock = _MutableClock(DateTime.utc(2026, 8, 16, 8));
+    final _MemoryRemoteGateway remote = _MemoryRemoteGateway();
+    final _ClientHarness deviceA = _ClientHarness.create(
+      remote: remote,
+      clock: clock,
+    );
+    final _ClientHarness deviceB = _ClientHarness.create(
+      remote: remote,
+      clock: clock,
+    );
+    addTearDown(deviceA.close);
+    addTearDown(deviceB.close);
+
+    final String noteId = await deviceA.notes.createNote(title: 'Original');
+    final SyncRunResult initialPush = await deviceA.engine.runOnce();
+    expect(initialPush.pushed, 1);
+
+    final SyncRunResult initialPull = await deviceB.engine.runOnce();
+    expect(initialPull.pulled, 1);
+    expect((await deviceB.notes.getNote(noteId))?.title, 'Original');
+
+    clock.advance(const Duration(minutes: 1));
+    await deviceA.notes.updateTitle(noteId, 'Device A');
+    clock.advance(const Duration(minutes: 1));
+    await deviceB.notes.updateTitle(noteId, 'Device B');
+
+    final SyncRunResult deviceAUpdate = await deviceA.engine.runOnce();
+    expect(deviceAUpdate.pushed, 1);
+
+    final SyncRunResult conflictingRun = await deviceB.engine.runOnce();
+    expect(conflictingRun.conflicts, 1);
+    expect(
+      (await deviceB.notes.getNote(noteId))?.title,
+      'Device B',
+      reason: 'A pull must not overwrite an unresolved dirty local version.',
+    );
+
+    final List<Conflict> openConflicts =
+        await (deviceB.database.select(deviceB.database.conflicts)
+              ..where((tbl) => tbl.resolvedAt.isNull()))
+            .get();
+    expect(openConflicts, hasLength(1));
+
+    final List<SyncQueueData> blockedBeforeResolution =
+        await (deviceB.database.select(deviceB.database.syncQueue)
+              ..where(
+                (tbl) =>
+                    tbl.entityType.equals('note') &
+                    tbl.entityId.equals(noteId) &
+                    tbl.status.equals(
+                      SyncOperationStatus.blockedConflict.name,
+                    ),
+              ))
+            .get();
+    expect(blockedBeforeResolution, hasLength(1));
+
+    clock.advance(const Duration(minutes: 1));
+    await deviceB.conflicts.resolveUsingLocal(openConflicts.single.id);
+
+    final noteAfterResolution = await deviceB.notes.getNote(noteId);
+    expect(noteAfterResolution?.title, 'Device B');
+    expect(noteAfterResolution?.version, 3);
+
+    final List<SyncQueueData> blockedAfterResolution =
+        await (deviceB.database.select(deviceB.database.syncQueue)
+              ..where(
+                (tbl) =>
+                    tbl.entityType.equals('note') &
+                    tbl.entityId.equals(noteId) &
+                    tbl.status.equals(
+                      SyncOperationStatus.blockedConflict.name,
+                    ),
+              ))
+            .get();
+    expect(blockedAfterResolution, isEmpty);
+
+    final SyncRunResult resolvedPush = await deviceB.engine.runOnce();
+    expect(resolvedPush.pushed, 1);
+    expect(resolvedPush.conflicts, 0);
+
+    final SyncRunResult convergencePull = await deviceA.engine.runOnce();
+    expect(convergencePull.pulled, 1);
+    expect((await deviceA.notes.getNote(noteId))?.title, 'Device B');
+    expect((await deviceA.notes.getNote(noteId))?.version, 3);
+    expect((await deviceB.notes.getNote(noteId))?.title, 'Device B');
+    expect((await deviceB.notes.getNote(noteId))?.version, 3);
+
+    final List<Conflict> remainingConflicts =
+        await (deviceB.database.select(deviceB.database.conflicts)
+              ..where((tbl) => tbl.resolvedAt.isNull()))
+            .get();
+    expect(remainingConflicts, isEmpty);
+
+    final List<SyncQueueData> remainingPending =
+        await (deviceB.database.select(deviceB.database.syncQueue)..where(
+              (tbl) => tbl.status.isNotIn(<String>[
+                SyncOperationStatus.completed.name,
+              ]),
+            ))
+            .get();
+    expect(remainingPending, isEmpty);
+  });
+}
