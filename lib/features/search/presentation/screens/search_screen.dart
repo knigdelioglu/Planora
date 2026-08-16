@@ -5,7 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
 import 'package:not_app/app/router/app_router.dart';
-import 'package:not_app/app/widgets/common_widgets.dart';
+import 'package:not_app/app/widgets/common_widgets.dart' show EmptyState;
+import 'package:not_app/app/widgets/content/app_content.dart';
+import 'package:not_app/app/widgets/inputs/app_search_field.dart';
+import 'package:not_app/app/widgets/navigation/app_toolbar.dart';
 import 'package:not_app/features/kanban/presentation/screens/card_detail_screen.dart';
 import 'package:not_app/features/kanban/presentation/screens/kanban_board_screen.dart';
 import 'package:not_app/features/notes/presentation/screens/note_editor_screen.dart';
@@ -21,16 +24,19 @@ class SearchScreen extends ConsumerStatefulWidget {
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
-sealed class _SearchListItem {}
+sealed class _DisplayItem {}
 
-class _HeaderItem extends _SearchListItem {
-  _HeaderItem({required this.type, required this.title});
+class _SectionItem extends _DisplayItem {
+  _SectionItem(this.type, this.label, this.count);
+
   final String type;
-  final String title;
+  final String label;
+  final int count;
 }
 
-class _ResultItem extends _SearchListItem {
-  _ResultItem({required this.result, required this.flatIndex});
+class _ResultItem extends _DisplayItem {
+  _ResultItem(this.result, this.flatIndex);
+
   final SearchResultEntity result;
   final int flatIndex;
 }
@@ -43,44 +49,103 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   List<SearchResultEntity> _results = const <SearchResultEntity>[];
   int _selectedIndex = -1;
   bool _busy = false;
+  String _type = 'all';
 
   @override
   void initState() {
     super.initState();
-    if (widget.focusNode != null) {
-      _focusNode = widget.focusNode!;
-    } else {
-      _internalFocusNode = FocusNode(debugLabel: 'SearchScreenFocusNode');
-      _focusNode = _internalFocusNode!;
-    }
+    _focusNode = widget.focusNode ??
+        (_internalFocusNode = FocusNode(debugLabel: 'SearchScreen'))!;
     _focusNode.onKeyEvent = _handleKeyEvent;
     _query.addListener(_changed);
     if (widget.autofocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _focusNode.requestFocus();
-        }
+        if (mounted) _focusNode.requestFocus();
       });
     }
   }
 
   @override
-  void didUpdateWidget(SearchScreen oldWidget) {
+  void didUpdateWidget(covariant SearchScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.focusNode != widget.focusNode) {
-      if (oldWidget.focusNode != null) {
-        oldWidget.focusNode!.onKeyEvent = null;
-      }
-      if (widget.focusNode != null) {
-        _internalFocusNode?.dispose();
-        _internalFocusNode = null;
-        _focusNode = widget.focusNode!;
-      } else {
-        _internalFocusNode = FocusNode(debugLabel: 'SearchScreenFocusNode');
-        _focusNode = _internalFocusNode!;
-      }
-      _focusNode.onKeyEvent = _handleKeyEvent;
+    if (oldWidget.focusNode == widget.focusNode) return;
+    if (oldWidget.focusNode != null) oldWidget.focusNode!.onKeyEvent = null;
+    _internalFocusNode?.dispose();
+    _internalFocusNode = null;
+    _focusNode = widget.focusNode ??
+        (_internalFocusNode = FocusNode(debugLabel: 'SearchScreen'))!;
+    _focusNode.onKeyEvent = _handleKeyEvent;
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _query.removeListener(_changed);
+    _query.dispose();
+    if (widget.focusNode != null) widget.focusNode!.onKeyEvent = null;
+    _internalFocusNode?.dispose();
+    super.dispose();
+  }
+
+  List<SearchResultEntity> get _visibleResults {
+    final List<SearchResultEntity> source = _type == 'all'
+        ? _results
+        : _results
+            .where((item) => item.entityType == _type)
+            .toList(growable: false);
+    if (_type != 'all') return source;
+    return <SearchResultEntity>[
+      ...source.where((item) => item.entityType == 'note'),
+      ...source.where((item) => item.entityType == 'card'),
+      ...source.where((item) => item.entityType == 'board'),
+      ...source.where(
+        (item) =>
+            item.entityType != 'note' &&
+            item.entityType != 'card' &&
+            item.entityType != 'board',
+      ),
+    ];
+  }
+
+  List<_DisplayItem> get _displayItems {
+    final List<SearchResultEntity> visible = _visibleResults;
+    if (_type != 'all') {
+      return <_DisplayItem>[
+        for (int i = 0; i < visible.length; i++) _ResultItem(visible[i], i),
+      ];
     }
+
+    final List<_DisplayItem> output = <_DisplayItem>[];
+    int flatIndex = 0;
+    void appendGroup(String type, String label) {
+      final List<SearchResultEntity> group = visible
+          .where((item) => item.entityType == type)
+          .toList(growable: false);
+      if (group.isEmpty) return;
+      output.add(_SectionItem(type, label, group.length));
+      for (final SearchResultEntity item in group) {
+        output.add(_ResultItem(item, flatIndex++));
+      }
+    }
+
+    appendGroup('note', 'Notlar');
+    appendGroup('card', 'Kartlar');
+    appendGroup('board', 'Panolar');
+    final List<SearchResultEntity> others = visible
+        .where(
+          (item) =>
+              item.entityType != 'note' &&
+              item.entityType != 'card' &&
+              item.entityType != 'board',
+        )
+        .toList(growable: false);
+    if (others.isNotEmpty) {
+      output.add(_SectionItem('other', 'Diğer', others.length));
+      for (final SearchResultEntity item in others) {
+        output.add(_ResultItem(item, flatIndex++));
+      }
+    }
+    return output;
   }
 
   void _changed() {
@@ -94,379 +159,413 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       });
       return;
     }
+    setState(() {});
     _debounce = Timer(const Duration(milliseconds: 180), _search);
   }
 
   Future<void> _search() async {
     final String value = _query.text.trim();
-    if (value.isEmpty) {
-      setState(() {
-        _results = const <SearchResultEntity>[];
-        _selectedIndex = -1;
-      });
-      return;
-    }
+    if (value.isEmpty) return;
     setState(() => _busy = true);
-    final data = await ref.read(searchRepositoryProvider).search(value);
-    if (mounted) {
-      setState(() {
-        _results = data;
-        _selectedIndex = -1;
-        _busy = false;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _query.removeListener(_changed);
-    _query.dispose();
-    if (widget.focusNode != null) {
-      widget.focusNode!.onKeyEvent = null;
-    }
-    _internalFocusNode?.dispose();
-    super.dispose();
-  }
-
-  List<SearchResultEntity> _buildFlatList() {
-    final List<SearchResultEntity> notes = _results
-        .where((r) => r.entityType == 'note')
-        .toList(growable: false);
-    final List<SearchResultEntity> cards = _results
-        .where((r) => r.entityType == 'card')
-        .toList(growable: false);
-    final List<SearchResultEntity> boards = _results
-        .where((r) => r.entityType == 'board')
-        .toList(growable: false);
-    final List<SearchResultEntity> others = _results
-        .where(
-          (r) =>
-              r.entityType != 'note' &&
-              r.entityType != 'card' &&
-              r.entityType != 'board',
-        )
-        .toList(growable: false);
-
-    return <SearchResultEntity>[...notes, ...cards, ...boards, ...others];
-  }
-
-  List<_SearchListItem> _buildDisplayList() {
-    final List<SearchResultEntity> notes = _results
-        .where((r) => r.entityType == 'note')
-        .toList(growable: false);
-    final List<SearchResultEntity> cards = _results
-        .where((r) => r.entityType == 'card')
-        .toList(growable: false);
-    final List<SearchResultEntity> boards = _results
-        .where((r) => r.entityType == 'board')
-        .toList(growable: false);
-    final List<SearchResultEntity> others = _results
-        .where(
-          (r) =>
-              r.entityType != 'note' &&
-              r.entityType != 'card' &&
-              r.entityType != 'board',
-        )
-        .toList(growable: false);
-
-    final List<_SearchListItem> list = <_SearchListItem>[];
-    int flatIndex = 0;
-
-    if (notes.isNotEmpty) {
-      list.add(_HeaderItem(type: 'note', title: 'Notlar (${notes.length})'));
-      for (final item in notes) {
-        list.add(_ResultItem(result: item, flatIndex: flatIndex++));
-      }
-    }
-
-    if (cards.isNotEmpty) {
-      list.add(_HeaderItem(type: 'card', title: 'Kartlar (${cards.length})'));
-      for (final item in cards) {
-        list.add(_ResultItem(result: item, flatIndex: flatIndex++));
-      }
-    }
-
-    if (boards.isNotEmpty) {
-      list.add(_HeaderItem(type: 'board', title: 'Panolar (${boards.length})'));
-      for (final item in boards) {
-        list.add(_ResultItem(result: item, flatIndex: flatIndex++));
-      }
-    }
-
-    if (others.isNotEmpty) {
-      list.add(_HeaderItem(type: 'other', title: 'Diğer (${others.length})'));
-      for (final item in others) {
-        list.add(_ResultItem(result: item, flatIndex: flatIndex++));
-      }
-    }
-
-    return list;
+    final List<SearchResultEntity> data =
+        await ref.read(searchRepositoryProvider).search(value);
+    if (!mounted || value != _query.text.trim()) return;
+    setState(() {
+      _results = data;
+      _selectedIndex = -1;
+      _busy = false;
+    });
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
-
-    final flatList = _buildFlatList();
-
-    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-      if (flatList.isNotEmpty) {
-        setState(() {
-          if (_selectedIndex < flatList.length - 1) {
-            _selectedIndex++;
-          } else {
-            _selectedIndex = flatList.length - 1;
-          }
-        });
-        return KeyEventResult.handled;
-      }
-    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-      if (flatList.isNotEmpty) {
-        setState(() {
-          if (_selectedIndex > 0) {
-            _selectedIndex--;
-          } else {
-            _selectedIndex = -1;
-          }
-        });
-        return KeyEventResult.handled;
-      }
-    } else if (event.logicalKey == LogicalKeyboardKey.enter ||
-        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
-      if (flatList.isNotEmpty) {
-        if (_selectedIndex >= 0 && _selectedIndex < flatList.length) {
-          _open(flatList[_selectedIndex]);
+    final List<SearchResultEntity> data = _visibleResults;
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown && data.isNotEmpty) {
+      setState(() {
+        if (_selectedIndex < data.length - 1) {
+          _selectedIndex += 1;
         } else {
-          _open(flatList.first);
+          _selectedIndex = data.length - 1;
         }
-        return KeyEventResult.handled;
-      }
-    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+      });
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp && data.isNotEmpty) {
+      setState(() {
+        _selectedIndex = _selectedIndex > 0 ? _selectedIndex - 1 : -1;
+      });
+      return KeyEventResult.handled;
+    }
+    if ((event.logicalKey == LogicalKeyboardKey.enter ||
+            event.logicalKey == LogicalKeyboardKey.numpadEnter) &&
+        data.isNotEmpty) {
+      _open(data[_selectedIndex < 0 ? 0 : _selectedIndex]);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
       if (_query.text.isNotEmpty) {
         _query.clear();
-        setState(() {
-          _results = const <SearchResultEntity>[];
-          _selectedIndex = -1;
-        });
-        return KeyEventResult.handled;
+      } else if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
       } else {
-        if (Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
-          return KeyEventResult.handled;
-        } else {
-          _focusNode.unfocus();
-          return KeyEventResult.handled;
-        }
+        _focusNode.unfocus();
       }
+      return KeyEventResult.handled;
     }
-
     return KeyEventResult.ignored;
   }
 
-  void _open(SearchResultEntity result) {
+  Future<void> _open(SearchResultEntity result) async {
     switch (result.entityType) {
       case 'note':
-        AppRouter.push<void>(
+        await AppRouter.push<void>(
           context,
           NoteEditorScreen(noteId: result.entityId),
         );
+        return;
       case 'card':
-        AppRouter.push<void>(
+        await AppRouter.push<void>(
           context,
           CardDetailScreen(cardId: result.entityId),
         );
+        return;
       case 'board':
-        AppRouter.push<void>(
+        await AppRouter.push<void>(
           context,
           KanbanBoardScreen(boardId: result.entityId),
         );
+        return;
+      default:
+        return;
     }
   }
 
-  void _focusAndSelectQuery() {
-    _focusNode.requestFocus();
-    _query.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: _query.text.length,
-    );
+  String _typeLabel(String type) => switch (type) {
+        'note' => 'Not',
+        'card' => 'Kart',
+        'board' => 'Pano',
+        _ => 'Sonuç',
+      };
+
+  IconData _typeIcon(String type) => switch (type) {
+        'note' => Icons.description_outlined,
+        'card' => Icons.view_agenda_outlined,
+        'board' => Icons.view_kanban_outlined,
+        _ => Icons.search_rounded,
+      };
+
+  void _selectType(String type) {
+    setState(() {
+      _type = type;
+      _selectedIndex = -1;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<_SearchListItem> displayItems = _buildDisplayList();
-    final List<SearchResultEntity> flatList = _buildFlatList();
-
+    final List<SearchResultEntity> visible = _visibleResults;
+    final List<_DisplayItem> display = _displayItems;
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
-        const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
-            _focusAndSelectQuery,
-        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
-            _focusAndSelectQuery,
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () {
+          _focusNode.requestFocus();
+          _query.selection = TextSelection(
+            baseOffset: 0,
+            extentOffset: _query.text.length,
+          );
+        },
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true): () {
+          _focusNode.requestFocus();
+          _query.selection = TextSelection(
+            baseOffset: 0,
+            extentOffset: _query.text.length,
+          );
+        },
       },
-      child: Focus(
-        autofocus: widget.autofocus,
-        child: Material(
-          color: Colors.transparent,
-          child: Column(
-            children: <Widget>[
-              const AppPageHeader(
-                title: 'Arama',
-                subtitle:
-                    'Notlar, kartlar ve panolar arasında tamamen yerel arama.',
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: TextField(
-                  key: const ValueKey('search_text_field'),
-                  controller: _query,
-                  focusNode: _focusNode,
-                  autofocus: widget.autofocus,
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.search),
-                    hintText: 'Ara… (⌘K)',
-                    suffixIcon: _busy
-                        ? const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
-                        : _query.text.isNotEmpty
-                        ? IconButton(
-                            key: const ValueKey('search_clear_button'),
-                            icon: const Icon(Icons.clear, size: 20),
-                            onPressed: () {
+      child: Column(
+        children: <Widget>[
+          const AppToolbar(title: 'Arama'),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double horizontal = constraints.maxWidth < 600 ? 16 : 24;
+                return Column(
+                  children: <Widget>[
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(horizontal, 18, horizontal, 0),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 760),
+                        child: KeyedSubtree(
+                          key: const ValueKey('search_text_field'),
+                          child: AppSearchField(
+                            controller: _query,
+                            focusNode: _focusNode,
+                            autofocus: widget.autofocus,
+                            busy: _busy,
+                            hintText: 'Not, kart veya pano ara…',
+                            shortcutLabel: '⌘K',
+                            onClear: () {
                               _query.clear();
-                              setState(() {
-                                _results = const <SearchResultEntity>[];
-                                _selectedIndex = -1;
-                              });
+                              setState(() {});
                             },
-                          )
-                        : null,
-                  ),
-                  onSubmitted: (_) {
-                    if (flatList.isNotEmpty) {
-                      if (_selectedIndex >= 0 &&
-                          _selectedIndex < flatList.length) {
-                        _open(flatList[_selectedIndex]);
-                      } else {
-                        _open(flatList.first);
-                      }
-                    }
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: _query.text.trim().isEmpty
-                    ? const EmptyState(
-                        icon: Icons.search_rounded,
-                        title: 'Ne arıyorsunuz?',
-                        message:
-                            'Not başlığı/içeriği, kart açıklaması veya pano adı yazın.',
-                      )
-                    : _results.isEmpty && !_busy
-                    ? const EmptyState(
-                        icon: Icons.search_off_rounded,
-                        title: 'Sonuç bulunamadı',
-                        message: 'Farklı bir kelime deneyin.',
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-                        itemCount: displayItems.length,
-                        itemBuilder: (context, index) {
-                          final item = displayItems[index];
-                          if (item is _HeaderItem) {
-                            return Padding(
-                              padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
-                              child: Text(
-                                item.title,
-                                key: ValueKey('search_section_${item.type}'),
-                                style: Theme.of(context).textTheme.titleSmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w700,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                    ),
-                              ),
-                            );
-                          } else if (item is _ResultItem) {
-                            final result = item.result;
-                            final isSelected = item.flatIndex == _selectedIndex;
-                            final icon = switch (result.entityType) {
-                              'note' => Icons.description_outlined,
-                              'card' => Icons.view_agenda_outlined,
-                              'board' => Icons.view_kanban_outlined,
-                              _ => Icons.search_rounded,
-                            };
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 2.0,
-                              ),
-                              child: Material(
-                                type: MaterialType.transparency,
-                                child: ListTile(
-                                  key: ValueKey(
-                                    'search_result_${result.entityType}_${result.entityId}',
-                                  ),
-                                  selected: isSelected,
-                                  selectedTileColor: Theme.of(context)
-                                      .colorScheme
-                                      .primaryContainer
-                                      .withValues(alpha: 0.35),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  leading: Icon(icon),
-                                  title: Text(
-                                    result.title.isEmpty
-                                        ? 'Başlıksız'
-                                        : result.title,
-                                    style: TextStyle(
-                                      fontWeight: isSelected
-                                          ? FontWeight.w600
-                                          : FontWeight.normal,
-                                    ),
-                                  ),
-                                  subtitle:
-                                      (result.preview.isNotEmpty &&
-                                          result.preview.trim() !=
-                                              result.title.trim())
-                                      ? Text(
-                                          result.preview,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        )
-                                      : null,
-                                  trailing: isSelected
-                                      ? const Icon(
-                                          Icons.keyboard_return,
-                                          size: 16,
-                                        )
-                                      : null,
-                                  onTap: () {
-                                    setState(
-                                      () => _selectedIndex = item.flatIndex,
-                                    );
-                                    _open(result);
-                                  },
-                                ),
-                              ),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
+                            onSubmitted: (_) {
+                              if (visible.isNotEmpty) {
+                                _open(
+                                  visible[
+                                      _selectedIndex < 0 ? 0 : _selectedIndex],
+                                );
+                              }
+                            },
+                          ),
+                        ),
                       ),
-              ),
-            ],
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(horizontal, 10, horizontal, 0),
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 760),
+                          child: Wrap(
+                            spacing: 7,
+                            runSpacing: 7,
+                            children: <Widget>[
+                              _TypeChip(
+                                label: 'Tümü',
+                                selected: _type == 'all',
+                                onSelected: () => _selectType('all'),
+                              ),
+                              _TypeChip(
+                                label: 'Notlar',
+                                selected: _type == 'note',
+                                onSelected: () => _selectType('note'),
+                              ),
+                              _TypeChip(
+                                label: 'Kartlar',
+                                selected: _type == 'card',
+                                onSelected: () => _selectType('card'),
+                              ),
+                              _TypeChip(
+                                label: 'Panolar',
+                                selected: _type == 'board',
+                                onSelected: () => _selectType('board'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: _query.text.trim().isEmpty
+                          ? const EmptyState(
+                              icon: Icons.search_rounded,
+                              title: 'Ne arıyorsunuz?',
+                              message:
+                                  'Notlar, kartlar ve panolar cihazınızda aranır.',
+                            )
+                          : visible.isEmpty && !_busy
+                              ? const EmptyState(
+                                  icon: Icons.search_off_rounded,
+                                  title: 'Sonuç bulunamadı',
+                                  message: 'Farklı bir kelime deneyin.',
+                                )
+                              : Center(
+                                  child: ConstrainedBox(
+                                    constraints:
+                                        const BoxConstraints(maxWidth: 800),
+                                    child: ListView.builder(
+                                      padding: EdgeInsets.fromLTRB(
+                                        horizontal,
+                                        4,
+                                        horizontal,
+                                        32,
+                                      ),
+                                      itemCount: display.length,
+                                      itemBuilder: (context, index) {
+                                        final _DisplayItem item = display[index];
+                                        if (item is _SectionItem) {
+                                          return Padding(
+                                            padding: const EdgeInsets.fromLTRB(
+                                              4,
+                                              14,
+                                              4,
+                                              5,
+                                            ),
+                                            child: Text(
+                                              '${item.label} (${item.count})',
+                                              key: ValueKey(
+                                                'search_section_${item.type}',
+                                              ),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .labelLarge,
+                                            ),
+                                          );
+                                        }
+                                        final _ResultItem resultItem =
+                                            item as _ResultItem;
+                                        final SearchResultEntity result =
+                                            resultItem.result;
+                                        final bool selected =
+                                            resultItem.flatIndex ==
+                                                _selectedIndex;
+                                        return AppListRow(
+                                          key: ValueKey(
+                                            'search_result_${result.entityType}_${result.entityId}',
+                                          ),
+                                          selected: selected,
+                                          leading: Icon(
+                                            _typeIcon(result.entityType),
+                                            size: 19,
+                                          ),
+                                          title: _HighlightedText(
+                                            text: result.title.trim().isEmpty
+                                                ? 'Başlıksız'
+                                                : result.title,
+                                            query: _query.text.trim(),
+                                            maxLines: 1,
+                                            selected: selected,
+                                          ),
+                                          subtitle: result.preview.trim().isEmpty ||
+                                                  result.preview.trim() ==
+                                                      result.title.trim()
+                                              ? Text(
+                                                  _typeLabel(
+                                                    result.entityType,
+                                                  ),
+                                                )
+                                              : Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: <Widget>[
+                                                    Text(
+                                                      _typeLabel(
+                                                        result.entityType,
+                                                      ),
+                                                    ),
+                                                    _HighlightedText(
+                                                      text: result.preview
+                                                          .replaceAll('\n', ' '),
+                                                      query: _query.text.trim(),
+                                                      maxLines: 2,
+                                                      small: true,
+                                                    ),
+                                                  ],
+                                                ),
+                                          trailing: selected
+                                              ? const Icon(
+                                                  Icons.keyboard_return_rounded,
+                                                  size: 16,
+                                                )
+                                              : null,
+                                          onTap: () {
+                                            setState(
+                                              () => _selectedIndex =
+                                                  resultItem.flatIndex,
+                                            );
+                                            _open(result);
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
-        ),
+        ],
       ),
+    );
+  }
+}
+
+class _TypeChip extends StatelessWidget {
+  const _TypeChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) => ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        showCheckmark: false,
+        onSelected: (_) => onSelected(),
+      );
+}
+
+class _HighlightedText extends StatelessWidget {
+  const _HighlightedText({
+    required this.text,
+    required this.query,
+    required this.maxLines,
+    this.small = false,
+    this.selected = false,
+  });
+
+  final String text;
+  final String query;
+  final int maxLines;
+  final bool small;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final TextStyle? base = small
+        ? Theme.of(context).textTheme.bodySmall
+        : Theme.of(context).textTheme.bodyMedium?.copyWith(
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+            );
+    if (query.isEmpty) {
+      return Text(
+        text,
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+        style: base,
+      );
+    }
+    final String lower = text.toLowerCase();
+    final String needle = query.toLowerCase();
+    final int index = lower.indexOf(needle);
+    if (index < 0 || index + query.length > text.length) {
+      return Text(
+        text,
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+        style: base,
+      );
+    }
+    return Text.rich(
+      TextSpan(
+        style: base,
+        children: <InlineSpan>[
+          TextSpan(text: text.substring(0, index)),
+          TextSpan(
+            text: text.substring(index, index + query.length),
+            style: base?.copyWith(
+              backgroundColor: Theme.of(context)
+                  .colorScheme
+                  .primary
+                  .withValues(alpha: 0.14),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          TextSpan(text: text.substring(index + query.length)),
+        ],
+      ),
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

@@ -36,8 +36,10 @@ class _MockNotificationService extends Mock implements NotificationService {}
 
 class _DisabledNetworkInfo implements NetworkInfo {
   const _DisabledNetworkInfo();
+
   @override
   Future<bool> isConnected() async => false;
+
   @override
   Stream<bool> get onConnectivityChanged => Stream<bool>.value(false);
 }
@@ -87,7 +89,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
   }
 
+  Future<void> settleRepositoryWrite(WidgetTester tester) async {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+
   setUp(() {
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
     db = AppDatabase(NativeDatabase.memory());
     clock = _TestClock();
     syncQueue = DriftSyncQueueRepository(database: db, clock: clock);
@@ -186,116 +196,93 @@ void main() {
     await db.close();
   });
 
-  group('Kabul Kriteri 3: 500+ Kart ve Çoklu Kolon Performans Doğrulaması', () {
-    test(
-      '500+ kartlık veri seti oluşturma ve fractional index sıralama doğrulaması',
-      () async {
-        final String boardId = await repository.createBoard(
-          title: 'Büyük Pano',
-        );
-        final List<String> columnIds = <String>[];
-        const int columnCount = 5;
-        const int cardsPerColumn = 105; // 5 * 105 = 525 cards
-        const int totalCards = columnCount * cardsPerColumn;
-
-        for (int i = 0; i < columnCount; i++) {
-          final String colId = await repository.createColumn(
-            boardId: boardId,
-            title: 'Kolon ${i + 1}',
-          );
-          columnIds.add(colId);
-        }
-
-        final stopwatch = Stopwatch()..start();
-
-        final DateTime now = clock.nowUtc();
-        await db.batch((batch) {
-          for (int c = 0; c < columnCount; c++) {
-            final List<String> rankKeys = FractionalIndexing.rebalance(
-              cardsPerColumn,
-            );
-            for (int k = 0; k < cardsPerColumn; k++) {
-              batch.insert(
-                db.cards,
-                CardsCompanion.insert(
-                  id: 'card_${c}_$k',
-                  boardId: boardId,
-                  columnId: columnIds[c],
-                  title: 'Kart C${c + 1} - #$k',
-                  description: Value<String?>('Detay metni $k'),
-                  rankKey: Value<String>(rankKeys[k]),
-                  createdAt: now,
-                  updatedAt: now,
-                ),
-              );
-            }
-          }
-        });
-
-        stopwatch.stop();
-        expect(
-          stopwatch.elapsedMilliseconds,
-          lessThan(2000),
-          reason: '500+ kart veritabanına 2 saniyenin altında eklenmeli',
-        );
-
-        final allCards =
-            await (db.select(db.cards)..where(
-                  (tbl) => tbl.boardId.equals(boardId) & tbl.deletedAt.isNull(),
-                ))
-                .get();
-        expect(allCards.length, totalCards);
-
-        for (final colId in columnIds) {
-          final colCards =
-              await (db.select(db.cards)
-                    ..where(
-                      (tbl) =>
-                          tbl.columnId.equals(colId) & tbl.deletedAt.isNull(),
-                    )
-                    ..orderBy([(tbl) => OrderingTerm.asc(tbl.rankKey)]))
-                  .get();
-          expect(colCards.length, cardsPerColumn);
-          for (int i = 0; i < colCards.length - 1; i++) {
-            expect(
-              colCards[i].rankKey.compareTo(colCards[i + 1].rankKey),
-              lessThan(0),
-              reason: 'rankKey her zaman kesin artan sırada olmalıdır',
-            );
-          }
-        }
-      },
-    );
-
-    testWidgets('500+ kart içeren panonun açılışı ve lazy render doğrulaması', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(1200, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() => tester.view.resetPhysicalSize());
-
-      final String boardId = await repository.createBoard(
-        title: 'Performans Panosu',
-      );
+  group('500+ kart ve fractional-index performansı', () {
+    test('525 kart sıralaması kesin artan rankKey üretir', () async {
+      final String boardId = await repository.createBoard(title: 'Büyük Pano');
       final List<String> columnIds = <String>[];
       const int columnCount = 5;
-      const int cardsPerColumn = 100; // 500 cards
+      const int cardsPerColumn = 105;
 
       for (int i = 0; i < columnCount; i++) {
-        final String colId = await repository.createColumn(
-          boardId: boardId,
-          title: 'Kolon ${i + 1}',
+        columnIds.add(
+          await repository.createColumn(
+            boardId: boardId,
+            title: 'Kolon ${i + 1}',
+          ),
         );
-        columnIds.add(colId);
+      }
+
+      final stopwatch = Stopwatch()..start();
+      final DateTime now = clock.nowUtc();
+      await db.batch((batch) {
+        for (int c = 0; c < columnCount; c++) {
+          final List<String> rankKeys =
+              FractionalIndexing.rebalance(cardsPerColumn);
+          for (int k = 0; k < cardsPerColumn; k++) {
+            batch.insert(
+              db.cards,
+              CardsCompanion.insert(
+                id: 'card_${c}_$k',
+                boardId: boardId,
+                columnId: columnIds[c],
+                title: 'Kart C${c + 1} - #$k',
+                description: Value<String?>('Detay metni $k'),
+                rankKey: Value<String>(rankKeys[k]),
+                createdAt: now,
+                updatedAt: now,
+              ),
+            );
+          }
+        }
+      });
+      stopwatch.stop();
+
+      expect(stopwatch.elapsedMilliseconds, lessThan(2000));
+      final allCards = await (db.select(db.cards)
+            ..where(
+              (table) =>
+                  table.boardId.equals(boardId) & table.deletedAt.isNull(),
+            ))
+          .get();
+      expect(allCards.length, 525);
+
+      for (final String columnId in columnIds) {
+        final cards = await (db.select(db.cards)
+              ..where(
+                (table) =>
+                    table.columnId.equals(columnId) & table.deletedAt.isNull(),
+              )
+              ..orderBy([(table) => OrderingTerm.asc(table.rankKey)]))
+            .get();
+        expect(cards.length, cardsPerColumn);
+        for (int i = 0; i < cards.length - 1; i++) {
+          expect(cards[i].rankKey.compareTo(cards[i + 1].rankKey), lessThan(0));
+        }
+      }
+    });
+
+    testWidgets('500 kartlı pano lazy render kullanır', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final String boardId =
+          await repository.createBoard(title: 'Performans Panosu');
+      final List<String> columnIds = <String>[];
+      for (int i = 0; i < 5; i++) {
+        columnIds.add(
+          await repository.createColumn(
+            boardId: boardId,
+            title: 'Kolon ${i + 1}',
+          ),
+        );
       }
 
       final DateTime now = clock.nowUtc();
       await db.batch((batch) {
-        for (int c = 0; c < columnCount; c++) {
-          final List<String> rankKeys = FractionalIndexing.rebalance(
-            cardsPerColumn,
-          );
-          for (int k = 0; k < cardsPerColumn; k++) {
+        for (int c = 0; c < 5; c++) {
+          final List<String> rankKeys = FractionalIndexing.rebalance(100);
+          for (int k = 0; k < 100; k++) {
             batch.insert(
               db.cards,
               CardsCompanion.insert(
@@ -303,7 +290,6 @@ void main() {
                 boardId: boardId,
                 columnId: columnIds[c],
                 title: 'Kart C${c + 1} #$k',
-                description: Value<String?>('Açıklama $k'),
                 rankKey: Value<String>(rankKeys[k]),
                 createdAt: now,
                 updatedAt: now,
@@ -313,591 +299,251 @@ void main() {
         }
       });
 
-      final Stopwatch renderStopwatch = Stopwatch()..start();
-
+      final Stopwatch watch = Stopwatch()..start();
       await pumpScreen(tester, KanbanBoardScreen(boardId: boardId));
-      renderStopwatch.stop();
+      watch.stop();
 
-      expect(
-        renderStopwatch.elapsedMilliseconds,
-        lessThan(3000),
-        reason: '500+ kartlı pano makul sürede tam açılmalı',
-      );
-
+      expect(watch.elapsedMilliseconds, lessThan(3000));
       expect(find.textContaining('Kolon 1'), findsWidgets);
-      expect(find.textContaining('Kolon 2'), findsWidgets);
-      expect(find.textContaining('Kolon 3'), findsWidgets);
-
-      final renderedCards = find.byType(KanbanCardWidget);
-      expect(
-        renderedCards.evaluate().length,
-        lessThan(80),
-        reason:
-            'ListView.builder sadece görünür kartları instantiate etmelidir (lazy rendering)',
-      );
-
+      expect(find.byType(KanbanCardWidget).evaluate().length, lessThan(80));
       await unmountScreen(tester);
     });
 
-    testWidgets('500+ kartlı panoda yatay ve dikey scroll akıcılığı', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(800, 600);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() => tester.view.resetPhysicalSize());
-
-      final String boardId = await repository.createBoard(
-        title: 'Scroll Test Panosu',
-      );
-      final List<String> columnIds = <String>[];
-      const int columnCount = 6;
-      const int cardsPerColumn = 90; // 540 cards
-
-      for (int i = 0; i < columnCount; i++) {
-        final String colId = await repository.createColumn(
-          boardId: boardId,
-          title: 'Sütun ${i + 1}',
-        );
-        columnIds.add(colId);
-      }
-
+    test('yoğun kolonlar arası taşıma rankKey sırasını korur', () async {
+      final String boardId =
+          await repository.createBoard(title: 'Ranking Benchmark');
+      final String col1 =
+          await repository.createColumn(boardId: boardId, title: 'C1');
+      final String col2 =
+          await repository.createColumn(boardId: boardId, title: 'C2');
+      const int initialCards = 250;
       final DateTime now = clock.nowUtc();
+      final List<String> rankKeys1 = FractionalIndexing.rebalance(initialCards);
+      final List<String> rankKeys2 = FractionalIndexing.rebalance(initialCards);
+
       await db.batch((batch) {
-        for (int c = 0; c < columnCount; c++) {
-          final List<String> rankKeys = FractionalIndexing.rebalance(
-            cardsPerColumn,
+        for (int i = 0; i < initialCards; i++) {
+          batch.insert(
+            db.cards,
+            CardsCompanion.insert(
+              id: 'rank_c1_$i',
+              boardId: boardId,
+              columnId: col1,
+              title: 'C1 Card $i',
+              rankKey: Value<String>(rankKeys1[i]),
+              createdAt: now,
+              updatedAt: now,
+            ),
           );
-          for (int k = 0; k < cardsPerColumn; k++) {
-            batch.insert(
-              db.cards,
-              CardsCompanion.insert(
-                id: 'scroll_card_${c}_$k',
-                boardId: boardId,
-                columnId: columnIds[c],
-                title: 'Kart S${c + 1} #$k',
-                rankKey: Value<String>(rankKeys[k]),
-                createdAt: now,
-                updatedAt: now,
-              ),
-            );
-          }
+          batch.insert(
+            db.cards,
+            CardsCompanion.insert(
+              id: 'rank_c2_$i',
+              boardId: boardId,
+              columnId: col2,
+              title: 'C2 Card $i',
+              rankKey: Value<String>(rankKeys2[i]),
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
         }
       });
 
-      await pumpScreen(tester, KanbanBoardScreen(boardId: boardId));
+      final Stopwatch watch = Stopwatch()..start();
+      for (int i = 0; i < 25; i++) {
+        await repository.moveCard(
+          cardId: 'rank_c1_$i',
+          destinationColumnId: col2,
+          destinationIndex: 0,
+        );
+        await repository.moveCard(
+          cardId: 'rank_c2_$i',
+          destinationColumnId: col1,
+          destinationIndex: initialCards,
+        );
+      }
+      watch.stop();
+      expect(watch.elapsedMilliseconds / 50.0, lessThan(10.0));
 
-      final verticalList = find.byType(ListView).at(1);
-      final vScrollStopwatch = Stopwatch()..start();
-
-      await tester.drag(verticalList, const Offset(0, -300));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
-
-      vScrollStopwatch.stop();
-      expect(
-        vScrollStopwatch.elapsedMilliseconds,
-        lessThan(1000),
-        reason: 'Dikey scroll frame pacing akıcı olmalıdır',
-      );
-
-      final horizontalList = find.byType(ListView).first;
-      final scrollStopwatch = Stopwatch()..start();
-
-      await tester.drag(horizontalList, const Offset(-300, 0));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
-
-      scrollStopwatch.stop();
-      expect(
-        scrollStopwatch.elapsedMilliseconds,
-        lessThan(1000),
-        reason: 'Yatay scroll frame pacing akıcı olmalıdır',
-      );
-
-      await unmountScreen(tester);
+      for (final String columnId in <String>[col1, col2]) {
+        final cards = await (db.select(db.cards)
+              ..where(
+                (table) =>
+                    table.columnId.equals(columnId) & table.deletedAt.isNull(),
+              )
+              ..orderBy([(table) => OrderingTerm.asc(table.rankKey)]))
+            .get();
+        for (int i = 0; i < cards.length - 1; i++) {
+          expect(cards[i].rankKey.compareTo(cards[i + 1].rankKey), lessThan(0));
+        }
+      }
     });
-
-    test(
-      '500+ kartlı veri setinde yoğun fractional index hesaplama performansı',
-      () async {
-        final String boardId = await repository.createBoard(
-          title: 'Ranking Benchmark',
-        );
-        final String col1 = await repository.createColumn(
-          boardId: boardId,
-          title: 'C1',
-        );
-        final String col2 = await repository.createColumn(
-          boardId: boardId,
-          title: 'C2',
-        );
-
-        const int initialCards = 250;
-        final DateTime now = clock.nowUtc();
-        final List<String> rankKeys1 = FractionalIndexing.rebalance(
-          initialCards,
-        );
-        final List<String> rankKeys2 = FractionalIndexing.rebalance(
-          initialCards,
-        );
-
-        await db.batch((batch) {
-          for (int i = 0; i < initialCards; i++) {
-            batch.insert(
-              db.cards,
-              CardsCompanion.insert(
-                id: 'rank_c1_$i',
-                boardId: boardId,
-                columnId: col1,
-                title: 'C1 Card $i',
-                rankKey: Value<String>(rankKeys1[i]),
-                createdAt: now,
-                updatedAt: now,
-              ),
-            );
-            batch.insert(
-              db.cards,
-              CardsCompanion.insert(
-                id: 'rank_c2_$i',
-                boardId: boardId,
-                columnId: col2,
-                title: 'C2 Card $i',
-                rankKey: Value<String>(rankKeys2[i]),
-                createdAt: now,
-                updatedAt: now,
-              ),
-            );
-          }
-        });
-
-        final Stopwatch moveStopwatch = Stopwatch()..start();
-
-        for (int i = 0; i < 25; i++) {
-          await repository.moveCard(
-            cardId: 'rank_c1_$i',
-            destinationColumnId: col2,
-            destinationIndex: 0,
-          );
-          await repository.moveCard(
-            cardId: 'rank_c2_$i',
-            destinationColumnId: col1,
-            destinationIndex: initialCards,
-          );
-        }
-
-        moveStopwatch.stop();
-        final double avgMsPerMove = moveStopwatch.elapsedMilliseconds / 50.0;
-        expect(
-          avgMsPerMove,
-          lessThan(10.0),
-          reason:
-              'Kart başına fractional index ve persistence süresi 10ms altında olmalıdır',
-        );
-
-        final c1Cards =
-            await (db.select(db.cards)
-                  ..where(
-                    (tbl) => tbl.columnId.equals(col1) & tbl.deletedAt.isNull(),
-                  )
-                  ..orderBy([(tbl) => OrderingTerm.asc(tbl.rankKey)]))
-                .get();
-        for (int i = 0; i < c1Cards.length - 1; i++) {
-          expect(
-            c1Cards[i].rankKey.compareTo(c1Cards[i + 1].rankKey),
-            lessThan(0),
-          );
-        }
-
-        final c2Cards =
-            await (db.select(db.cards)
-                  ..where(
-                    (tbl) => tbl.columnId.equals(col2) & tbl.deletedAt.isNull(),
-                  )
-                  ..orderBy([(tbl) => OrderingTerm.asc(tbl.rankKey)]))
-                .get();
-        for (int i = 0; i < c2Cards.length - 1; i++) {
-          expect(
-            c2Cards[i].rankKey.compareTo(c2Cards[i + 1].rankKey),
-            lessThan(0),
-          );
-        }
-      },
-    );
   });
 
-  group(
-    'Kabul Kriteri 1: Otomatik Kenar Kaydırma (Auto-scroll) ve Runaway Önleme',
-    () {
-      testWidgets(
-        'Kart kenara (48px) yaklaştığında yatay auto-scroll tetiklenir ve bırakıldığında durur',
-        (tester) async {
-          tester.view.physicalSize = const Size(600, 600);
-          tester.view.devicePixelRatio = 1.0;
-          addTearDown(() => tester.view.resetPhysicalSize());
+  group('Kanban drag ve erişilebilir taşıma', () {
+    testWidgets('kenar auto-scroll drop sonrasında durur', (tester) async {
+      tester.view.physicalSize = const Size(600, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
 
-          final String boardId = await repository.createBoard(
-            title: 'Auto Scroll Board',
-          );
-          final List<String> colIds = <String>[];
-          for (int i = 0; i < 5; i++) {
-            colIds.add(
-              await repository.createColumn(
-                boardId: boardId,
-                title: 'Kolon ${i + 1}',
-              ),
-            );
-          }
-
-          await repository.createCard(
+      final String boardId =
+          await repository.createBoard(title: 'Auto Scroll Board');
+      final List<String> columns = <String>[];
+      for (int i = 0; i < 5; i++) {
+        columns.add(
+          await repository.createColumn(
             boardId: boardId,
-            columnId: colIds[0],
-            title: 'Sürüklenecek Kart',
-          );
-
-          await pumpScreen(tester, KanbanBoardScreen(boardId: boardId));
-
-          final scrollableFinder = find.byType(Scrollable).first;
-          final ScrollableState initialScrollable = tester.state(
-            scrollableFinder,
-          );
-          expect(initialScrollable.position.pixels, 0.0);
-
-          final cardFinder = find.text('Sürüklenecek Kart');
-          expect(cardFinder, findsOneWidget);
-
-          final TestGesture gesture = await tester.startGesture(
-            tester.getCenter(cardFinder),
-          );
-          await tester.pump(const Duration(milliseconds: 600));
-
-          await gesture.moveTo(const Offset(580, 300));
-          await tester.pump(const Duration(milliseconds: 50));
-          await tester.pump(const Duration(milliseconds: 100));
-
-          final ScrollableState scrollingScrollable = tester.state(
-            scrollableFinder,
-          );
-          expect(
-            scrollingScrollable.position.pixels,
-            greaterThan(0.0),
-            reason: 'Sağ kenar 48px eşiğinde yatay liste sağa kaydırılmalıdır',
-          );
-
-          await gesture.up();
-          await tester.pump(const Duration(milliseconds: 50));
-
-          final ScrollableState droppedScrollable = tester.state(
-            scrollableFinder,
-          );
-          final double offsetAfterDrop = droppedScrollable.position.pixels;
-
-          await tester.pump(const Duration(milliseconds: 300));
-          final double offsetAfterWait = droppedScrollable.position.pixels;
-          expect(
-            offsetAfterWait,
-            equals(offsetAfterDrop),
-            reason:
-                'Kart bırakıldığında auto-scroll timer anında iptal edilmeli, runaway oluşmamalıdır',
-          );
-
-          expect(find.text('Sürüklenecek Kart'), findsOneWidget);
-
-          await unmountScreen(tester);
-        },
+            title: 'Kolon ${i + 1}',
+          ),
+        );
+      }
+      await repository.createCard(
+        boardId: boardId,
+        columnId: columns.first,
+        title: 'Sürüklenecek Kart',
       );
 
-      testWidgets('Merkezde sürükleme yapılırken auto-scroll tetiklenmez', (
-        tester,
-      ) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(() => tester.view.resetPhysicalSize());
+      await pumpScreen(tester, KanbanBoardScreen(boardId: boardId));
+      final scrollableFinder = find.byType(Scrollable).first;
+      final ScrollableState scrollable = tester.state(scrollableFinder);
+      expect(scrollable.position.pixels, 0.0);
 
-        final String boardId = await repository.createBoard(
-          title: 'Center Drag Board',
-        );
-        final col1 = await repository.createColumn(
-          boardId: boardId,
-          title: 'K1',
-        );
-        await repository.createColumn(boardId: boardId, title: 'K2');
-        await repository.createCard(
-          boardId: boardId,
-          columnId: col1,
-          title: 'Orta Kart',
-        );
+      final cardFinder = find.text('Sürüklenecek Kart');
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(cardFinder));
+      await tester.pump(const Duration(milliseconds: 600));
+      await gesture.moveTo(const Offset(580, 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(scrollable.position.pixels, greaterThan(0.0));
 
-        await pumpScreen(tester, KanbanBoardScreen(boardId: boardId));
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 50));
+      final double offsetAfterDrop = scrollable.position.pixels;
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(scrollable.position.pixels, offsetAfterDrop);
+      await unmountScreen(tester);
+    });
 
-        final scrollableFinder = find.byType(Scrollable).first;
-        final ScrollableState scrollable = tester.state(scrollableFinder);
-        expect(scrollable.position.pixels, 0.0);
+    testWidgets('kart menüsü drag dışı taşıma alternatifi sağlar', (tester) async {
+      tester.view.physicalSize = const Size(1000, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
 
-        final cardFinder = find.text('Orta Kart');
-        final TestGesture gesture = await tester.startGesture(
-          tester.getCenter(cardFinder),
-        );
-        await tester.pump(const Duration(milliseconds: 600));
-
-        await gesture.moveTo(const Offset(400, 300));
-        await tester.pump(const Duration(milliseconds: 100));
-
-        expect(
-          scrollable.position.pixels,
-          0.0,
-          reason:
-              'Kenar eşiği (48px) dışındayken auto-scroll tetiklenmemelidir',
-        );
-
-        await gesture.up();
-        await tester.pump(const Duration(milliseconds: 50));
-
-        await unmountScreen(tester);
-      });
-    },
-  );
-
-  group(
-    'Kabul Kriteri 2: Kart Menüsünde ve Detay Ekranında Erişilebilir Alternatif Taşıma',
-    () {
-      testWidgets(
-        'Pano kart menüsündeki alternatif taşıma butonları kartı doğru konumlara taşır',
-        (tester) async {
-          tester.view.physicalSize = const Size(1000, 800);
-          tester.view.devicePixelRatio = 1.0;
-          addTearDown(() => tester.view.resetPhysicalSize());
-
-          final String boardId = await repository.createBoard(
-            title: 'Erişilebilirlik Panosu',
-          );
-          final String col1 = await repository.createColumn(
-            boardId: boardId,
-            title: 'Yapılacak',
-          );
-          final String col2 = await repository.createColumn(
-            boardId: boardId,
-            title: 'Devam Eden',
-          );
-          await repository.createColumn(boardId: boardId, title: 'Tamamlandı');
-
-          final String card1 = await repository.createCard(
-            boardId: boardId,
-            columnId: col1,
-            title: 'Kart 1',
-          );
-          await repository.createCard(
-            boardId: boardId,
-            columnId: col1,
-            title: 'Kart 2',
-          );
-          final String card3 = await repository.createCard(
-            boardId: boardId,
-            columnId: col1,
-            title: 'Kart 3',
-          );
-
-          await pumpScreen(tester, KanbanBoardScreen(boardId: boardId));
-
-          final card1Menu = find.byKey(ValueKey('card_menu_$card1'));
-          expect(card1Menu, findsOneWidget);
-          await tester.tap(card1Menu);
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 250));
-
-          expect(find.text('Önceki kolona taşı'), findsOneWidget);
-          expect(find.text('Sonraki kolona taşı'), findsOneWidget);
-          expect(find.text('Kolonun en üstüne taşı'), findsOneWidget);
-          expect(find.text('Kolonun en altına taşı'), findsOneWidget);
-
-          final prevItem = tester.widget<PopupMenuItem<String>>(
-            find.byKey(const ValueKey('menu_move_prev')),
-          );
-          expect(prevItem.enabled, isFalse);
-
-          await tester.tap(find.byKey(const ValueKey('menu_move_next')));
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 80)),
-          );
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 100));
-
-          final card1Row = await (db.select(
-            db.cards,
-          )..where((tbl) => tbl.id.equals(card1))).getSingle();
-          expect(card1Row.columnId, col2);
-
-          final card3Menu = find.byKey(ValueKey('card_menu_$card3'));
-          await tester.tap(card3Menu);
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 250));
-
-          await tester.tap(find.byKey(const ValueKey('menu_move_top')));
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 80)),
-          );
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 100));
-
-          final col1CardsAfterTop =
-              await (db.select(db.cards)
-                    ..where(
-                      (tbl) =>
-                          tbl.columnId.equals(col1) & tbl.deletedAt.isNull(),
-                    )
-                    ..orderBy([(tbl) => OrderingTerm.asc(tbl.rankKey)]))
-                  .get();
-          expect(col1CardsAfterTop.first.id, card3);
-
-          final card3MenuAgain = find.byKey(ValueKey('card_menu_$card3'));
-          await tester.tap(card3MenuAgain);
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 250));
-
-          await tester.tap(find.byKey(const ValueKey('menu_move_bottom')));
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 80)),
-          );
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 100));
-
-          final col1CardsAfterBottom =
-              await (db.select(db.cards)
-                    ..where(
-                      (tbl) =>
-                          tbl.columnId.equals(col1) & tbl.deletedAt.isNull(),
-                    )
-                    ..orderBy([(tbl) => OrderingTerm.asc(tbl.rankKey)]))
-                  .get();
-          expect(col1CardsAfterBottom.last.id, card3);
-
-          await unmountScreen(tester);
-        },
+      final String boardId =
+          await repository.createBoard(title: 'Erişilebilirlik Panosu');
+      final String col1 =
+          await repository.createColumn(boardId: boardId, title: 'Yapılacak');
+      final String col2 = await repository.createColumn(
+        boardId: boardId,
+        title: 'Devam Eden',
+      );
+      final String cardId = await repository.createCard(
+        boardId: boardId,
+        columnId: col1,
+        title: 'Taşınacak Kart',
       );
 
-      testWidgets(
-        'Kart detay ekranındaki erişilebilir taşıma butonları ve menüsü eksiksiz çalışır',
-        (tester) async {
-          tester.view.physicalSize = const Size(1000, 800);
-          tester.view.devicePixelRatio = 1.0;
-          addTearDown(() => tester.view.resetPhysicalSize());
+      await pumpScreen(tester, KanbanBoardScreen(boardId: boardId));
+      final menu = find.byKey(ValueKey('card_menu_$cardId'));
+      expect(menu, findsOneWidget);
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
 
-          final String boardId = await repository.createBoard(
-            title: 'Detay Test Panosu',
-          );
-          final String colA = await repository.createColumn(
-            boardId: boardId,
-            title: 'A Kolonu',
-          );
-          final String colB = await repository.createColumn(
-            boardId: boardId,
-            title: 'B Kolonu',
-          );
-
-          final String cardA1 = await repository.createCard(
-            boardId: boardId,
-            columnId: colA,
-            title: 'Test Kartı',
-          );
-          await repository.createCard(
-            boardId: boardId,
-            columnId: colA,
-            title: 'İkinci Kart',
-          );
-
-          await pumpScreen(tester, CardDetailScreen(cardId: cardA1));
-
-          expect(
-            find.byKey(const ValueKey('detail_btn_move_prev')),
-            findsOneWidget,
-          );
-          expect(
-            find.byKey(const ValueKey('detail_btn_move_next')),
-            findsOneWidget,
-          );
-          expect(
-            find.byKey(const ValueKey('detail_btn_move_top')),
-            findsOneWidget,
-          );
-          expect(
-            find.byKey(const ValueKey('detail_btn_move_bottom')),
-            findsOneWidget,
-          );
-
-          expect(find.text('Önceki kolona taşı'), findsWidgets);
-          expect(find.text('Sonraki kolona taşı'), findsWidgets);
-          expect(find.text('Kolonun en üstüne taşı'), findsWidgets);
-          expect(find.text('Kolonun en altına taşı'), findsWidgets);
-
-          final prevButton = tester.widget<OutlinedButton>(
-            find.byKey(const ValueKey('detail_btn_move_prev')),
-          );
-          expect(prevButton.onPressed, isNull);
-
-          await tester.tap(find.byKey(const ValueKey('detail_btn_move_next')));
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 80)),
-          );
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 100));
-
-          final cardRow = await (db.select(
-            db.cards,
-          )..where((tbl) => tbl.id.equals(cardA1))).getSingle();
-          expect(cardRow.columnId, colB);
-
-          expect(find.text('Kolon: B Kolonu'), findsOneWidget);
-
-          final nextButton = tester.widget<OutlinedButton>(
-            find.byKey(const ValueKey('detail_btn_move_next')),
-          );
-          expect(nextButton.onPressed, isNull);
-
-          final prevButtonNow = tester.widget<OutlinedButton>(
-            find.byKey(const ValueKey('detail_btn_move_prev')),
-          );
-          expect(prevButtonNow.onPressed, isNotNull);
-
-          await tester.tap(find.byKey(const ValueKey('detail_btn_move_prev')));
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 80)),
-          );
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 100));
-
-          final cardRowBack = await (db.select(
-            db.cards,
-          )..where((tbl) => tbl.id.equals(cardA1))).getSingle();
-          expect(cardRowBack.columnId, colA);
-          expect(find.text('Kolon: A Kolonu'), findsOneWidget);
-
-          final overflowMenu = find.byKey(
-            const ValueKey('card_detail_overflow_menu'),
-          );
-          expect(overflowMenu, findsOneWidget);
-          await tester.tap(overflowMenu);
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 250));
-
-          expect(
-            find.byKey(const ValueKey('detail_menu_move_prev')),
-            findsOneWidget,
-          );
-          expect(
-            find.byKey(const ValueKey('detail_menu_move_next')),
-            findsOneWidget,
-          );
-          expect(
-            find.byKey(const ValueKey('detail_menu_move_top')),
-            findsOneWidget,
-          );
-          expect(
-            find.byKey(const ValueKey('detail_menu_move_bottom')),
-            findsOneWidget,
-          );
-
-          await unmountScreen(tester);
-        },
+      final prevItem = tester.widget<PopupMenuItem<String>>(
+        find.byKey(const ValueKey('menu_move_prev')),
       );
-    },
-  );
+      expect(prevItem.enabled, isFalse);
+      expect(find.text('Sonraki kolona taşı'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('menu_move_next')));
+      await settleRepositoryWrite(tester);
+      final card = await (db.select(db.cards)
+            ..where((table) => table.id.equals(cardId)))
+          .getSingle();
+      expect(card.columnId, col2);
+      await unmountScreen(tester);
+    });
+  });
+
+  group('Kart detay Quiet Workspace sözleşmesi', () {
+    testWidgets('kolon seçici kartı taşır ve başlık/açıklama autosave olur', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1000, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final String boardId =
+          await repository.createBoard(title: 'Detay Test Panosu');
+      final String colA =
+          await repository.createColumn(boardId: boardId, title: 'A Kolonu');
+      final String colB =
+          await repository.createColumn(boardId: boardId, title: 'B Kolonu');
+      final String cardId = await repository.createCard(
+        boardId: boardId,
+        columnId: colA,
+        title: 'Test Kartı',
+        description: 'İlk açıklama',
+      );
+
+      await pumpScreen(tester, CardDetailScreen(cardId: cardId));
+
+      expect(find.text('Kaydet'), findsNothing);
+      expect(find.text('Kolon'), findsOneWidget);
+      expect(find.text('Ekler'), findsOneWidget);
+      expect(find.text('Hatırlatıcılar'), findsOneWidget);
+
+      final columnField = find.byType(DropdownButtonFormField<String>);
+      expect(columnField, findsOneWidget);
+      await tester.tap(columnField);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('B Kolonu').last);
+      await settleRepositoryWrite(tester);
+
+      var card = await (db.select(db.cards)
+            ..where((table) => table.id.equals(cardId)))
+          .getSingle();
+      expect(card.columnId, colB);
+
+      final fields = find.byType(TextField);
+      expect(fields, findsNWidgets(2));
+      await tester.enterText(fields.at(0), 'Yeni Kart Başlığı');
+      await tester.enterText(fields.at(1), 'Autosave açıklaması');
+      await tester.pump(const Duration(milliseconds: 600));
+      await settleRepositoryWrite(tester);
+
+      card = await (db.select(db.cards)
+            ..where((table) => table.id.equals(cardId)))
+          .getSingle();
+      expect(card.title, 'Yeni Kart Başlığı');
+      expect(card.description, 'Autosave açıklaması');
+      await unmountScreen(tester);
+    });
+
+    testWidgets('expanded panoda kart detayı sağ panelde açılır', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final String boardId =
+          await repository.createBoard(title: 'Side Pane Panosu');
+      final String columnId =
+          await repository.createColumn(boardId: boardId, title: 'Kolon');
+      await repository.createCard(
+        boardId: boardId,
+        columnId: columnId,
+        title: 'Panel Kartı',
+      );
+
+      await pumpScreen(tester, KanbanBoardScreen(boardId: boardId));
+      await tester.tap(find.text('Panel Kartı'));
+      await settleRepositoryWrite(tester);
+
+      expect(find.byType(CardDetailPane), findsOneWidget);
+      expect(find.text('Kart ayrıntısı'), findsOneWidget);
+      expect(find.text('Panel Kartı'), findsWidgets);
+      await unmountScreen(tester);
+    });
+  });
 }

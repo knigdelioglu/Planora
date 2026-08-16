@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
-import 'package:not_app/features/attachments/data/repositories/attachments_repository_impl.dart';
+import 'package:not_app/app/widgets/navigation/app_toolbar.dart';
+import 'package:not_app/app/widgets/overlays/app_sheet.dart';
 import 'package:not_app/features/attachments/domain/entities/attachment.dart';
 import 'package:not_app/features/attachments/presentation/attachment_file_opener.dart';
 import 'package:not_app/features/notes/domain/entities/note.dart';
@@ -17,6 +18,7 @@ import 'package:uuid/uuid.dart';
 
 class NoteEditorScreen extends ConsumerStatefulWidget {
   const NoteEditorScreen({super.key, required this.noteId});
+
   final String noteId;
 
   @override
@@ -27,23 +29,34 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     with WidgetsBindingObserver {
   final TextEditingController _title = TextEditingController();
   final List<_EditableBlock> _blocks = <_EditableBlock>[];
+  final ScrollController _scrollController = ScrollController();
   Timer? _saveTimer;
+  OverlayEntry? _slashOverlay;
+  OverlayEntry? _formatOverlay;
   bool _loading = true;
   bool _saving = false;
+  bool _favorite = false;
   String? _error;
-
   int? _activeSlashBlockIndex;
   String _slashQuery = '';
   int _slashSelectedIndex = 0;
-
   int? _activeSelectionBlockIndex;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _load();
     _title.addListener(_scheduleSave);
+    _load();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(_persist(showState: false));
+    }
   }
 
   Future<void> _load() async {
@@ -53,13 +66,16 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
           .getNote(widget.noteId);
       if (note == null) throw StateError('Not bulunamadı.');
       _title.text = note.title;
+      _favorite = note.isFavorite;
       _blocks.clear();
-      for (final NoteBlock block in note.document.blocks) {
-        final editable = _EditableBlock.from(block, _scheduleSave);
-        _blocks.add(editable);
+      final List<NoteBlock> source = note.document.blocks.isEmpty
+          ? <NoteBlock>[NoteBlock.paragraph()]
+          : note.document.blocks;
+      for (final NoteBlock block in source) {
+        _blocks.add(_EditableBlock.from(block));
       }
-      for (int i = 0; i < _blocks.length; i++) {
-        _setupBlockListeners(_blocks[i], i);
+      for (final _EditableBlock block in _blocks) {
+        _attachBlockListeners(block);
       }
       if (mounted) setState(() => _loading = false);
     } catch (error) {
@@ -72,86 +88,172 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     }
   }
 
-  void _setupBlockListeners(_EditableBlock block, int index) {
+  void _attachBlockListeners(_EditableBlock block) {
     block.controller.addListener(() {
-      final text = block.controller.text;
-      if (text.startsWith('/')) {
-        if (_activeSlashBlockIndex != index ||
-            _slashQuery != text.substring(1)) {
-          setState(() {
-            _activeSlashBlockIndex = index;
-            _slashQuery = text.substring(1);
-            final filtered = filterSlashCommands(_slashQuery);
-            _slashSelectedIndex = _slashSelectedIndex.clamp(
-              0,
-              filtered.isEmpty ? 0 : filtered.length - 1,
-            );
-          });
+      _scheduleSave();
+      final int index = _blocks.indexOf(block);
+      if (index < 0) return;
+      final String text = block.controller.text;
+      final TextSelection selection = block.controller.selection;
+
+      if (block.focusNode.hasFocus && text.startsWith('/')) {
+        final String query = text.substring(1);
+        if (_activeSlashBlockIndex != index || _slashQuery != query) {
+          _activeSlashBlockIndex = index;
+          _slashQuery = query;
+          final int maxIndex = filterSlashCommands(query).length - 1;
+          _slashSelectedIndex = maxIndex < 0
+              ? 0
+              : _slashSelectedIndex.clamp(0, maxIndex).toInt();
+          _scheduleOverlayRefresh();
         }
       } else if (_activeSlashBlockIndex == index) {
-        setState(() {
-          _activeSlashBlockIndex = null;
-        });
+        _activeSlashBlockIndex = null;
+        _removeSlashOverlay();
       }
 
-      final selection = block.controller.selection;
       if (block.focusNode.hasFocus &&
           selection.isValid &&
           !selection.isCollapsed) {
         if (_activeSelectionBlockIndex != index) {
-          setState(() {
-            _activeSelectionBlockIndex = index;
-          });
+          _activeSelectionBlockIndex = index;
+          _scheduleOverlayRefresh();
         }
       } else if (_activeSelectionBlockIndex == index) {
-        setState(() {
-          _activeSelectionBlockIndex = null;
-        });
+        _activeSelectionBlockIndex = null;
+        _removeFormatOverlay();
       }
     });
 
+    block.urlController.addListener(_scheduleSave);
     block.focusNode.addListener(() {
+      final int index = _blocks.indexOf(block);
+      if (index < 0) return;
       if (!block.focusNode.hasFocus) {
         if (_activeSlashBlockIndex == index) {
-          setState(() => _activeSlashBlockIndex = null);
+          _activeSlashBlockIndex = null;
+          _removeSlashOverlay();
         }
         if (_activeSelectionBlockIndex == index) {
-          setState(() => _activeSelectionBlockIndex = null);
+          _activeSelectionBlockIndex = null;
+          _removeFormatOverlay();
         }
       }
     });
+  }
+
+  void _scheduleOverlayRefresh() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _refreshSlashOverlay();
+      _refreshFormatOverlay();
+    });
+  }
+
+  void _removeSlashOverlay() {
+    _slashOverlay?.remove();
+    _slashOverlay = null;
+  }
+
+  void _removeFormatOverlay() {
+    _formatOverlay?.remove();
+    _formatOverlay = null;
+  }
+
+  void _refreshSlashOverlay() {
+    _removeSlashOverlay();
+    final int? index = _activeSlashBlockIndex;
+    if (index == null || index < 0 || index >= _blocks.length) return;
+    final _EditableBlock block = _blocks[index];
+    final OverlayState overlay = Overlay.of(context);
+    _slashOverlay = OverlayEntry(
+      builder: (context) => Positioned.fill(
+        child: CompositedTransformFollower(
+          link: block.layerLink,
+          showWhenUnlinked: false,
+          targetAnchor: Alignment.bottomLeft,
+          followerAnchor: Alignment.topLeft,
+          offset: const Offset(34, 4),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: SlashCommandPalette(
+              query: _slashQuery,
+              selectedIndex: _slashSelectedIndex,
+              onSelect: (command) => _applySlashCommand(index, command),
+              onClose: () {
+                _activeSlashBlockIndex = null;
+                _removeSlashOverlay();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(_slashOverlay!);
+  }
+
+  void _refreshFormatOverlay() {
+    _removeFormatOverlay();
+    final int? index = _activeSelectionBlockIndex;
+    if (index == null || index < 0 || index >= _blocks.length) return;
+    final _EditableBlock block = _blocks[index];
+    final OverlayState overlay = Overlay.of(context);
+    _formatOverlay = OverlayEntry(
+      builder: (context) => Positioned.fill(
+        child: CompositedTransformFollower(
+          link: block.layerLink,
+          showWhenUnlinked: false,
+          targetAnchor: Alignment.topLeft,
+          followerAnchor: Alignment.bottomLeft,
+          offset: const Offset(34, -6),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: FormattingToolbar(
+              activeFormats: TextFormattingHelper.detectActiveFormats(
+                block.controller.value,
+              ),
+              onFormat: (format, {url}) =>
+                  _applyFormatting(index, format, url: url),
+              onClose: () {
+                _activeSelectionBlockIndex = null;
+                _removeFormatOverlay();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(_formatOverlay!);
   }
 
   void _scheduleSave() {
     if (_loading) return;
     _saveTimer?.cancel();
-    _saveTimer = Timer(const Duration(milliseconds: 550), _save);
-    if (mounted) setState(() {});
+    _saveTimer = Timer(const Duration(milliseconds: 550), _persist);
+    if (mounted && !_saving) setState(() {});
   }
 
   NoteDocument _document() => NoteDocument(
-    version: NoteDocument.currentVersion,
-    blocks: _blocks.map((item) => item.toBlock()).toList(growable: false),
-  );
+        version: NoteDocument.currentVersion,
+        blocks: _blocks.map((item) => item.toBlock()).toList(growable: false),
+      );
 
   Future<void> _persist({bool showState = true}) async {
     if (_loading) return;
     _saveTimer?.cancel();
-    final String title = _title.text;
-    final NoteDocument document = _document();
     if (showState && mounted) setState(() => _saving = true);
     try {
       final repo = ref.read(notesRepositoryProvider);
-      await repo.updateTitle(widget.noteId, title);
-      await repo.saveDocument(widget.noteId, document);
-      if (showState && mounted) {
+      await repo.updateTitle(widget.noteId, _title.text);
+      await repo.saveDocument(widget.noteId, _document());
+      if (mounted) {
         setState(() {
           _saving = false;
           _error = null;
         });
       }
     } catch (error) {
-      if (showState && mounted) {
+      if (mounted) {
         setState(() {
           _saving = false;
           _error = error.toString();
@@ -160,21 +262,20 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     }
   }
 
-  Future<void> _save() => _persist();
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
-      unawaited(_save());
+  Future<void> _toggleFavorite() async {
+    final bool next = !_favorite;
+    setState(() => _favorite = next);
+    try {
+      await ref.read(notesRepositoryProvider).setFavorite(widget.noteId, next);
+    } catch (_) {
+      if (mounted) setState(() => _favorite = !next);
     }
   }
 
-  Future<void> _addAttachment() async {
+  Future<void> _addAttachment({int? afterIndex}) async {
     final source = await ref.read(filePickerServiceProvider).pickSingleFile();
     if (source == null) return;
-    final attachment = await ref
+    final AttachmentEntity attachment = await ref
         .read(attachmentsRepositoryProvider)
         .addFromFile(
           parentType: 'note',
@@ -182,121 +283,162 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
           source: source,
         );
     final bool image = attachment.mimeType?.startsWith('image/') == true;
+    final _EditableBlock newBlock = _EditableBlock.from(
+      NoteBlock(
+        id: attachment.id,
+        type: image ? NoteBlockType.image : NoteBlockType.file,
+        text: attachment.fileName,
+        attachmentId: attachment.id,
+      ),
+    );
+    _attachBlockListeners(newBlock);
     setState(() {
-      final newBlock = _EditableBlock.from(
-        NoteBlock(
-          id: attachment.id,
-          type: image ? NoteBlockType.image : NoteBlockType.file,
-          text: attachment.fileName,
-          attachmentId: attachment.id,
-        ),
-        _scheduleSave,
-      );
-      _blocks.add(newBlock);
-      _setupBlockListeners(newBlock, _blocks.length - 1);
+      final int insertion = afterIndex == null
+          ? _blocks.length
+          : (afterIndex + 1).clamp(0, _blocks.length).toInt();
+      _blocks.insert(insertion, newBlock);
     });
     _scheduleSave();
   }
 
   Future<void> _addReminder() => createReminderForParent(
-    context,
-    ref,
-    parentType: 'note',
-    parentId: widget.noteId,
-    defaultTitle: _title.text.trim().isEmpty
-        ? 'Not hatırlatıcısı'
-        : _title.text.trim(),
-    defaultBody: _document().plainText,
-  );
+        context,
+        ref,
+        parentType: 'note',
+        parentId: widget.noteId,
+        defaultTitle: _title.text.trim().isEmpty
+            ? 'Not hatırlatıcısı'
+            : _title.text.trim(),
+        defaultBody: _document().plainText,
+      );
+
+  Future<void> _showReminders() => showAppSheet<void>(
+        context: context,
+        builder: (sheetContext) => Column(
+          children: <Widget>[
+            const AppSheetHeader(title: 'Hatırlatıcılar'),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: <Widget>[
+                  FilledButton.icon(
+                    onPressed: () async {
+                      Navigator.of(sheetContext).pop();
+                      await _addReminder();
+                    },
+                    icon: const Icon(Icons.add_alert_outlined, size: 18),
+                    label: const Text('Hatırlatıcı ekle'),
+                  ),
+                  const SizedBox(height: 16),
+                  ReminderList(parentType: 'note', parentId: widget.noteId),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
 
   Future<void> _trashNote() async {
-    final bool confirmed =
-        await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Not çöpe taşınsın mı?'),
-            content: const Text(
-              'Not çöp kutusuna taşınır ve daha sonra geri yüklenebilir.',
-            ),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Vazgeç'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Çöpe taşı'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-    if (!confirmed) return;
     await _persist(showState: false);
-    await ref.read(notesRepositoryProvider).trash(widget.noteId);
-    if (mounted) Navigator.pop(context);
+    final repository = ref.read(notesRepositoryProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    await repository.trash(widget.noteId);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Text('Not çöp kutusuna taşındı.'),
+        action: SnackBarAction(
+          label: 'Geri al',
+          onPressed: () => repository.restore(widget.noteId),
+        ),
+      ),
+    );
   }
 
-  void _addTextBlock(NoteBlockType type, {int? level}) {
-    setState(() {
-      final newBlock = _EditableBlock.from(
-        NoteBlock(id: const Uuid().v7(), type: type, level: level),
-        _scheduleSave,
-      );
-      _blocks.add(newBlock);
-      _setupBlockListeners(newBlock, _blocks.length - 1);
-    });
+  void _insertBlockAfter(int index, NoteBlockType type, {int? level}) {
+    final _EditableBlock newBlock = _EditableBlock.from(
+      NoteBlock(id: const Uuid().v7(), type: type, level: level),
+    );
+    _attachBlockListeners(newBlock);
+    setState(
+      () => _blocks.insert(
+        (index + 1).clamp(0, _blocks.length).toInt(),
+        newBlock,
+      ),
+    );
     _scheduleSave();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) newBlock.focusNode.requestFocus();
+    });
   }
 
   void _applySlashCommand(int index, SlashCommandItem command) {
-    if (index >= _blocks.length) return;
-    final block = _blocks[index];
-    setState(() {
-      _activeSlashBlockIndex = null;
-    });
-
+    if (index < 0 || index >= _blocks.length) return;
+    final _EditableBlock block = _blocks[index];
+    _activeSlashBlockIndex = null;
+    _removeSlashOverlay();
     if (command.id == SlashCommandId.attachment) {
-      block.controller.text = '';
-      _addAttachment();
+      block.controller.clear();
+      unawaited(_addAttachment(afterIndex: index));
       return;
     }
-
     setState(() {
       block.type = command.blockType ?? NoteBlockType.paragraph;
       block.level = command.level;
-      block.controller.text = '';
       block.checked = false;
+      block.controller.clear();
     });
     _scheduleSave();
     block.focusNode.requestFocus();
   }
 
   void _applyFormatting(int index, TextFormatType format, {String? url}) {
-    if (index >= _blocks.length) return;
-    final block = _blocks[index];
-    final updated = TextFormattingHelper.applyFormat(
+    if (index < 0 || index >= _blocks.length) return;
+    final _EditableBlock block = _blocks[index];
+    block.controller.value = TextFormattingHelper.applyFormat(
       value: block.controller.value,
       format: format,
       linkUrl: url,
     );
-    block.controller.value = updated;
     _scheduleSave();
+    _scheduleOverlayRefresh();
   }
 
-  KeyEventResult _handleBlockKeyEvent(int index, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+  void _focusPreviousBlock(int index) {
+    if (index <= 0) return;
+    final _EditableBlock previous = _blocks[index - 1];
+    if (!previous.isTextBlock) return;
+    previous.focusNode.requestFocus();
+    previous.controller.selection = TextSelection.collapsed(
+      offset: previous.controller.text.length,
+    );
+  }
 
-    final block = _blocks[index];
-    final isSlashOpen = _activeSlashBlockIndex == index;
+  void _focusNextBlock(int index) {
+    if (index < 0 || index >= _blocks.length - 1) return;
+    final _EditableBlock next = _blocks[index + 1];
+    if (!next.isTextBlock) return;
+    next.focusNode.requestFocus();
+    next.controller.selection = const TextSelection.collapsed(offset: 0);
+  }
 
-    if (isSlashOpen) {
-      final filtered = filterSlashCommands(_slashQuery);
+  KeyEventResult _handleBlockKeyEvent(_EditableBlock block, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final int index = _blocks.indexOf(block);
+    if (index < 0) return KeyEventResult.ignored;
+
+    if (_activeSlashBlockIndex == index) {
+      final List<SlashCommandItem> filtered = filterSlashCommands(_slashQuery);
       if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
         if (filtered.isNotEmpty) {
           setState(() {
             _slashSelectedIndex = (_slashSelectedIndex + 1) % filtered.length;
           });
+          _refreshSlashOverlay();
         }
         return KeyEventResult.handled;
       }
@@ -306,6 +448,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
             _slashSelectedIndex =
                 (_slashSelectedIndex - 1 + filtered.length) % filtered.length;
           });
+          _refreshSlashOverlay();
         }
         return KeyEventResult.handled;
       }
@@ -313,21 +456,19 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
           event.logicalKey == LogicalKeyboardKey.numpadEnter) {
         if (filtered.isNotEmpty) {
           _applySlashCommand(index, filtered[_slashSelectedIndex]);
-        } else {
-          setState(() => _activeSlashBlockIndex = null);
         }
         return KeyEventResult.handled;
       }
       if (event.logicalKey == LogicalKeyboardKey.escape) {
-        setState(() => _activeSlashBlockIndex = null);
+        _activeSlashBlockIndex = null;
+        _removeSlashOverlay();
         return KeyEventResult.handled;
       }
     }
 
-    final isMetaOrControl =
-        HardwareKeyboard.instance.isMetaPressed ||
+    final bool modifier = HardwareKeyboard.instance.isMetaPressed ||
         HardwareKeyboard.instance.isControlPressed;
-    if (isMetaOrControl) {
+    if (modifier) {
       if (event.logicalKey == LogicalKeyboardKey.keyB) {
         _applyFormatting(index, TextFormatType.bold);
         return KeyEventResult.handled;
@@ -346,20 +487,14 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
       }
     }
 
-    if (event.logicalKey == LogicalKeyboardKey.enter ||
-        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
-      if (HardwareKeyboard.instance.isShiftPressed) {
-        return KeyEventResult.ignored;
-      }
-      if (block.type == NoteBlockType.code) {
-        return KeyEventResult.ignored;
-      }
-
-      final isListType =
-          block.type == NoteBlockType.bulletList ||
+    if ((event.logicalKey == LogicalKeyboardKey.enter ||
+            event.logicalKey == LogicalKeyboardKey.numpadEnter) &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        block.type != NoteBlockType.code) {
+      final bool listType = block.type == NoteBlockType.bulletList ||
           block.type == NoteBlockType.numberedList ||
           block.type == NoteBlockType.checkbox;
-      if (isListType && block.controller.text.trim().isEmpty) {
+      if (listType && block.controller.text.trim().isEmpty) {
         setState(() {
           block.type = NoteBlockType.paragraph;
           block.level = null;
@@ -369,186 +504,162 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
         return KeyEventResult.handled;
       }
 
-      final int cursorPos = block.controller.selection.isValid
-          ? block.controller.selection.baseOffset
+      final TextSelection selection = block.controller.selection;
+      final int cursor = selection.isValid
+          ? selection.baseOffset
+              .clamp(0, block.controller.text.length)
+              .toInt()
           : block.controller.text.length;
-      final String fullText = block.controller.text;
-      final String textBefore = cursorPos >= 0 && cursorPos <= fullText.length
-          ? fullText.substring(0, cursorPos)
-          : fullText;
-      final String textAfter = cursorPos >= 0 && cursorPos <= fullText.length
-          ? fullText.substring(cursorPos)
-          : '';
-
-      block.controller.text = textBefore;
-
+      final String before = block.controller.text.substring(0, cursor);
+      final String after = block.controller.text.substring(cursor);
+      block.controller.value = TextEditingValue(
+        text: before,
+        selection: TextSelection.collapsed(offset: before.length),
+      );
       final NoteBlockType nextType = switch (block.type) {
         NoteBlockType.bulletList => NoteBlockType.bulletList,
         NoteBlockType.numberedList => NoteBlockType.numberedList,
         NoteBlockType.checkbox => NoteBlockType.checkbox,
         _ => NoteBlockType.paragraph,
       };
-
-      final newBlock = _EditableBlock.from(
+      final _EditableBlock next = _EditableBlock.from(
         NoteBlock(
           id: const Uuid().v7(),
           type: nextType,
-          text: textAfter,
+          text: after,
           checked: nextType == NoteBlockType.checkbox ? false : null,
         ),
-        _scheduleSave,
       );
-
-      setState(() {
-        _blocks.insert(index + 1, newBlock);
-        _activeSlashBlockIndex = null;
-        _activeSelectionBlockIndex = null;
-      });
-
-      for (int i = 0; i < _blocks.length; i++) {
-        _setupBlockListeners(_blocks[i], i);
-      }
+      _attachBlockListeners(next);
+      setState(() => _blocks.insert(index + 1, next));
       _scheduleSave();
-
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && index + 1 < _blocks.length) {
-          _blocks[index + 1].focusNode.requestFocus();
-          _blocks[index + 1].controller.selection =
-              const TextSelection.collapsed(offset: 0);
-        }
+        if (mounted) next.focusNode.requestFocus();
       });
       return KeyEventResult.handled;
     }
 
-    if (event.logicalKey == LogicalKeyboardKey.backspace ||
-        event.logicalKey == LogicalKeyboardKey.delete) {
-      final selection = block.controller.selection;
-      if (selection.isCollapsed && selection.baseOffset == 0) {
-        if (block.type != NoteBlockType.paragraph) {
-          setState(() {
-            block.type = NoteBlockType.paragraph;
-            block.level = null;
-            block.checked = false;
-          });
-          _scheduleSave();
-          return KeyEventResult.handled;
-        }
-
-        if (index > 0) {
-          final String currentText = block.controller.text;
-          final _EditableBlock prevBlock = _blocks[index - 1];
-          final int prevLength = prevBlock.controller.text.length;
-
-          if (prevBlock.type != NoteBlockType.divider &&
-              prevBlock.type != NoteBlockType.image &&
-              prevBlock.type != NoteBlockType.file) {
-            prevBlock.controller.text =
-                '${prevBlock.controller.text}$currentText';
-          }
-
+    if ((event.logicalKey == LogicalKeyboardKey.backspace ||
+            event.logicalKey == LogicalKeyboardKey.delete) &&
+        block.controller.selection.isCollapsed &&
+        block.controller.selection.baseOffset == 0) {
+      if (block.type != NoteBlockType.paragraph) {
+        setState(() {
+          block.type = NoteBlockType.paragraph;
+          block.level = null;
+          block.checked = false;
+        });
+        _scheduleSave();
+        return KeyEventResult.handled;
+      }
+      if (index > 0) {
+        final _EditableBlock previous = _blocks[index - 1];
+        if (previous.isTextBlock) {
+          final int offset = previous.controller.text.length;
+          previous.controller.text += block.controller.text;
           setState(() {
             _blocks.removeAt(index).dispose();
-            if (_activeSlashBlockIndex == index) _activeSlashBlockIndex = null;
-            if (_activeSelectionBlockIndex == index) {
-              _activeSelectionBlockIndex = null;
-            }
           });
-
-          for (int i = 0; i < _blocks.length; i++) {
-            _setupBlockListeners(_blocks[i], i);
-          }
+          previous.focusNode.requestFocus();
+          previous.controller.selection = TextSelection.collapsed(offset: offset);
           _scheduleSave();
-
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && index - 1 < _blocks.length) {
-              prevBlock.focusNode.requestFocus();
-              prevBlock.controller.selection = TextSelection.collapsed(
-                offset: prevLength,
-              );
-            }
-          });
           return KeyEventResult.handled;
         }
       }
     }
 
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-      final selection = block.controller.selection;
-      if (selection.isCollapsed && selection.baseOffset <= 0) {
-        if (index > 0) {
-          final prevBlock = _blocks[index - 1];
-          prevBlock.focusNode.requestFocus();
-          prevBlock.controller.selection = TextSelection.collapsed(
-            offset: prevBlock.controller.text.length,
-          );
-          return KeyEventResult.handled;
-        }
+      final TextSelection selection = block.controller.selection;
+      if (selection.isCollapsed && selection.baseOffset <= 0 && index > 0) {
+        _focusPreviousBlock(index);
+        return KeyEventResult.handled;
       }
     }
 
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-      final selection = block.controller.selection;
+      final TextSelection selection = block.controller.selection;
       if (selection.isCollapsed &&
-          selection.baseOffset >= block.controller.text.length) {
-        if (index < _blocks.length - 1) {
-          final nextBlock = _blocks[index + 1];
-          nextBlock.focusNode.requestFocus();
-          nextBlock.controller.selection = const TextSelection.collapsed(
-            offset: 0,
-          );
-          return KeyEventResult.handled;
-        }
+          selection.baseOffset >= block.controller.text.length &&
+          index < _blocks.length - 1) {
+        _focusNextBlock(index);
+        return KeyEventResult.handled;
       }
     }
 
     return KeyEventResult.ignored;
   }
 
-  Future<void> _deleteBlock(int index) async {
-    final _EditableBlock block = _blocks[index];
+  Future<void> _deleteBlock(_EditableBlock block) async {
     if (block.attachmentId != null) {
       try {
-        await ref
-            .read(attachmentsRepositoryProvider)
-            .remove(block.attachmentId!);
+        await ref.read(attachmentsRepositoryProvider).remove(block.attachmentId!);
       } catch (error) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(error.toString())));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error.toString())),
+          );
         }
         return;
       }
     }
-    if (!mounted || index >= _blocks.length || _blocks[index] != block) return;
+    final int index = _blocks.indexOf(block);
+    if (index < 0) return;
     setState(() {
       _blocks.removeAt(index).dispose();
-      if (_activeSlashBlockIndex == index) _activeSlashBlockIndex = null;
-      if (_activeSelectionBlockIndex == index) {
-        _activeSelectionBlockIndex = null;
-      }
       if (_blocks.isEmpty) {
-        final newBlock = _EditableBlock.from(
-          NoteBlock(id: const Uuid().v7(), type: NoteBlockType.paragraph),
-          _scheduleSave,
-        );
-        _blocks.add(newBlock);
-        _setupBlockListeners(newBlock, 0);
+        final _EditableBlock next = _EditableBlock.from(NoteBlock.paragraph());
+        _attachBlockListeners(next);
+        _blocks.add(next);
       }
     });
-    for (int i = 0; i < _blocks.length; i++) {
-      _setupBlockListeners(_blocks[i], i);
-    }
     _scheduleSave();
+  }
+
+  void _moveBlock(_EditableBlock block, int delta) {
+    final int index = _blocks.indexOf(block);
+    final int destination = index + delta;
+    if (index < 0 || destination < 0 || destination >= _blocks.length) return;
+    setState(() {
+      _blocks.removeAt(index);
+      _blocks.insert(destination, block);
+    });
+    _scheduleSave();
+  }
+
+  void _reorder(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex -= 1;
+    if (oldIndex == newIndex || oldIndex < 0 || oldIndex >= _blocks.length) {
+      return;
+    }
+    setState(() {
+      final _EditableBlock block = _blocks.removeAt(oldIndex);
+      _blocks.insert(newIndex.clamp(0, _blocks.length).toInt(), block);
+    });
+    _scheduleSave();
+  }
+
+  String get _saveLabel {
+    if (_saving) return 'Kaydediliyor…';
+    if (_error != null) return 'Kaydetme sorunu';
+    return 'Bu cihazda kaydedildi';
+  }
+
+  IconData get _saveIcon {
+    if (_saving) return Icons.sync_rounded;
+    if (_error != null) return Icons.error_outline_rounded;
+    return Icons.check_circle_outline_rounded;
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _removeSlashOverlay();
+    _removeFormatOverlay();
     _saveTimer?.cancel();
     if (!_loading) unawaited(_persist(showState: false));
     _title.dispose();
-    for (final block in _blocks) {
+    _scrollController.dispose();
+    for (final _EditableBlock block in _blocks) {
       block.dispose();
     }
     super.dispose();
@@ -557,206 +668,178 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _saving
-              ? 'Kaydediliyor…'
-              : _error == null
-              ? 'Cihazda kaydedildi'
-              : 'Kaydetme sorunu',
-        ),
-        actions: <Widget>[
-          PopupMenuButton<String>(
-            tooltip: 'Blok ekle',
-            onSelected: (value) {
-              final parts = value.split(':');
-              final typeName = parts[0];
-              final level = parts.length > 1 ? int.tryParse(parts[1]) : null;
-              final NoteBlockType? type = NoteBlockType.values
-                  .where((item) => item.name == typeName)
-                  .firstOrNull;
-              if (type != null) _addTextBlock(type, level: level);
-            },
-            itemBuilder: (_) => const <PopupMenuEntry<String>>[
-              PopupMenuItem(value: 'paragraph', child: Text('Paragraf')),
-              PopupMenuItem(value: 'heading:1', child: Text('Başlık 1')),
-              PopupMenuItem(value: 'heading:2', child: Text('Başlık 2')),
-              PopupMenuItem(value: 'heading:3', child: Text('Başlık 3')),
-              PopupMenuItem(value: 'bulletList', child: Text('Madde listesi')),
-              PopupMenuItem(
-                value: 'numberedList',
-                child: Text('Numaralı liste'),
+      body: Column(
+        children: <Widget>[
+          AppToolbar(
+            title: 'Not',
+            breadcrumb: 'Notlar',
+            leading: IconButton(
+              tooltip: 'Geri',
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            status: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(_saveIcon, size: 14),
+                const SizedBox(width: 5),
+                Text(
+                  _saveLabel,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+            actions: <Widget>[
+              AppIconButton(
+                icon: _favorite
+                    ? Icons.star_rounded
+                    : Icons.star_border_rounded,
+                tooltip: _favorite ? 'Favoriden çıkar' : 'Favoriye ekle',
+                selected: _favorite,
+                onPressed: _toggleFavorite,
               ),
-              PopupMenuItem(value: 'checkbox', child: Text('Yapılacak')),
-              PopupMenuItem(value: 'quote', child: Text('Alıntı')),
-              PopupMenuItem(value: 'divider', child: Text('Ayraç')),
-              PopupMenuItem(value: 'code', child: Text('Kod')),
-              PopupMenuItem(value: 'link', child: Text('Bağlantı')),
+              AppIconButton(
+                icon: Icons.notifications_none_rounded,
+                tooltip: 'Hatırlatıcılar',
+                onPressed: _showReminders,
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Not işlemleri',
+                onSelected: (value) {
+                  if (value == 'attachment') {
+                    unawaited(_addAttachment());
+                  } else if (value == 'reminder') {
+                    unawaited(_addReminder());
+                  } else if (value == 'trash') {
+                    unawaited(_trashNote());
+                  }
+                },
+                itemBuilder: (_) => const <PopupMenuEntry<String>>[
+                  PopupMenuItem(
+                    value: 'attachment',
+                    child: Text('Dosya veya görsel ekle'),
+                  ),
+                  PopupMenuItem(
+                    value: 'reminder',
+                    child: Text('Hatırlatıcı ekle'),
+                  ),
+                  PopupMenuDivider(),
+                  PopupMenuItem(value: 'trash', child: Text('Çöpe taşı')),
+                ],
+              ),
             ],
-            icon: const Icon(Icons.add_circle_outline),
           ),
-          IconButton(
-            tooltip: 'Dosya veya görsel ekle',
-            onPressed: _addAttachment,
-            icon: const Icon(Icons.attach_file),
-          ),
-          IconButton(
-            tooltip: 'Hatırlatıcı ekle',
-            onPressed: _addReminder,
-            icon: const Icon(Icons.notifications_none),
-          ),
-          IconButton(
-            tooltip: 'Şimdi kaydet',
-            onPressed: _save,
-            icon: const Icon(Icons.cloud_done_outlined),
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'Not işlemleri',
-            onSelected: (value) {
-              if (value == 'trash') unawaited(_trashNote());
-            },
-            itemBuilder: (_) => const <PopupMenuEntry<String>>[
-              PopupMenuItem(value: 'trash', child: Text('Çöpe taşı')),
-            ],
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null && _blocks.isEmpty
+                    ? Center(child: Text(_error!))
+                    : StreamBuilder<List<AttachmentEntity>>(
+                        stream: ref
+                            .watch(attachmentsRepositoryProvider)
+                            .watchForParent('note', widget.noteId),
+                        builder: (context, attachmentSnapshot) {
+                          final Map<String, AttachmentEntity> attachments =
+                              <String, AttachmentEntity>{
+                            for (final item in attachmentSnapshot.data ??
+                                const <AttachmentEntity>[])
+                              item.id: item,
+                          };
+                          return Align(
+                            alignment: Alignment.topCenter,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 760),
+                              child: ListView(
+                                controller: _scrollController,
+                                padding: EdgeInsets.fromLTRB(
+                                  MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+                                  34,
+                                  MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+                                  100,
+                                ),
+                                children: <Widget>[
+                                  TextField(
+                                    controller: _title,
+                                    maxLines: null,
+                                    style:
+                                        Theme.of(context).textTheme.headlineLarge,
+                                    decoration: const InputDecoration(
+                                      hintText: 'Başlıksız',
+                                      border: InputBorder.none,
+                                      enabledBorder: InputBorder.none,
+                                      focusedBorder: InputBorder.none,
+                                      filled: false,
+                                      contentPadding: EdgeInsets.zero,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 18),
+                                  ReorderableListView.builder(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    buildDefaultDragHandles: false,
+                                    itemCount: _blocks.length,
+                                    onReorder: _reorder,
+                                    itemBuilder: (context, index) {
+                                      final _EditableBlock block = _blocks[index];
+                                      return _EditorBlockRow(
+                                        key: ValueKey<String>(block.id),
+                                        block: block,
+                                        index: index,
+                                        attachment: block.attachmentId == null
+                                            ? null
+                                            : attachments[block.attachmentId],
+                                        onKeyEvent: (event) =>
+                                            _handleBlockKeyEvent(block, event),
+                                        onDelete: () => _deleteBlock(block),
+                                        onInsert: () => _insertBlockAfter(
+                                          index,
+                                          NoteBlockType.paragraph,
+                                        ),
+                                        onMoveUp: index > 0
+                                            ? () => _moveBlock(block, -1)
+                                            : null,
+                                        onMoveDown: index < _blocks.length - 1
+                                            ? () => _moveBlock(block, 1)
+                                            : null,
+                                        onChangeType: (type, level) {
+                                          setState(() {
+                                            block.type = type;
+                                            block.level = level;
+                                          });
+                                          _scheduleSave();
+                                        },
+                                        onChecked: (value) {
+                                          setState(() => block.checked = value);
+                                          _scheduleSave();
+                                        },
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: TextButton.icon(
+                                      onPressed: () => _insertBlockAfter(
+                                        _blocks.length - 1,
+                                        NoteBlockType.paragraph,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.add_rounded,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Blok ekle'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null && _blocks.isEmpty
-          ? Center(child: Text(_error!))
-          : StreamBuilder<List<AttachmentEntity>>(
-              stream: ref
-                  .watch(attachmentsRepositoryProvider)
-                  .watchForParent('note', widget.noteId),
-              builder: (context, attachmentSnapshot) {
-                final Map<String, AttachmentEntity> attachments =
-                    <String, AttachmentEntity>{
-                      for (final item
-                          in attachmentSnapshot.data ??
-                              const <AttachmentEntity>[])
-                        item.id: item,
-                    };
-                return Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 760),
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(24, 32, 24, 80),
-                      children: <Widget>[
-                        TextField(
-                          controller: _title,
-                          maxLines: null,
-                          style: Theme.of(context).textTheme.headlineLarge,
-                          decoration: const InputDecoration(
-                            hintText: 'Başlıksız not',
-                            border: InputBorder.none,
-                            filled: false,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ...List<Widget>.generate(
-                          _blocks.length,
-                          (index) => Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              if (_activeSelectionBlockIndex == index)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    left: 36,
-                                    bottom: 6,
-                                  ),
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: FormattingToolbar(
-                                      activeFormats:
-                                          TextFormattingHelper.detectActiveFormats(
-                                            _blocks[index].controller.value,
-                                          ),
-                                      onFormat: (format, {url}) =>
-                                          _applyFormatting(
-                                            index,
-                                            format,
-                                            url: url,
-                                          ),
-                                      onClose: () => setState(
-                                        () => _activeSelectionBlockIndex = null,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              _BlockEditorRow(
-                                key: ValueKey<String>(_blocks[index].id),
-                                block: _blocks[index],
-                                attachment: _blocks[index].attachmentId == null
-                                    ? null
-                                    : attachments[_blocks[index].attachmentId],
-                                index: index,
-                                onKeyEvent: (event) =>
-                                    _handleBlockKeyEvent(index, event),
-                                onDelete: () => _deleteBlock(index),
-                                onChangedType: (type, {level}) {
-                                  setState(() {
-                                    _blocks[index].type = type;
-                                    _blocks[index].level = level;
-                                  });
-                                  _scheduleSave();
-                                },
-                                onChecked: (value) {
-                                  setState(
-                                    () => _blocks[index].checked = value,
-                                  );
-                                  _scheduleSave();
-                                },
-                              ),
-                              if (_activeSlashBlockIndex == index)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    left: 36,
-                                    top: 4,
-                                    bottom: 8,
-                                  ),
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: SlashCommandPalette(
-                                      query: _slashQuery,
-                                      selectedIndex: _slashSelectedIndex,
-                                      onSelect: (command) =>
-                                          _applySlashCommand(index, command),
-                                      onClose: () => setState(
-                                        () => _activeSlashBlockIndex = null,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextButton.icon(
-                          onPressed: () =>
-                              _addTextBlock(NoteBlockType.paragraph),
-                          icon: const Icon(Icons.add),
-                          label: const Text('Blok ekle'),
-                        ),
-                        const SizedBox(height: 28),
-                        Text(
-                          'Hatırlatıcılar',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        ReminderList(
-                          parentType: 'note',
-                          parentId: widget.noteId,
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
     );
   }
 }
@@ -773,26 +856,16 @@ class _EditableBlock {
     required this.attachmentId,
   });
 
-  factory _EditableBlock.from(NoteBlock block, VoidCallback onChanged) {
-    final FormattedTextEditingController controller =
-        FormattedTextEditingController(text: block.text)
-          ..addListener(onChanged);
-    final TextEditingController urlController = TextEditingController(
-      text: block.url ?? '',
-    )..addListener(onChanged);
-    final FocusNode focusNode = FocusNode();
-
-    return _EditableBlock(
-      id: block.id,
-      type: block.type,
-      level: block.level,
-      controller: controller,
-      focusNode: focusNode,
-      urlController: urlController,
-      checked: block.checked ?? false,
-      attachmentId: block.attachmentId,
-    );
-  }
+  factory _EditableBlock.from(NoteBlock block) => _EditableBlock(
+        id: block.id,
+        type: block.type,
+        level: block.level,
+        controller: FormattedTextEditingController(text: block.text),
+        focusNode: FocusNode(debugLabel: 'NoteBlock:${block.id}'),
+        urlController: TextEditingController(text: block.url ?? ''),
+        checked: block.checked ?? false,
+        attachmentId: block.attachmentId,
+      );
 
   final String id;
   NoteBlockType type;
@@ -800,20 +873,26 @@ class _EditableBlock {
   final FormattedTextEditingController controller;
   final FocusNode focusNode;
   final TextEditingController urlController;
+  final LayerLink layerLink = LayerLink();
   bool checked;
   final String? attachmentId;
 
+  bool get isTextBlock =>
+      type != NoteBlockType.divider &&
+      type != NoteBlockType.image &&
+      type != NoteBlockType.file;
+
   NoteBlock toBlock() => NoteBlock(
-    id: id,
-    type: type,
-    text: controller.text,
-    checked: type == NoteBlockType.checkbox ? checked : null,
-    url: type == NoteBlockType.link && urlController.text.trim().isNotEmpty
-        ? urlController.text.trim()
-        : null,
-    attachmentId: attachmentId,
-    level: type == NoteBlockType.heading ? (level ?? 1) : null,
-  );
+        id: id,
+        type: type,
+        text: controller.text,
+        checked: type == NoteBlockType.checkbox ? checked : null,
+        url: type == NoteBlockType.link && urlController.text.trim().isNotEmpty
+            ? urlController.text.trim()
+            : null,
+        attachmentId: attachmentId,
+        level: type == NoteBlockType.heading ? (level ?? 1) : null,
+      );
 
   void dispose() {
     controller.dispose();
@@ -822,95 +901,184 @@ class _EditableBlock {
   }
 }
 
-class _BlockEditorRow extends StatelessWidget {
-  const _BlockEditorRow({
+class _EditorBlockRow extends StatefulWidget {
+  const _EditorBlockRow({
     super.key,
     required this.block,
-    required this.attachment,
     required this.index,
+    required this.attachment,
     required this.onKeyEvent,
     required this.onDelete,
-    required this.onChangedType,
+    required this.onInsert,
+    required this.onMoveUp,
+    required this.onMoveDown,
+    required this.onChangeType,
     required this.onChecked,
   });
 
   final _EditableBlock block;
-  final AttachmentEntity? attachment;
   final int index;
+  final AttachmentEntity? attachment;
   final KeyEventResult Function(KeyEvent event) onKeyEvent;
   final Future<void> Function() onDelete;
-  final void Function(NoteBlockType type, {int? level}) onChangedType;
+  final VoidCallback onInsert;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
+  final void Function(NoteBlockType type, int? level) onChangeType;
   final ValueChanged<bool> onChecked;
 
   @override
+  State<_EditorBlockRow> createState() => _EditorBlockRowState();
+}
+
+class _EditorBlockRowState extends State<_EditorBlockRow> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    if (block.type == NoteBlockType.divider) {
-      return Row(
-        children: <Widget>[
-          const Expanded(child: Divider()),
-          IconButton(
-            onPressed: onDelete,
-            icon: const Icon(Icons.close, size: 18),
+    final _EditableBlock block = widget.block;
+    return CompositedTransformTarget(
+      link: block.layerLink,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              SizedBox(
+                width: 34,
+                child: AnimatedOpacity(
+                  opacity: _hovered || block.focusNode.hasFocus ? 1 : 0.18,
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 110),
+                  child: Column(
+                    children: <Widget>[
+                      IconButton(
+                        tooltip: 'Altına blok ekle',
+                        onPressed: widget.onInsert,
+                        icon: const Icon(Icons.add_rounded, size: 17),
+                      ),
+                      ReorderableDragStartListener(
+                        index: widget.index,
+                        child: PopupMenuButton<String>(
+                          tooltip: 'Bloğu taşı veya düzenle',
+                          onSelected: (value) {
+                            if (value == 'up') widget.onMoveUp?.call();
+                            if (value == 'down') widget.onMoveDown?.call();
+                            if (value == 'delete') {
+                              unawaited(widget.onDelete());
+                            }
+                          },
+                          itemBuilder: (_) => <PopupMenuEntry<String>>[
+                            PopupMenuItem(
+                              value: 'up',
+                              enabled: widget.onMoveUp != null,
+                              child: const Text('Yukarı taşı'),
+                            ),
+                            PopupMenuItem(
+                              value: 'down',
+                              enabled: widget.onMoveDown != null,
+                              child: const Text('Aşağı taşı'),
+                            ),
+                            const PopupMenuDivider(),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Bloğu sil'),
+                            ),
+                          ],
+                          icon: const Icon(
+                            Icons.drag_indicator_rounded,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(child: _blockContent(context)),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _blockContent(BuildContext context) {
+    final _EditableBlock block = widget.block;
+    if (block.type == NoteBlockType.divider) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        child: Divider(color: Theme.of(context).dividerColor),
       );
     }
     if (block.type == NoteBlockType.image || block.type == NoteBlockType.file) {
-      return _AttachmentBlockRow(
-        attachment: attachment,
+      return _AttachmentBlock(
+        attachment: widget.attachment,
         fallbackName: block.controller.text,
         image: block.type == NoteBlockType.image,
-        onDelete: onDelete,
+        onDelete: widget.onDelete,
       );
     }
 
     final TextStyle? style = switch (block.type) {
       NoteBlockType.heading => switch (block.level ?? 1) {
-        1 => Theme.of(
-          context,
-        ).textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold),
-        2 => Theme.of(
-          context,
-        ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600),
-        _ => Theme.of(
-          context,
-        ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
-      },
-      NoteBlockType.code => Theme.of(
-        context,
-      ).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
-      NoteBlockType.quote => Theme.of(
-        context,
-      ).textTheme.bodyLarge?.copyWith(fontStyle: FontStyle.italic),
+          1 => Theme.of(context).textTheme.headlineMedium,
+          2 => Theme.of(context).textTheme.headlineSmall,
+          _ => Theme.of(context).textTheme.titleLarge,
+        },
+      NoteBlockType.code => Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontFamily: 'monospace',
+          ),
+      NoteBlockType.quote => Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontStyle: FontStyle.italic,
+          ),
       _ => Theme.of(context).textTheme.bodyLarge,
     };
 
     final Widget prefix = switch (block.type) {
       NoteBlockType.checkbox => Checkbox(
-        value: block.checked,
-        onChanged: (value) => onChecked(value ?? false),
-      ),
+          value: block.checked,
+          onChanged: (value) => widget.onChecked(value ?? false),
+        ),
       NoteBlockType.bulletList => const SizedBox(
-        width: 32,
-        child: Center(child: Text('•', style: TextStyle(fontSize: 20))),
-      ),
+          width: 26,
+          child: Padding(
+            padding: EdgeInsets.only(top: 7),
+            child: Text('•', textAlign: TextAlign.center),
+          ),
+        ),
       NoteBlockType.numberedList => SizedBox(
-        width: 32,
-        child: Center(child: Text('${index + 1}.')),
-      ),
-      NoteBlockType.quote => const SizedBox(
-        width: 24,
-        child: Center(child: Text('❝', style: TextStyle(fontSize: 18))),
-      ),
-      _ => const SizedBox(width: 8),
+          width: 30,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 7),
+            child: Text('${widget.index + 1}.', textAlign: TextAlign.center),
+          ),
+        ),
+      NoteBlockType.quote => Container(
+          width: 3,
+          height: 34,
+          margin: const EdgeInsets.only(right: 10, top: 4),
+          decoration: BoxDecoration(
+            color: Theme.of(context)
+                .colorScheme
+                .primary
+                .withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(99),
+          ),
+        ),
+      _ => const SizedBox.shrink(),
     };
 
     final String hintText = switch (block.type) {
       NoteBlockType.heading => switch (block.level ?? 1) {
-        1 => 'Başlık 1',
-        2 => 'Başlık 2',
-        _ => 'Başlık 3',
-      },
+          1 => 'Başlık 1',
+          2 => 'Başlık 2',
+          _ => 'Başlık 3',
+        },
       NoteBlockType.code => 'Kod yazın…',
       NoteBlockType.quote => 'Alıntı yazın…',
       NoteBlockType.bulletList => 'Liste öğesi…',
@@ -919,94 +1087,88 @@ class _BlockEditorRow extends StatelessWidget {
       _ => "Yazmaya başlayın veya '/' ile komut açın…",
     };
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          prefix,
-          Expanded(
-            child: Column(
-              children: <Widget>[
-                Focus(
-                  onKeyEvent: (node, event) => onKeyEvent(event),
-                  child: TextField(
-                    controller: block.controller,
-                    focusNode: block.focusNode,
-                    maxLines: null,
-                    style: style,
-                    decoration: InputDecoration(
-                      hintText: hintText,
-                      border: InputBorder.none,
-                      filled: block.type == NoteBlockType.code,
-                      fillColor: block.type == NoteBlockType.code
-                          ? Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest
-                                .withValues(alpha: 0.35)
-                          : null,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 8,
-                      ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        prefix,
+        Expanded(
+          child: Column(
+            children: <Widget>[
+              Focus(
+                onKeyEvent: (_, event) => widget.onKeyEvent(event),
+                child: TextField(
+                  controller: block.controller,
+                  focusNode: block.focusNode,
+                  maxLines: null,
+                  style: style,
+                  decoration: InputDecoration(
+                    hintText: hintText,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: block.type == NoteBlockType.code,
+                    fillColor: block.type == NoteBlockType.code
+                        ? Theme.of(context)
+                            .colorScheme
+                            .surfaceContainer
+                            .withValues(alpha: 0.72)
+                        : Colors.transparent,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 7,
                     ),
                   ),
                 ),
-                if (block.type == NoteBlockType.link)
-                  TextField(
+              ),
+              if (block.type == NoteBlockType.link)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: TextField(
                     controller: block.urlController,
                     decoration: const InputDecoration(
                       hintText: 'https://…',
-                      prefixIcon: Icon(Icons.link),
+                      prefixIcon: Icon(Icons.link_rounded, size: 18),
                     ),
                   ),
-              ],
-            ),
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'Blok türü',
-            onSelected: (value) {
-              final parts = value.split(':');
-              final typeName = parts[0];
-              final level = parts.length > 1 ? int.tryParse(parts[1]) : null;
-              final NoteBlockType? type = NoteBlockType.values
-                  .where((item) => item.name == typeName)
-                  .firstOrNull;
-              if (type != null) onChangedType(type, level: level);
-            },
-            itemBuilder: (_) => const <PopupMenuEntry<String>>[
-              PopupMenuItem(value: 'paragraph', child: Text('Paragraf')),
-              PopupMenuItem(value: 'heading:1', child: Text('Başlık 1')),
-              PopupMenuItem(value: 'heading:2', child: Text('Başlık 2')),
-              PopupMenuItem(value: 'heading:3', child: Text('Başlık 3')),
-              PopupMenuItem(value: 'bulletList', child: Text('Madde listesi')),
-              PopupMenuItem(
-                value: 'numberedList',
-                child: Text('Numaralı liste'),
-              ),
-              PopupMenuItem(value: 'checkbox', child: Text('Yapılacak')),
-              PopupMenuItem(value: 'quote', child: Text('Alıntı')),
-              PopupMenuItem(value: 'code', child: Text('Kod')),
-              PopupMenuItem(value: 'link', child: Text('Bağlantı')),
+                ),
             ],
-            child: const Padding(
-              padding: EdgeInsets.all(10),
-              child: Icon(Icons.drag_indicator, size: 18),
-            ),
           ),
-          IconButton(
-            tooltip: 'Bloğu sil',
-            onPressed: onDelete,
-            icon: const Icon(Icons.close, size: 18),
-          ),
-        ],
-      ),
+        ),
+        PopupMenuButton<String>(
+          tooltip: 'Blok türü',
+          onSelected: (value) {
+            final List<String> parts = value.split(':');
+            final String typeName = parts.first;
+            final int? level = parts.length > 1 ? int.tryParse(parts[1]) : null;
+            for (final NoteBlockType type in NoteBlockType.values) {
+              if (type.name == typeName) {
+                widget.onChangeType(type, level);
+                return;
+              }
+            }
+          },
+          itemBuilder: (_) => const <PopupMenuEntry<String>>[
+            PopupMenuItem(value: 'paragraph', child: Text('Paragraf')),
+            PopupMenuItem(value: 'heading:1', child: Text('Başlık 1')),
+            PopupMenuItem(value: 'heading:2', child: Text('Başlık 2')),
+            PopupMenuItem(value: 'heading:3', child: Text('Başlık 3')),
+            PopupMenuItem(value: 'bulletList', child: Text('Madde listesi')),
+            PopupMenuItem(value: 'numberedList', child: Text('Numaralı liste')),
+            PopupMenuItem(value: 'checkbox', child: Text('Yapılacak')),
+            PopupMenuItem(value: 'quote', child: Text('Alıntı')),
+            PopupMenuItem(value: 'code', child: Text('Kod')),
+            PopupMenuItem(value: 'link', child: Text('Bağlantı')),
+            PopupMenuItem(value: 'divider', child: Text('Ayraç')),
+          ],
+          icon: const Icon(Icons.more_horiz_rounded, size: 18),
+        ),
+      ],
     );
   }
 }
 
-class _AttachmentBlockRow extends ConsumerStatefulWidget {
-  const _AttachmentBlockRow({
+class _AttachmentBlock extends StatelessWidget {
+  const _AttachmentBlock({
     required this.attachment,
     required this.fallbackName,
     required this.image,
@@ -1019,227 +1181,97 @@ class _AttachmentBlockRow extends ConsumerStatefulWidget {
   final Future<void> Function() onDelete;
 
   @override
-  ConsumerState<_AttachmentBlockRow> createState() =>
-      _AttachmentBlockRowState();
-}
-
-class _AttachmentBlockRowState extends ConsumerState<_AttachmentBlockRow> {
-  File? _preview;
-  bool _loadingPreview = false;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.image) unawaited(_loadPreview());
-  }
-
-  @override
-  void didUpdateWidget(covariant _AttachmentBlockRow oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.image && oldWidget.attachment?.id != widget.attachment?.id) {
-      _preview = null;
-      unawaited(_loadPreview());
-    }
-  }
-
-  Future<File?> _ensureLocal() async {
-    final AttachmentEntity? attachment = widget.attachment;
-    if (attachment == null) return null;
-    return ref.read(attachmentsRepositoryProvider).ensureLocal(attachment.id);
-  }
-
-  Future<void> _loadPreview() async {
-    if (_loadingPreview || widget.attachment == null) return;
-    _loadingPreview = true;
-    try {
-      final File? file = await _ensureLocal();
-      if (mounted) setState(() => _preview = file);
-    } catch (_) {
-      if (mounted) setState(() => _preview = null);
-    } finally {
-      if (mounted) _loadingPreview = false;
-    }
-  }
-
-  Future<void> _open() async {
-    final AttachmentEntity? attachment = widget.attachment;
-    if (attachment != null && attachment.isTransferring) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dosya transferi devam ediyor…')),
-      );
-      return;
-    }
-    if (attachment != null && attachment.canRetry) {
-      try {
-        await ref
-            .read(attachmentsRepositoryProvider)
-            .retryTransfer(attachment.id);
-        if (widget.image) unawaited(_loadPreview());
-      } catch (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(error.toString())));
-        }
-      }
-      return;
-    }
-    try {
-      final File? file = await _ensureLocal();
-      if (file == null) throw StateError('Ek kaydı bulunamadı.');
-      if (!mounted) return;
-      await openLocalAttachment(
-        context,
-        file: file,
-        mimeType: attachment?.mimeType,
-        title: attachment?.fileName ?? widget.fallbackName,
-      );
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
-      }
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final repo = ref.watch(attachmentsRepositoryProvider);
-    final AttachmentEntity? attachment = widget.attachment;
-    final String name = attachment?.fileName.trim().isNotEmpty == true
-        ? attachment!.fileName
-        : widget.fallbackName.trim().isEmpty
-        ? 'Ek dosya'
-        : widget.fallbackName;
-
-    return StreamBuilder<Map<String, double>>(
-      stream: repo.watchActiveProgress(),
-      builder: (context, progressSnapshot) {
-        final double? progress = attachment != null
-            ? (progressSnapshot.data?[attachment.id])
-            : null;
-        final bool isTransferring = attachment?.isTransferring == true;
-        final bool canRetry = attachment?.canRetry == true;
-        final String sizeText = attachment != null
-            ? '${(attachment.sizeBytes / 1024).ceil()} KB'
-            : '';
-        final String statusText = attachment == null
-            ? 'Ek kaydı bulunamadı'
-            : attachment.transferStatusLabel(progress);
-
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              if (widget.image)
-                InkWell(
-                  onTap: _open,
-                  child: SizedBox(
-                    height: 220,
-                    child: _preview == null
-                        ? Center(
-                            child: _loadingPreview
-                                ? const CircularProgressIndicator()
-                                : const Icon(
-                                    Icons.broken_image_outlined,
-                                    size: 42,
-                                  ),
-                          )
-                        : Image.file(
-                            _preview!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const Center(
-                              child: Icon(
-                                Icons.broken_image_outlined,
-                                size: 42,
-                              ),
-                            ),
-                          ),
-                  ),
+    final String name = attachment?.fileName ?? fallbackName;
+    if (image && attachment?.hasLocalCopy == true) {
+      final File file = File(attachment!.localPath);
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Stack(
+          children: <Widget>[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                onTap: () => openLocalAttachment(
+                  context,
+                  file: file,
+                  mimeType: attachment!.mimeType,
+                  title: name,
                 ),
-              ListTile(
-                leading: Icon(
-                  widget.image
-                      ? Icons.image_outlined
-                      : Icons.insert_drive_file_outlined,
-                  color: canRetry ? Theme.of(context).colorScheme.error : null,
-                ),
-                title: Text(name),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      attachment == null
-                          ? 'Ek kaydı bulunamadı'
-                          : '$sizeText · $statusText',
-                    ),
-                    if (isTransferring) ...<Widget>[
-                      const SizedBox(height: 4),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: LinearProgressIndicator(
-                          value: progress != null && progress > 0
-                              ? progress
-                              : null,
-                          minHeight: 4,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                onTap: _open,
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    if (attachment != null && isTransferring)
-                      IconButton(
-                        tooltip: 'İptal et',
-                        icon: const Icon(Icons.cancel_outlined, size: 20),
-                        onPressed: () => repo.cancelTransfer(attachment.id),
-                      )
-                    else if (attachment != null && canRetry) ...<Widget>[
-                      IconButton(
-                        tooltip: 'Tekrar dene',
-                        icon: const Icon(Icons.refresh, size: 20),
-                        onPressed: () async {
-                          try {
-                            await repo.retryTransfer(attachment.id);
-                            if (widget.image) unawaited(_loadPreview());
-                          } catch (error) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(error.toString())),
-                              );
-                            }
-                          }
-                        },
-                      ),
-                      IconButton(
-                        tooltip: 'Eki sil',
-                        onPressed: widget.onDelete,
-                        icon: const Icon(Icons.close, size: 20),
-                      ),
-                    ] else
-                      IconButton(
-                        tooltip: 'Eki sil',
-                        onPressed: widget.onDelete,
-                        icon: const Icon(Icons.close, size: 20),
-                      ),
-                  ],
+                child: Image.file(
+                  file,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => _fileTile(context, name),
                 ),
               ),
-            ],
-          ),
-        );
-      },
-    );
+            ),
+            Positioned(
+              top: 6,
+              right: 6,
+              child: IconButton.filledTonal(
+                tooltip: 'Eki kaldır',
+                onPressed: onDelete,
+                icon: const Icon(Icons.close_rounded, size: 18),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return _fileTile(context, name);
   }
-}
 
-extension _FirstOrNull<T> on Iterable<T> {
-  T? get firstOrNull => isEmpty ? null : first;
+  Widget _fileTile(BuildContext context, String name) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Material(
+          color: Theme.of(context).colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: attachment?.hasLocalCopy == true
+                ? () => openLocalAttachment(
+                      context,
+                      file: File(attachment!.localPath),
+                      mimeType: attachment!.mimeType,
+                      title: name,
+                    )
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: <Widget>[
+                  Icon(
+                    image
+                        ? Icons.image_outlined
+                        : Icons.insert_drive_file_outlined,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (attachment != null)
+                          Text(
+                            attachment!.transferStatusLabel(),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Eki kaldır',
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 }
