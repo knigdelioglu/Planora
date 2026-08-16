@@ -103,10 +103,10 @@ abstract final class AppTheme {
   static ThemeData light() => _build(Brightness.light);
   static ThemeData dark() => _build(Brightness.dark);
 
-  static bool get _desktopPlatform => switch (defaultTargetPlatform) {
-    TargetPlatform.macOS || TargetPlatform.windows || TargetPlatform.linux => true,
-    _ => false,
-  };
+  static bool get _desktopPlatform =>
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
 
   static ThemeData _build(Brightness brightness) {
     final bool dark = brightness == Brightness.dark;
@@ -114,9 +114,8 @@ abstract final class AppTheme {
     final Color surface = dark ? AppColors.darkSurface : AppColors.lightSurface;
     final Color subtle = dark ? AppColors.darkSubtle : AppColors.lightSubtle;
     final Color text = dark ? AppColors.darkText : AppColors.lightText;
-    final Color secondary = dark
-        ? AppColors.darkSecondary
-        : AppColors.lightSecondary;
+    final Color secondary =
+        dark ? AppColors.darkSecondary : AppColors.lightSecondary;
     final Color accent = dark ? AppColors.darkAccent : AppColors.lightAccent;
     final Color border = dark ? AppColors.darkBorder : AppColors.lightBorder;
     final Color danger = dark ? AppColors.darkDanger : AppColors.lightDanger;
@@ -205,7 +204,8 @@ abstract final class AppTheme {
       visualDensity: density,
       splashFactory: InkSparkle.splashFactory,
       focusColor: accent.withValues(alpha: 0.12),
-      hoverColor: (dark ? Colors.white : Colors.black).withValues(alpha: 0.035),
+      hoverColor:
+          (dark ? Colors.white : Colors.black).withValues(alpha: 0.035),
       highlightColor: accent.withValues(alpha: 0.07),
       textTheme: typography,
       appBarTheme: AppBarTheme(
@@ -262,7 +262,7 @@ abstract final class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: Size(44, _desktopPlatform ? 40 : 44),
+          minimumSize: const Size(48, 48),
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.control),
@@ -272,7 +272,7 @@ abstract final class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: Size(44, _desktopPlatform ? 40 : 44),
+          minimumSize: const Size(48, 48),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           side: BorderSide(color: border),
           shape: RoundedRectangleBorder(
@@ -282,7 +282,7 @@ abstract final class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          minimumSize: Size(44, _desktopPlatform ? 40 : 44),
+          minimumSize: const Size(48, 48),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.control),
@@ -291,7 +291,7 @@ abstract final class AppTheme {
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(48, 48),
           iconSize: 20,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.control),
@@ -301,7 +301,7 @@ abstract final class AppTheme {
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: ButtonStyle(
           visualDensity: density,
-          minimumSize: const WidgetStatePropertyAll(Size(44, 40)),
+          minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
           side: WidgetStatePropertyAll(BorderSide(color: border)),
           shape: WidgetStatePropertyAll(
             RoundedRectangleBorder(
@@ -315,14 +315,16 @@ abstract final class AppTheme {
         elevation: 0,
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: dark ? AppColors.darkSelected : AppColors.lightSelected,
+        indicatorColor:
+            dark ? AppColors.darkSelected : AppColors.lightSelected,
         labelTextStyle: WidgetStatePropertyAll(typography.labelSmall),
       ),
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: surface,
         elevation: 0,
         minWidth: 68,
-        indicatorColor: dark ? AppColors.darkSelected : AppColors.lightSelected,
+        indicatorColor:
+            dark ? AppColors.darkSelected : AppColors.lightSelected,
         selectedIconTheme: IconThemeData(color: accent, size: 21),
         unselectedIconTheme: IconThemeData(color: secondary, size: 20),
         selectedLabelTextStyle: typography.labelSmall?.copyWith(
