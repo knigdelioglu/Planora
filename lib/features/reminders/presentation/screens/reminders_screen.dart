@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
-import 'package:not_app/app/widgets/common_widgets.dart';
+import 'package:not_app/app/widgets/common_widgets.dart' show EmptyState, ErrorState;
 import 'package:not_app/app/widgets/content/app_content.dart';
 import 'package:not_app/app/widgets/feedback/app_feedback.dart';
 import 'package:not_app/app/widgets/navigation/app_toolbar.dart';
@@ -117,7 +117,8 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen>
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: AppBanner(
               tone: AppBannerTone.warning,
-              message: 'Bildirimler kapalı. Hatırlatıcılar kaydedilir ancak cihaz bildirimi gösterilemez.',
+              message:
+                  'Bildirimler kapalı. Hatırlatıcılar kaydedilir ancak cihaz bildirimi gösterilemez.',
               action: TextButton(
                 onPressed: _openAppSettings,
                 child: const Text('Ayarları aç'),
