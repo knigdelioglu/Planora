@@ -29,7 +29,8 @@ Color tintedSurface(
 }) {
   final Color surface = Theme.of(context).colorScheme.surface;
   if (base == null) return surface;
-  return Color.alphaBlend(base.withOpacity(opacity.clamp(0.0, 1.0)), surface);
+  final double alpha = opacity.clamp(0.0, 1.0).toDouble();
+  return Color.alphaBlend(base.withOpacity(alpha), surface);
 }
 
 class TitleColorValue {
