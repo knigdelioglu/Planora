@@ -11,15 +11,11 @@ final class PlatformFilePickerService implements FilePickerService {
 
   @override
   Future<File?> pickSingleFile() async {
-    final FilePickerResult? result = await FilePicker.pickFiles(
-      allowMultiple: false,
-      withData: false,
-      lockParentWindow: true,
-    );
-    if (result == null || result.files.isEmpty) {
+    final PlatformFile? result = await FilePicker.pickFile();
+    if (result == null) {
       return null;
     }
-    final String? path = result.files.single.path;
+    final String? path = result.path;
     return path == null ? null : File(path);
   }
 }
