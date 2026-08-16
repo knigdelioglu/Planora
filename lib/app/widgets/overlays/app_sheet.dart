@@ -21,6 +21,7 @@ Future<T?> showAppSheet<T>({
     );
   }
 
+  final double resolvedWidth = desktopWidth.clamp(360.0, 480.0).toDouble();
   return showDialog<T>(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.12),
@@ -37,7 +38,7 @@ Future<T?> showAppSheet<T>({
             side: BorderSide(color: Theme.of(context).dividerColor),
           ),
           child: SizedBox(
-            width: desktopWidth.clamp(360, 480),
+            width: resolvedWidth,
             height: double.infinity,
             child: builder(context),
           ),
