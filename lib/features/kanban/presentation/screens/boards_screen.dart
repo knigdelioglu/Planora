@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
 import 'package:not_app/app/router/app_router.dart';
+import 'package:not_app/app/theme/app_theme.dart';
 import 'package:not_app/app/widgets/common_widgets.dart';
+import 'package:not_app/app/widgets/content/app_content.dart';
+import 'package:not_app/app/widgets/navigation/app_toolbar.dart';
 import 'package:not_app/features/kanban/domain/entities/board.dart';
 import 'package:not_app/features/kanban/presentation/screens/kanban_board_screen.dart';
 import 'package:not_app/features/kanban/presentation/widgets/kanban_color.dart';
@@ -30,13 +33,12 @@ class BoardsScreen extends ConsumerWidget {
     final repo = ref.watch(kanbanRepositoryProvider);
     return Column(
       children: <Widget>[
-        AppPageHeader(
+        AppToolbar(
           title: 'Panolar',
-          subtitle: 'İşleri kolonlar ve kartlarla düzenleyin.',
           actions: <Widget>[
             FilledButton.icon(
               onPressed: () => _create(context, ref),
-              icon: const Icon(Icons.add),
+              icon: const Icon(Icons.add_rounded, size: 18),
               label: const Text('Yeni pano'),
             ),
           ],
@@ -51,77 +53,112 @@ class BoardsScreen extends ConsumerWidget {
               if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
               }
-              final boards = snapshot.requireData;
+              final List<BoardEntity> boards = snapshot.requireData;
               if (boards.isEmpty) {
                 return EmptyState(
                   icon: Icons.view_kanban_outlined,
                   title: 'Henüz pano yok',
-                  message:
-                      'İlk panonuzu oluşturup kartlarınızı düzenlemeye başlayın.',
+                  message: 'İşlerini kolonlar ve kartlarla düzenlemek için ilk panonu oluştur.',
                   action: FilledButton(
                     onPressed: () => _create(context, ref),
                     child: const Text('Pano oluştur'),
                   ),
                 );
               }
-              return GridView.builder(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 360,
-                  mainAxisExtent: 150,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                itemCount: boards.length,
-                itemBuilder: (context, index) {
-                  final board = boards[index];
-                  final Color accent =
-                      colorFromHex(board.colorHex) ??
-                      Theme.of(context).colorScheme.primary;
-                  return Card(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(10),
-                      onTap: () => AppRouter.push<void>(
-                        context,
-                        KanbanBoardScreen(boardId: board.id),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Row(
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final double horizontal = constraints.maxWidth < 600 ? 16 : 24;
+                  return GridView.builder(
+                    padding: EdgeInsets.fromLTRB(horizontal, 20, horizontal, 36),
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 340,
+                      mainAxisExtent: 132,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                    ),
+                    itemCount: boards.length,
+                    itemBuilder: (context, index) {
+                      final BoardEntity board = boards[index];
+                      final Color? accent = colorFromHex(board.colorHex);
+                      return Material(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(AppRadius.surface),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(AppRadius.surface),
+                          onTap: () => AppRouter.push<void>(
+                            context,
+                            KanbanBoardScreen(boardId: board.id),
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.fromLTRB(15, 14, 8, 12),
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: Theme.of(context)
+                                    .dividerColor
+                                    .withValues(alpha: 0.7),
+                              ),
+                              borderRadius: BorderRadius.circular(AppRadius.surface),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: <Widget>[
-                                Icon(Icons.view_kanban_outlined, color: accent),
-                                const SizedBox(width: 8),
-                                Container(
-                                  width: 24,
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    color: accent,
-                                    borderRadius: BorderRadius.circular(99),
+                                AppEntityColorIndicator(
+                                  color: accent,
+                                  vertical: true,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: <Widget>[
+                                          Expanded(
+                                            child: Text(
+                                              board.title,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleLarge,
+                                            ),
+                                          ),
+                                          _BoardMenu(board: board),
+                                        ],
+                                      ),
+                                      const Spacer(),
+                                      Row(
+                                        children: <Widget>[
+                                          Icon(
+                                            Icons.view_kanban_outlined,
+                                            size: 15,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              'Son değişiklik ${MaterialLocalizations.of(context).formatShortDate(board.updatedAt.toLocal())}',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const Spacer(),
-                                _BoardMenu(board: board),
                               ],
                             ),
-                            const Spacer(),
-                            Text(
-                              board.title,
-                              style: Theme.of(context).textTheme.titleLarge,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Son değişiklik: ${MaterialLocalizations.of(context).formatShortDate(board.updatedAt.toLocal())}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   );
                 },
               );
@@ -135,32 +172,26 @@ class BoardsScreen extends ConsumerWidget {
 
 class _BoardMenu extends ConsumerWidget {
   const _BoardMenu({required this.board});
+
   final BoardEntity board;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) => PopupMenuButton<String>(
+    tooltip: 'Pano işlemleri',
     onSelected: (value) async {
       if (value == 'rename') {
-        final controller = TextEditingController(text: board.title);
-        final String? title = await showDialog<String>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Panoyu yeniden adlandır'),
-            content: TextField(controller: controller, autofocus: true),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Vazgeç'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, controller.text.trim()),
-                child: const Text('Kaydet'),
-              ),
-            ],
-          ),
+        final TitleColorValue? result = await showTitleColorDialog(
+          context,
+          dialogTitle: 'Panoyu düzenle',
+          fieldLabel: 'Pano adı',
+          initialTitle: board.title,
+          initialColorHex: board.colorHex,
+          confirmLabel: 'Kaydet',
         );
-        controller.dispose();
-        if (title != null && title.isNotEmpty) {
-          await ref.read(kanbanRepositoryProvider).renameBoard(board.id, title);
+        if (result == null) return;
+        final repo = ref.read(kanbanRepositoryProvider);
+        if (result.title != board.title) {
+          await repo.renameBoard(board.id, result.title);
         }
       } else if (value == 'delete') {
         final bool ok =
@@ -169,7 +200,7 @@ class _BoardMenu extends ConsumerWidget {
               builder: (context) => AlertDialog(
                 title: const Text('Pano silinsin mi?'),
                 content: const Text(
-                  'Pano, içindeki kartlar ve kartlara bağlı ekler ile hatırlatıcılar kaldırılır ve silme kayıtları senkronize edilir.',
+                  'Pano ve içindeki kartlar kalıcı olarak kaldırılacak.',
                 ),
                 actions: <Widget>[
                   TextButton(
@@ -188,8 +219,10 @@ class _BoardMenu extends ConsumerWidget {
       }
     },
     itemBuilder: (_) => const <PopupMenuEntry<String>>[
-      PopupMenuItem(value: 'rename', child: Text('Yeniden adlandır')),
+      PopupMenuItem(value: 'rename', child: Text('Düzenle')),
+      PopupMenuDivider(),
       PopupMenuItem(value: 'delete', child: Text('Sil')),
     ],
+    icon: const Icon(Icons.more_horiz_rounded, size: 19),
   );
 }
