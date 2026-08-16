@@ -42,7 +42,7 @@ class AppToolbar extends StatelessWidget {
             if (leading != null) ...<Widget>[leading!, const SizedBox(width: 8)],
             Expanded(
               child: Row(
-                minAxisSize: MainAxisSize.min,
+                mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Flexible(
                     child: Column(
