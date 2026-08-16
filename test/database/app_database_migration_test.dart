@@ -66,6 +66,23 @@ void main() {
     expect(await _tableExists(db, 'app_settings'), isTrue);
     expect(await _tableExists(db, 'sync_meta'), isTrue);
     expect(await _tableExists(db, 'search_fts'), isTrue);
+    expect(
+      await _indexNames(db),
+      containsAll(<String>[
+        'boards_updated_at_idx',
+        'board_columns_board_rank_idx',
+        'cards_column_rank_idx',
+        'cards_board_idx',
+        'notes_updated_at_idx',
+        'notes_deleted_at_idx',
+        'attachments_parent_idx',
+        'attachments_accessed_idx',
+        'reminders_parent_idx',
+        'reminders_schedule_idx',
+        'sync_queue_due_idx',
+        'conflicts_status_idx',
+      ]),
+    );
 
     await db.close();
 
@@ -117,6 +134,13 @@ Future<int> _userVersion(AppDatabase db) async {
 
 Future<Set<String>> _columnNames(AppDatabase db, String tableName) async {
   final rows = await db.customSelect('PRAGMA table_info($tableName)').get();
+  return rows.map((row) => row.read<String>('name')).toSet();
+}
+
+Future<Set<String>> _indexNames(AppDatabase db) async {
+  final rows = await db.customSelect(
+    "SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_autoindex%'",
+  ).get();
   return rows.map((row) => row.read<String>('name')).toSet();
 }
 
