@@ -168,25 +168,22 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     final OverlayState overlay = Overlay.of(context);
     _slashOverlay = OverlayEntry(
       builder: (context) => Positioned.fill(
-        child: IgnorePointer(
-          ignoring: false,
-          child: CompositedTransformFollower(
-            link: block.layerLink,
-            showWhenUnlinked: false,
-            targetAnchor: Alignment.bottomLeft,
-            followerAnchor: Alignment.topLeft,
-            offset: const Offset(34, 4),
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: SlashCommandPalette(
-                query: _slashQuery,
-                selectedIndex: _slashSelectedIndex,
-                onSelect: (command) => _applySlashCommand(index, command),
-                onClose: () {
-                  _activeSlashBlockIndex = null;
-                  _removeSlashOverlay();
-                },
-              ),
+        child: CompositedTransformFollower(
+          link: block.layerLink,
+          showWhenUnlinked: false,
+          targetAnchor: Alignment.bottomLeft,
+          followerAnchor: Alignment.topLeft,
+          offset: const Offset(34, 4),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: SlashCommandPalette(
+              query: _slashQuery,
+              selectedIndex: _slashSelectedIndex,
+              onSelect: (command) => _applySlashCommand(index, command),
+              onClose: () {
+                _activeSlashBlockIndex = null;
+                _removeSlashOverlay();
+              },
             ),
           ),
         ),
@@ -237,9 +234,9 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
   }
 
   NoteDocument _document() => NoteDocument(
-    version: NoteDocument.currentVersion,
-    blocks: _blocks.map((item) => item.toBlock()).toList(growable: false),
-  );
+        version: NoteDocument.currentVersion,
+        blocks: _blocks.map((item) => item.toBlock()).toList(growable: false),
+      );
 
   Future<void> _persist({bool showState = true}) async {
     if (_loading) return;
@@ -305,42 +302,42 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
   }
 
   Future<void> _addReminder() => createReminderForParent(
-    context,
-    ref,
-    parentType: 'note',
-    parentId: widget.noteId,
-    defaultTitle: _title.text.trim().isEmpty
-        ? 'Not hatırlatıcısı'
-        : _title.text.trim(),
-    defaultBody: _document().plainText,
-  );
+        context,
+        ref,
+        parentType: 'note',
+        parentId: widget.noteId,
+        defaultTitle: _title.text.trim().isEmpty
+            ? 'Not hatırlatıcısı'
+            : _title.text.trim(),
+        defaultBody: _document().plainText,
+      );
 
   Future<void> _showReminders() => showAppSheet<void>(
-    context: context,
-    builder: (sheetContext) => Column(
-      children: <Widget>[
-        AppSheetHeader(title: 'Hatırlatıcılar'),
-        const Divider(height: 1),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: <Widget>[
-              FilledButton.icon(
-                onPressed: () async {
-                  Navigator.of(sheetContext).pop();
-                  await _addReminder();
-                },
-                icon: const Icon(Icons.add_alert_outlined, size: 18),
-                label: const Text('Hatırlatıcı ekle'),
+        context: context,
+        builder: (sheetContext) => Column(
+          children: <Widget>[
+            const AppSheetHeader(title: 'Hatırlatıcılar'),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: <Widget>[
+                  FilledButton.icon(
+                    onPressed: () async {
+                      Navigator.of(sheetContext).pop();
+                      await _addReminder();
+                    },
+                    icon: const Icon(Icons.add_alert_outlined, size: 18),
+                    label: const Text('Hatırlatıcı ekle'),
+                  ),
+                  const SizedBox(height: 16),
+                  ReminderList(parentType: 'note', parentId: widget.noteId),
+                ],
               ),
-              const SizedBox(height: 16),
-              ReminderList(parentType: 'note', parentId: widget.noteId),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 
   Future<void> _trashNote() async {
     await _persist(showState: false);
@@ -365,7 +362,9 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
       NoteBlock(id: const Uuid().v7(), type: type, level: level),
     );
     _attachBlockListeners(newBlock);
-    setState(() => _blocks.insert((index + 1).clamp(0, _blocks.length), newBlock));
+    setState(
+      () => _blocks.insert((index + 1).clamp(0, _blocks.length), newBlock),
+    );
     _scheduleSave();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) newBlock.focusNode.requestFocus();
@@ -402,6 +401,24 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     );
     _scheduleSave();
     _scheduleOverlayRefresh();
+  }
+
+  void _focusPreviousBlock(int index) {
+    if (index <= 0) return;
+    final _EditableBlock previous = _blocks[index - 1];
+    if (!previous.isTextBlock) return;
+    previous.focusNode.requestFocus();
+    previous.controller.selection = TextSelection.collapsed(
+      offset: previous.controller.text.length,
+    );
+  }
+
+  void _focusNextBlock(int index) {
+    if (index < 0 || index >= _blocks.length - 1) return;
+    final _EditableBlock next = _blocks[index + 1];
+    if (!next.isTextBlock) return;
+    next.focusNode.requestFocus();
+    next.controller.selection = const TextSelection.collapsed(offset: 0);
   }
 
   KeyEventResult _handleBlockKeyEvent(_EditableBlock block, KeyEvent event) {
@@ -546,6 +563,24 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
       }
     }
 
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      final TextSelection selection = block.controller.selection;
+      if (selection.isCollapsed && selection.baseOffset <= 0 && index > 0) {
+        _focusPreviousBlock(index);
+        return KeyEventResult.handled;
+      }
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      final TextSelection selection = block.controller.selection;
+      if (selection.isCollapsed &&
+          selection.baseOffset >= block.controller.text.length &&
+          index < _blocks.length - 1) {
+        _focusNextBlock(index);
+        return KeyEventResult.handled;
+      }
+    }
+
     return KeyEventResult.ignored;
   }
 
@@ -643,7 +678,10 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
               children: <Widget>[
                 Icon(_saveIcon, size: 14),
                 const SizedBox(width: 5),
-                Text(_saveLabel, style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  _saveLabel,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ],
             ),
             actions: <Widget>[
@@ -690,105 +728,110 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null && _blocks.isEmpty
-                ? Center(child: Text(_error!))
-                : StreamBuilder<List<AttachmentEntity>>(
-                    stream: ref
-                        .watch(attachmentsRepositoryProvider)
-                        .watchForParent('note', widget.noteId),
-                    builder: (context, attachmentSnapshot) {
-                      final Map<String, AttachmentEntity> attachments =
-                          <String, AttachmentEntity>{
+                    ? Center(child: Text(_error!))
+                    : StreamBuilder<List<AttachmentEntity>>(
+                        stream: ref
+                            .watch(attachmentsRepositoryProvider)
+                            .watchForParent('note', widget.noteId),
+                        builder: (context, attachmentSnapshot) {
+                          final Map<String, AttachmentEntity> attachments =
+                              <String, AttachmentEntity>{
                             for (final item in attachmentSnapshot.data ??
                                 const <AttachmentEntity>[])
                               item.id: item,
                           };
-                      return Align(
-                        alignment: Alignment.topCenter,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 760),
-                          child: ListView(
-                            controller: _scrollController,
-                            padding: EdgeInsets.fromLTRB(
-                              MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
-                              34,
-                              MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
-                              100,
-                            ),
-                            children: <Widget>[
-                              TextField(
-                                controller: _title,
-                                maxLines: null,
-                                style: Theme.of(context).textTheme.headlineLarge,
-                                decoration: const InputDecoration(
-                                  hintText: 'Başlıksız',
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  filled: false,
-                                  contentPadding: EdgeInsets.zero,
+                          return Align(
+                            alignment: Alignment.topCenter,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 760),
+                              child: ListView(
+                                controller: _scrollController,
+                                padding: EdgeInsets.fromLTRB(
+                                  MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+                                  34,
+                                  MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+                                  100,
                                 ),
-                              ),
-                              const SizedBox(height: 18),
-                              ReorderableListView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                buildDefaultDragHandles: false,
-                                itemCount: _blocks.length,
-                                onReorder: _reorder,
-                                itemBuilder: (context, index) {
-                                  final _EditableBlock block = _blocks[index];
-                                  return _EditorBlockRow(
-                                    key: ValueKey<String>(block.id),
-                                    block: block,
-                                    index: index,
-                                    attachment: block.attachmentId == null
-                                        ? null
-                                        : attachments[block.attachmentId],
-                                    onKeyEvent: (event) =>
-                                        _handleBlockKeyEvent(block, event),
-                                    onDelete: () => _deleteBlock(block),
-                                    onInsert: () => _insertBlockAfter(
-                                      index,
-                                      NoteBlockType.paragraph,
+                                children: <Widget>[
+                                  TextField(
+                                    controller: _title,
+                                    maxLines: null,
+                                    style:
+                                        Theme.of(context).textTheme.headlineLarge,
+                                    decoration: const InputDecoration(
+                                      hintText: 'Başlıksız',
+                                      border: InputBorder.none,
+                                      enabledBorder: InputBorder.none,
+                                      focusedBorder: InputBorder.none,
+                                      filled: false,
+                                      contentPadding: EdgeInsets.zero,
                                     ),
-                                    onMoveUp: index > 0
-                                        ? () => _moveBlock(block, -1)
-                                        : null,
-                                    onMoveDown: index < _blocks.length - 1
-                                        ? () => _moveBlock(block, 1)
-                                        : null,
-                                    onChangeType: (type, level) {
-                                      setState(() {
-                                        block.type = type;
-                                        block.level = level;
-                                      });
-                                      _scheduleSave();
-                                    },
-                                    onChecked: (value) {
-                                      setState(() => block.checked = value);
-                                      _scheduleSave();
-                                    },
-                                  );
-                                },
-                              ),
-                              const SizedBox(height: 8),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: TextButton.icon(
-                                  onPressed: () => _insertBlockAfter(
-                                    _blocks.length - 1,
-                                    NoteBlockType.paragraph,
                                   ),
-                                  icon: const Icon(Icons.add_rounded, size: 18),
-                                  label: const Text('Blok ekle'),
-                                ),
+                                  const SizedBox(height: 18),
+                                  ReorderableListView.builder(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    buildDefaultDragHandles: false,
+                                    itemCount: _blocks.length,
+                                    onReorder: _reorder,
+                                    itemBuilder: (context, index) {
+                                      final _EditableBlock block = _blocks[index];
+                                      return _EditorBlockRow(
+                                        key: ValueKey<String>(block.id),
+                                        block: block,
+                                        index: index,
+                                        attachment: block.attachmentId == null
+                                            ? null
+                                            : attachments[block.attachmentId],
+                                        onKeyEvent: (event) =>
+                                            _handleBlockKeyEvent(block, event),
+                                        onDelete: () => _deleteBlock(block),
+                                        onInsert: () => _insertBlockAfter(
+                                          index,
+                                          NoteBlockType.paragraph,
+                                        ),
+                                        onMoveUp: index > 0
+                                            ? () => _moveBlock(block, -1)
+                                            : null,
+                                        onMoveDown: index < _blocks.length - 1
+                                            ? () => _moveBlock(block, 1)
+                                            : null,
+                                        onChangeType: (type, level) {
+                                          setState(() {
+                                            block.type = type;
+                                            block.level = level;
+                                          });
+                                          _scheduleSave();
+                                        },
+                                        onChecked: (value) {
+                                          setState(() => block.checked = value);
+                                          _scheduleSave();
+                                        },
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: TextButton.icon(
+                                      onPressed: () => _insertBlockAfter(
+                                        _blocks.length - 1,
+                                        NoteBlockType.paragraph,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.add_rounded,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Blok ekle'),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
@@ -809,15 +852,15 @@ class _EditableBlock {
   });
 
   factory _EditableBlock.from(NoteBlock block) => _EditableBlock(
-    id: block.id,
-    type: block.type,
-    level: block.level,
-    controller: FormattedTextEditingController(text: block.text),
-    focusNode: FocusNode(debugLabel: 'NoteBlock:${block.id}'),
-    urlController: TextEditingController(text: block.url ?? ''),
-    checked: block.checked ?? false,
-    attachmentId: block.attachmentId,
-  );
+        id: block.id,
+        type: block.type,
+        level: block.level,
+        controller: FormattedTextEditingController(text: block.text),
+        focusNode: FocusNode(debugLabel: 'NoteBlock:${block.id}'),
+        urlController: TextEditingController(text: block.url ?? ''),
+        checked: block.checked ?? false,
+        attachmentId: block.attachmentId,
+      );
 
   final String id;
   NoteBlockType type;
@@ -835,16 +878,16 @@ class _EditableBlock {
       type != NoteBlockType.file;
 
   NoteBlock toBlock() => NoteBlock(
-    id: id,
-    type: type,
-    text: controller.text,
-    checked: type == NoteBlockType.checkbox ? checked : null,
-    url: type == NoteBlockType.link && urlController.text.trim().isNotEmpty
-        ? urlController.text.trim()
-        : null,
-    attachmentId: attachmentId,
-    level: type == NoteBlockType.heading ? (level ?? 1) : null,
-  );
+        id: id,
+        type: type,
+        text: controller.text,
+        checked: type == NoteBlockType.checkbox ? checked : null,
+        url: type == NoteBlockType.link && urlController.text.trim().isNotEmpty
+            ? urlController.text.trim()
+            : null,
+        attachmentId: attachmentId,
+        level: type == NoteBlockType.heading ? (level ?? 1) : null,
+      );
 
   void dispose() {
     controller.dispose();
@@ -903,7 +946,9 @@ class _EditorBlockRowState extends State<_EditorBlockRow> {
                 width: 34,
                 child: AnimatedOpacity(
                   opacity: _hovered || block.focusNode.hasFocus ? 1 : 0.18,
-                  duration: const Duration(milliseconds: 110),
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 110),
                   child: Column(
                     children: <Widget>[
                       IconButton(
@@ -918,7 +963,9 @@ class _EditorBlockRowState extends State<_EditorBlockRow> {
                           onSelected: (value) {
                             if (value == 'up') widget.onMoveUp?.call();
                             if (value == 'down') widget.onMoveDown?.call();
-                            if (value == 'delete') unawaited(widget.onDelete());
+                            if (value == 'delete') {
+                              unawaited(widget.onDelete());
+                            }
                           },
                           itemBuilder: (_) => <PopupMenuEntry<String>>[
                             PopupMenuItem(
@@ -937,7 +984,10 @@ class _EditorBlockRowState extends State<_EditorBlockRow> {
                               child: Text('Bloğu sil'),
                             ),
                           ],
-                          icon: const Icon(Icons.drag_indicator_rounded, size: 18),
+                          icon: const Icon(
+                            Icons.drag_indicator_rounded,
+                            size: 18,
+                          ),
                         ),
                       ),
                     ],
@@ -971,48 +1021,65 @@ class _EditorBlockRowState extends State<_EditorBlockRow> {
 
     final TextStyle? style = switch (block.type) {
       NoteBlockType.heading => switch (block.level ?? 1) {
-        1 => Theme.of(context).textTheme.headlineMedium,
-        2 => Theme.of(context).textTheme.headlineSmall,
-        _ => Theme.of(context).textTheme.titleLarge,
-      },
+          1 => Theme.of(context).textTheme.headlineMedium,
+          2 => Theme.of(context).textTheme.headlineSmall,
+          _ => Theme.of(context).textTheme.titleLarge,
+        },
       NoteBlockType.code => Theme.of(context).textTheme.bodyMedium?.copyWith(
-        fontFamily: 'monospace',
-      ),
+            fontFamily: 'monospace',
+          ),
       NoteBlockType.quote => Theme.of(context).textTheme.bodyLarge?.copyWith(
-        fontStyle: FontStyle.italic,
-      ),
+            fontStyle: FontStyle.italic,
+          ),
       _ => Theme.of(context).textTheme.bodyLarge,
     };
 
     final Widget prefix = switch (block.type) {
       NoteBlockType.checkbox => Checkbox(
-        value: block.checked,
-        onChanged: (value) => widget.onChecked(value ?? false),
-      ),
+          value: block.checked,
+          onChanged: (value) => widget.onChecked(value ?? false),
+        ),
       NoteBlockType.bulletList => const SizedBox(
-        width: 26,
-        child: Padding(
-          padding: EdgeInsets.only(top: 7),
-          child: Text('•', textAlign: TextAlign.center),
+          width: 26,
+          child: Padding(
+            padding: EdgeInsets.only(top: 7),
+            child: Text('•', textAlign: TextAlign.center),
+          ),
         ),
-      ),
       NoteBlockType.numberedList => SizedBox(
-        width: 30,
-        child: Padding(
-          padding: const EdgeInsets.only(top: 7),
-          child: Text('${widget.index + 1}.', textAlign: TextAlign.center),
+          width: 30,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 7),
+            child: Text('${widget.index + 1}.', textAlign: TextAlign.center),
+          ),
         ),
-      ),
       NoteBlockType.quote => Container(
-        width: 3,
-        height: 34,
-        margin: const EdgeInsets.only(right: 10, top: 4),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.65),
-          borderRadius: BorderRadius.circular(99),
+          width: 3,
+          height: 34,
+          margin: const EdgeInsets.only(right: 10, top: 4),
+          decoration: BoxDecoration(
+            color: Theme.of(context)
+                .colorScheme
+                .primary
+                .withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(99),
+          ),
         ),
-      ),
       _ => const SizedBox.shrink(),
+    };
+
+    final String hintText = switch (block.type) {
+      NoteBlockType.heading => switch (block.level ?? 1) {
+          1 => 'Başlık 1',
+          2 => 'Başlık 2',
+          _ => 'Başlık 3',
+        },
+      NoteBlockType.code => 'Kod yazın…',
+      NoteBlockType.quote => 'Alıntı yazın…',
+      NoteBlockType.bulletList => 'Liste öğesi…',
+      NoteBlockType.numberedList => 'Numaralı öğe…',
+      NoteBlockType.checkbox => 'Yapılacak görev…',
+      _ => "Yazmaya başlayın veya '/' ile komut açın…",
     };
 
     return Row(
@@ -1030,22 +1097,16 @@ class _EditorBlockRowState extends State<_EditorBlockRow> {
                   maxLines: null,
                   style: style,
                   decoration: InputDecoration(
-                    hintText: block.type == NoteBlockType.heading
-                        ? 'Başlık'
-                        : block.type == NoteBlockType.code
-                        ? 'Kod yazın…'
-                        : block.type == NoteBlockType.quote
-                        ? 'Alıntı yazın…'
-                        : "Yazmaya başlayın veya '/' ile komut açın…",
+                    hintText: hintText,
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
                     filled: block.type == NoteBlockType.code,
                     fillColor: block.type == NoteBlockType.code
                         ? Theme.of(context)
-                              .colorScheme
-                              .surfaceContainer
-                              .withValues(alpha: 0.72)
+                            .colorScheme
+                            .surfaceContainer
+                            .withValues(alpha: 0.72)
                         : Colors.transparent,
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 7,
@@ -1156,48 +1217,56 @@ class _AttachmentBlock extends StatelessWidget {
   }
 
   Widget _fileTile(BuildContext context, String name) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Material(
-      color: Theme.of(context).colorScheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: attachment?.hasLocalCopy == true
-            ? () => openLocalAttachment(
-                context,
-                file: File(attachment!.localPath),
-                mimeType: attachment!.mimeType,
-                title: name,
-              )
-            : null,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: <Widget>[
-              Icon(image ? Icons.image_outlined : Icons.insert_drive_file_outlined),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    if (attachment != null)
-                      Text(
-                        attachment!.transferStatusLabel(),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                  ],
-                ),
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Material(
+          color: Theme.of(context).colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: attachment?.hasLocalCopy == true
+                ? () => openLocalAttachment(
+                      context,
+                      file: File(attachment!.localPath),
+                      mimeType: attachment!.mimeType,
+                      title: name,
+                    )
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: <Widget>[
+                  Icon(
+                    image
+                        ? Icons.image_outlined
+                        : Icons.insert_drive_file_outlined,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (attachment != null)
+                          Text(
+                            attachment!.transferStatusLabel(),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Eki kaldır',
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                  ),
+                ],
               ),
-              IconButton(
-                tooltip: 'Eki kaldır',
-                onPressed: onDelete,
-                icon: const Icon(Icons.close_rounded, size: 18),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
-    ),
-  );
+      );
 }
