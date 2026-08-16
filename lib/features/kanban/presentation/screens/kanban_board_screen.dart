@@ -130,18 +130,31 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
   }
 
   Future<void> _renameBoard(BuildContext context, KanbanSnapshot data) async {
+    final settings = ref.read(settingsRepositoryProvider);
+    final String? colorOverride =
+        await settings.watchEntityColor('board', data.board.id).first;
+    if (!context.mounted) return;
     final TitleColorValue? value = await showTitleColorDialog(
       context,
-      dialogTitle: 'Panoyu yeniden adlandır',
+      dialogTitle: 'Panoyu düzenle',
       fieldLabel: 'Pano adı',
       initialTitle: data.board.title,
-      initialColorHex: data.board.colorHex,
+      initialColorHex: colorOverride ?? data.board.colorHex,
       confirmLabel: 'Kaydet',
     );
-    if (value == null || value.title == data.board.title) return;
-    await ref
-        .read(kanbanRepositoryProvider)
-        .renameBoard(data.board.id, value.title);
+    if (value == null) return;
+    if (value.title != data.board.title) {
+      await ref
+          .read(kanbanRepositoryProvider)
+          .renameBoard(data.board.id, value.title);
+    }
+    final String? nextColorOverride =
+        value.colorHex == data.board.colorHex ? null : value.colorHex;
+    await settings.setEntityColor(
+      'board',
+      data.board.id,
+      nextColorOverride,
+    );
   }
 
   Future<void> _newCardOnBoard(
@@ -227,7 +240,7 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
                       PopupMenuItem(value: 'column', child: Text('Kolon ekle')),
                       PopupMenuItem(
                         value: 'rename',
-                        child: Text('Panoyu yeniden adlandır'),
+                        child: Text('Panoyu düzenle'),
                       ),
                     ],
                     icon: const Icon(Icons.more_horiz_rounded),
@@ -451,12 +464,19 @@ class _KanbanColumn extends ConsumerWidget {
         final Color? columnColor = colorFromHex(
           colorSnapshot.data ?? column.colorHex,
         );
+        final Color columnSurface = tintedSurface(
+          context,
+          columnColor,
+          opacity: Theme.of(context).brightness == Brightness.dark ? 0.22 : 0.14,
+        );
+        final Color columnBorder = columnColor == null
+            ? Theme.of(context).dividerColor.withValues(alpha: 0.65)
+            : columnColor.withValues(alpha: 0.34);
+
         return Container(
           decoration: BoxDecoration(
-            color: Theme.of(context)
-                .colorScheme
-                .surfaceContainer
-                .withValues(alpha: 0.62),
+            color: columnSurface,
+            border: Border.all(color: columnBorder),
             borderRadius: BorderRadius.circular(AppRadius.surface),
           ),
           child: Column(
