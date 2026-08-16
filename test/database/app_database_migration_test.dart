@@ -8,7 +8,9 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 void main() {
   test('schema v1 fixture migrates to v3 without data loss', () async {
-    final _FixtureDatabase fixture = await _FixtureDatabase.create('schema_v1.sql');
+    final _FixtureDatabase fixture = await _FixtureDatabase.create(
+      'schema_v1.sql',
+    );
     addTearDown(fixture.dispose);
 
     final sqlite.Database raw = sqlite.sqlite3.open(fixture.file.path);
@@ -53,7 +55,10 @@ void main() {
 
     final columns = await db.select(db.boardColumns).get();
     columns.sort((a, b) => a.rankKey.compareTo(b.rankKey));
-    expect(columns.map((column) => column.id), <String>['column-early', 'column-late']);
+    expect(columns.map((column) => column.id), <String>[
+      'column-early',
+      'column-late',
+    ]);
     expect(columns.every((column) => column.rankKey.isNotEmpty), isTrue);
 
     final cards = await db.select(db.cards).get();
@@ -93,7 +98,9 @@ void main() {
   });
 
   test('schema v2 fixture migrates conflict rows to v3', () async {
-    final _FixtureDatabase fixture = await _FixtureDatabase.create('schema_v2.sql');
+    final _FixtureDatabase fixture = await _FixtureDatabase.create(
+      'schema_v2.sql',
+    );
     addTearDown(fixture.dispose);
 
     final sqlite.Database raw = sqlite.sqlite3.open(fixture.file.path);
@@ -138,17 +145,21 @@ Future<Set<String>> _columnNames(AppDatabase db, String tableName) async {
 }
 
 Future<Set<String>> _indexNames(AppDatabase db) async {
-  final rows = await db.customSelect(
-    "SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_autoindex%'",
-  ).get();
+  final rows = await db
+      .customSelect(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_autoindex%'",
+      )
+      .get();
   return rows.map((row) => row.read<String>('name')).toSet();
 }
 
 Future<bool> _tableExists(AppDatabase db, String tableName) async {
-  final row = await db.customSelect(
-    'SELECT COUNT(*) AS count FROM sqlite_master WHERE name = ?',
-    variables: <Variable<Object>>[Variable<String>(tableName)],
-  ).getSingle();
+  final row = await db
+      .customSelect(
+        'SELECT COUNT(*) AS count FROM sqlite_master WHERE name = ?',
+        variables: <Variable<Object>>[Variable<String>(tableName)],
+      )
+      .getSingle();
   return row.read<int>('count') == 1;
 }
 
@@ -159,7 +170,9 @@ final class _FixtureDatabase {
   final File file;
 
   static Future<_FixtureDatabase> create(String fixtureName) async {
-    final Directory directory = await Directory.systemTemp.createTemp('not_migration_');
+    final Directory directory = await Directory.systemTemp.createTemp(
+      'not_migration_',
+    );
     final File file = File('${directory.path}/fixture.sqlite');
     final sqlite.Database raw = sqlite.sqlite3.open(file.path);
     try {
