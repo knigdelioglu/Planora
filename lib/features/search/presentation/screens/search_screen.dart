@@ -51,11 +51,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   bool _busy = false;
   String _type = 'all';
 
+  FocusNode _resolveFocusNode(FocusNode? external) {
+    if (external != null) return external;
+    final FocusNode internal = FocusNode(debugLabel: 'SearchScreen');
+    _internalFocusNode = internal;
+    return internal;
+  }
+
   @override
   void initState() {
     super.initState();
-    _focusNode = widget.focusNode ??
-        (_internalFocusNode = FocusNode(debugLabel: 'SearchScreen'))!;
+    _focusNode = _resolveFocusNode(widget.focusNode);
     _focusNode.onKeyEvent = _handleKeyEvent;
     _query.addListener(_changed);
     if (widget.autofocus) {
@@ -69,11 +75,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void didUpdateWidget(covariant SearchScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.focusNode == widget.focusNode) return;
-    if (oldWidget.focusNode != null) oldWidget.focusNode!.onKeyEvent = null;
+    oldWidget.focusNode?.onKeyEvent = null;
     _internalFocusNode?.dispose();
     _internalFocusNode = null;
-    _focusNode = widget.focusNode ??
-        (_internalFocusNode = FocusNode(debugLabel: 'SearchScreen'))!;
+    _focusNode = _resolveFocusNode(widget.focusNode);
     _focusNode.onKeyEvent = _handleKeyEvent;
   }
 
@@ -82,7 +87,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _debounce?.cancel();
     _query.removeListener(_changed);
     _query.dispose();
-    if (widget.focusNode != null) widget.focusNode!.onKeyEvent = null;
+    widget.focusNode?.onKeyEvent = null;
     _internalFocusNode?.dispose();
     super.dispose();
   }
