@@ -212,9 +212,12 @@ class _AppShellState extends ConsumerState<AppShell> {
     final int bottomIndex = _index <= 3 ? _index : 4;
     final Widget body = bottomIndex == 4
         ? _CompactMore(
-            onSearch: () =>
-                AppRouter.push(context, const SearchScreen(autofocus: true)),
-            onSettings: () => AppRouter.push(context, const SettingsScreen()),
+            onSearch: () => AppRouter.push<void>(
+              context,
+              const SearchScreen(autofocus: true),
+            ),
+            onSettings: () =>
+                AppRouter.push<void>(context, const SettingsScreen()),
             sync: _sync(configured, signedIn),
           )
         : _page(_index);
