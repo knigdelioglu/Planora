@@ -72,6 +72,7 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('PRAGMA journal_mode = WAL');
       await customStatement('PRAGMA busy_timeout = 5000');
       await _createSearchFts();
+      await _createProductIndexes();
     },
   );
 
@@ -85,6 +86,26 @@ class AppDatabase extends _$AppDatabase {
         tokenize = 'unicode61 remove_diacritics 2'
       )
     ''');
+  }
+
+  Future<void> _createProductIndexes() async {
+    const List<String> statements = <String>[
+      'CREATE INDEX IF NOT EXISTS boards_updated_at_idx ON boards (updated_at)',
+      'CREATE INDEX IF NOT EXISTS board_columns_board_rank_idx ON board_columns (board_id, rank_key)',
+      'CREATE INDEX IF NOT EXISTS cards_column_rank_idx ON cards (column_id, rank_key)',
+      'CREATE INDEX IF NOT EXISTS cards_board_idx ON cards (board_id)',
+      'CREATE INDEX IF NOT EXISTS notes_updated_at_idx ON notes (updated_at)',
+      'CREATE INDEX IF NOT EXISTS notes_deleted_at_idx ON notes (deleted_at)',
+      'CREATE INDEX IF NOT EXISTS attachments_parent_idx ON attachments (parent_type, parent_id)',
+      'CREATE INDEX IF NOT EXISTS attachments_accessed_idx ON attachments (last_accessed_at)',
+      'CREATE INDEX IF NOT EXISTS reminders_parent_idx ON reminders (parent_type, parent_id)',
+      'CREATE INDEX IF NOT EXISTS reminders_schedule_idx ON reminders (scheduled_at_utc)',
+      'CREATE INDEX IF NOT EXISTS sync_queue_due_idx ON sync_queue (status, next_attempt_at, created_at)',
+      'CREATE INDEX IF NOT EXISTS conflicts_status_idx ON conflicts (status, created_at)',
+    ];
+    for (final String statement in statements) {
+      await customStatement(statement);
+    }
   }
 
   Future<void> _migrateLegacyRanks() async {
