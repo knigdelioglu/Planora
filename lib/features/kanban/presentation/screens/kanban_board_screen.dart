@@ -64,21 +64,27 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
     final RenderBox? box =
         _boardAreaKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
+
     final Offset local = box.globalToLocal(globalPosition);
     final double width = box.size.width;
     if (local.dx < KanbanBoardScreen.kEdgeThreshold) {
+      final double clampedDx = local.dx
+          .clamp(0.0, KanbanBoardScreen.kEdgeThreshold)
+          .toDouble();
       final double proximity =
-          ((KanbanBoardScreen.kEdgeThreshold - local.dx.clamp(0, KanbanBoardScreen.kEdgeThreshold)) /
+          ((KanbanBoardScreen.kEdgeThreshold - clampedDx) /
                   KanbanBoardScreen.kEdgeThreshold)
-              .clamp(0.0, 1.0);
-      _startAutoScroll(-(8 + proximity * 16));
+              .clamp(0.0, 1.0)
+              .toDouble();
+      _startAutoScroll(-(8.0 + proximity * 16.0));
     } else if (local.dx > width - KanbanBoardScreen.kEdgeThreshold) {
       final double start = width - KanbanBoardScreen.kEdgeThreshold;
+      final double clampedDx = local.dx.clamp(start, width).toDouble();
       final double proximity =
-          ((local.dx.clamp(start, width) - start) /
-                  KanbanBoardScreen.kEdgeThreshold)
-              .clamp(0.0, 1.0);
-      _startAutoScroll(8 + proximity * 16);
+          ((clampedDx - start) / KanbanBoardScreen.kEdgeThreshold)
+              .clamp(0.0, 1.0)
+              .toDouble();
+      _startAutoScroll(8.0 + proximity * 16.0);
     } else {
       _stopAutoScroll();
     }
@@ -93,10 +99,9 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
         return;
       }
       final position = _horizontalScrollController.position;
-      final double next = (position.pixels + _autoScrollDelta).clamp(
-        position.minScrollExtent,
-        position.maxScrollExtent,
-      );
+      final double next = (position.pixels + _autoScrollDelta)
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble();
       if (next != position.pixels) {
         _horizontalScrollController.jumpTo(next);
       }
@@ -134,10 +139,9 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
       confirmLabel: 'Kaydet',
     );
     if (value == null || value.title == data.board.title) return;
-    await ref.read(kanbanRepositoryProvider).renameBoard(
-          data.board.id,
-          value.title,
-        );
+    await ref
+        .read(kanbanRepositoryProvider)
+        .renameBoard(data.board.id, value.title);
   }
 
   Future<void> _newCardOnBoard(
@@ -150,7 +154,7 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
     }
     final (String, String)? value = await showAppSheet<(String, String)>(
       context: context,
-      builder: (sheetContext) => _NewCardSheet(columns: data.columns),
+      builder: (_) => _NewCardSheet(columns: data.columns),
     );
     if (value == null) return;
     await ref.read(kanbanRepositoryProvider).createCard(
@@ -166,6 +170,15 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
       return;
     }
     await AppRouter.push<void>(context, CardDetailScreen(cardId: cardId));
+  }
+
+  double _columnWidth(BuildContext context) {
+    final double width = MediaQuery.sizeOf(context).width;
+    if (width < AppBreakpoints.compact) {
+      return (width * 0.86).clamp(272.0, 312.0).toDouble();
+    }
+    if (width < AppBreakpoints.expanded) return 292;
+    return 304;
   }
 
   @override
@@ -204,8 +217,9 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
                   PopupMenuButton<String>(
                     tooltip: 'Pano işlemleri',
                     onSelected: (value) {
-                      if (value == 'column') unawaited(_addColumn(context));
-                      if (value == 'rename') {
+                      if (value == 'column') {
+                        unawaited(_addColumn(context));
+                      } else if (value == 'rename') {
                         unawaited(_renameBoard(context, data));
                       }
                     },
@@ -227,14 +241,15 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
                         key: _boardAreaKey,
                         child: Scrollbar(
                           controller: _horizontalScrollController,
-                          thumbVisibility:
-                              MediaQuery.sizeOf(context).width >= AppBreakpoints.expanded,
+                          thumbVisibility: MediaQuery.sizeOf(context).width >=
+                              AppBreakpoints.expanded,
                           child: ListView.separated(
                             controller: _horizontalScrollController,
                             scrollDirection: Axis.horizontal,
                             padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
                             itemCount: data.columns.length + 1,
-                            separatorBuilder: (_, _) => const SizedBox(width: 12),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 12),
                             itemBuilder: (context, columnIndex) {
                               if (columnIndex == data.columns.length) {
                                 return _AddColumnSurface(
@@ -294,15 +309,6 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
       ),
     );
   }
-
-  double _columnWidth(BuildContext context) {
-    final double width = MediaQuery.sizeOf(context).width;
-    if (width < AppBreakpoints.compact) {
-      return (width * 0.86).clamp(272, 312);
-    }
-    if (width < AppBreakpoints.expanded) return 292;
-    return 304;
-  }
 }
 
 class _EmptyBoard extends StatelessWidget {
@@ -345,7 +351,10 @@ class _AddColumnSurface extends StatelessWidget {
         child: Align(
           alignment: Alignment.topCenter,
           child: Material(
-            color: Theme.of(context).colorScheme.surfaceContainer.withValues(alpha: 0.55),
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainer
+                .withValues(alpha: 0.55),
             borderRadius: BorderRadius.circular(AppRadius.surface),
             child: InkWell(
               onTap: onTap,
@@ -395,7 +404,7 @@ class _KanbanColumn extends ConsumerWidget {
     final TextEditingController controller = TextEditingController();
     final String? title = await showAppSheet<String>(
       context: context,
-      builder: (sheetContext) => _SimpleTitleSheet(
+      builder: (_) => _SimpleTitleSheet(
         title: '${column.title} · yeni kart',
         fieldLabel: 'Kart başlığı',
         confirmLabel: 'Ekle',
@@ -417,7 +426,8 @@ class _KanbanColumn extends ConsumerWidget {
     KanbanCard card,
   ) async {
     final settings = ref.read(settingsRepositoryProvider);
-    final String? current = await settings.watchEntityColor('card', card.id).first;
+    final String? current =
+        await settings.watchEntityColor('card', card.id).first;
     if (!context.mounted) return;
     final ColorPickerValue? value = await showEntityColorDialog(
       context,
@@ -434,6 +444,7 @@ class _KanbanColumn extends ConsumerWidget {
     final bool hasPrev = columnIndex > 0;
     final bool hasNext = columnIndex < snapshot.columns.length - 1;
     final settings = ref.watch(settingsRepositoryProvider);
+
     return StreamBuilder<String?>(
       stream: settings.watchEntityColor('column', column.id),
       builder: (context, colorSnapshot) {
@@ -442,7 +453,10 @@ class _KanbanColumn extends ConsumerWidget {
         );
         return Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainer.withValues(alpha: 0.62),
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainer
+                .withValues(alpha: 0.62),
             borderRadius: BorderRadius.circular(AppRadius.surface),
           ),
           child: Column(
@@ -488,13 +502,16 @@ class _KanbanColumn extends ConsumerWidget {
                     if (rawIndex.isEven) {
                       final int destination = rawIndex ~/ 2;
                       return _InsertionDropZone(
-                        onDrop: (drag) => ref.read(kanbanRepositoryProvider).moveCard(
+                        onDrop: (drag) => ref
+                            .read(kanbanRepositoryProvider)
+                            .moveCard(
                               cardId: drag.card.id,
                               destinationColumnId: column.id,
                               destinationIndex: destination,
                             ),
                       );
                     }
+
                     final int cardIndex = rawIndex ~/ 2;
                     final KanbanCard card = cards[cardIndex];
                     final bool canTop = cardIndex > 0;
@@ -513,40 +530,51 @@ class _KanbanColumn extends ConsumerWidget {
                           canMoveToTop: canTop,
                           canMoveToBottom: canBottom,
                           onTap: () => onOpenCard(card.id),
-                          onChangeColor: () => _changeCardColor(context, ref, card),
+                          onChangeColor: () =>
+                              _changeCardColor(context, ref, card),
                           onMovePrev: hasPrev
-                              ? () => ref.read(kanbanRepositoryProvider).moveCard(
+                              ? () => ref
+                                  .read(kanbanRepositoryProvider)
+                                  .moveCard(
                                     cardId: card.id,
                                     destinationColumnId:
                                         snapshot.columns[columnIndex - 1].id,
                                     destinationIndex: snapshot
                                             .cardsByColumn[
-                                                snapshot.columns[columnIndex - 1].id]
+                                                snapshot.columns[columnIndex - 1]
+                                                    .id]
                                             ?.length ??
                                         0,
                                   )
                               : null,
                           onMoveNext: hasNext
-                              ? () => ref.read(kanbanRepositoryProvider).moveCard(
+                              ? () => ref
+                                  .read(kanbanRepositoryProvider)
+                                  .moveCard(
                                     cardId: card.id,
                                     destinationColumnId:
                                         snapshot.columns[columnIndex + 1].id,
                                     destinationIndex: snapshot
                                             .cardsByColumn[
-                                                snapshot.columns[columnIndex + 1].id]
+                                                snapshot.columns[columnIndex + 1]
+                                                    .id]
                                             ?.length ??
                                         0,
                                   )
                               : null,
                           onMoveTop: canTop
-                              ? () => ref.read(kanbanRepositoryProvider).moveCard(
+                              ? () => ref
+                                  .read(kanbanRepositoryProvider)
+                                  .moveCard(
                                     cardId: card.id,
                                     destinationColumnId: column.id,
                                     destinationIndex: 0,
                                   )
                               : null,
                           onMoveBottom: canBottom
-                              ? () => ref.read(kanbanRepositoryProvider).moveCard(
+                              ? () => ref
+                                  .read(kanbanRepositoryProvider)
+                                  .moveCard(
                                     cardId: card.id,
                                     destinationColumnId: column.id,
                                     destinationIndex: cards.length - 1,
@@ -649,7 +677,7 @@ class _AdaptiveDraggableCard extends StatelessWidget {
         childWhenDragging: Opacity(opacity: 0.24, child: child),
         onDragUpdate: (details) => onDragUpdate(details.globalPosition),
         onDragEnd: (_) => onDragEnd(),
-        onDraggableCanceled: (_, _) => onDragEnd(),
+        onDraggableCanceled: (_, __) => onDragEnd(),
         onDragCompleted: onDragEnd,
         child: child,
       );
@@ -660,7 +688,7 @@ class _AdaptiveDraggableCard extends StatelessWidget {
       childWhenDragging: Opacity(opacity: 0.24, child: child),
       onDragUpdate: (details) => onDragUpdate(details.globalPosition),
       onDragEnd: (_) => onDragEnd(),
-      onDraggableCanceled: (_, _) => onDragEnd(),
+      onDraggableCanceled: (_, __) => onDragEnd(),
       onDragCompleted: onDragEnd,
       child: child,
     );
@@ -692,6 +720,7 @@ class _ColumnMenu extends ConsumerWidget {
       confirmLabel: 'Kaydet',
     );
     if (value == null) return;
+
     final repo = ref.read(kanbanRepositoryProvider);
     if (value.title != column.title) {
       await repo.renameColumn(column.id, value.title);
