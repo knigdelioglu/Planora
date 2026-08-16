@@ -104,7 +104,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
           final int maxIndex = filterSlashCommands(query).length - 1;
           _slashSelectedIndex = maxIndex < 0
               ? 0
-              : _slashSelectedIndex.clamp(0, maxIndex);
+              : _slashSelectedIndex.clamp(0, maxIndex).toInt();
           _scheduleOverlayRefresh();
         }
       } else if (_activeSlashBlockIndex == index) {
@@ -295,7 +295,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     setState(() {
       final int insertion = afterIndex == null
           ? _blocks.length
-          : (afterIndex + 1).clamp(0, _blocks.length);
+          : (afterIndex + 1).clamp(0, _blocks.length).toInt();
       _blocks.insert(insertion, newBlock);
     });
     _scheduleSave();
@@ -363,7 +363,10 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     );
     _attachBlockListeners(newBlock);
     setState(
-      () => _blocks.insert((index + 1).clamp(0, _blocks.length), newBlock),
+      () => _blocks.insert(
+        (index + 1).clamp(0, _blocks.length).toInt(),
+        newBlock,
+      ),
     );
     _scheduleSave();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -503,7 +506,9 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
 
       final TextSelection selection = block.controller.selection;
       final int cursor = selection.isValid
-          ? selection.baseOffset.clamp(0, block.controller.text.length)
+          ? selection.baseOffset
+              .clamp(0, block.controller.text.length)
+              .toInt()
           : block.controller.text.length;
       final String before = block.controller.text.substring(0, cursor);
       final String after = block.controller.text.substring(cursor);
@@ -628,7 +633,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     }
     setState(() {
       final _EditableBlock block = _blocks.removeAt(oldIndex);
-      _blocks.insert(newIndex.clamp(0, _blocks.length), block);
+      _blocks.insert(newIndex.clamp(0, _blocks.length).toInt(), block);
     });
     _scheduleSave();
   }
@@ -1196,7 +1201,7 @@ class _AttachmentBlock extends StatelessWidget {
                 child: Image.file(
                   file,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, _, _) => _fileTile(context, name),
+                  errorBuilder: (_, __, ___) => _fileTile(context, name),
                 ),
               ),
             ),
