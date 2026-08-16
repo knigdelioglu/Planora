@@ -202,185 +202,187 @@ class SlashCommandPalette extends StatelessWidget {
     final theme = Theme.of(context);
     final filtered = filterSlashCommands(query, commands: commands);
 
-    return Material(
-      key: const Key('slash_command_palette'),
-      elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: 0.18),
-      borderRadius: BorderRadius.circular(12),
-      color: theme.colorScheme.surface,
-      clipBehavior: Clip.antiAlias,
-      child: Container(
-        constraints: BoxConstraints(maxWidth: 380, maxHeight: maxHeight),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+    return TextFieldTapRegion(
+      child: Material(
+        key: const Key('slash_command_palette'),
+        elevation: 8,
+        shadowColor: Colors.black.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(12),
+        color: theme.colorScheme.surface,
+        clipBehavior: Clip.antiAlias,
+        child: Container(
+          constraints: BoxConstraints(maxWidth: 380, maxHeight: maxHeight),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+            ),
           ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(
-                  alpha: 0.45,
-                ),
-                border: Border(
-                  bottom: BorderSide(
-                    color: theme.colorScheme.outlineVariant.withValues(
-                      alpha: 0.4,
-                    ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.45,
                   ),
-                ),
-              ),
-              child: Row(
-                children: <Widget>[
-                  Text(
-                    'BLOK EKLE',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.8,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '↑↓ Gezin · ↵ Seç',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontSize: 10,
-                      color: theme.colorScheme.onSurfaceVariant.withValues(
-                        alpha: 0.8,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.4,
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            if (filtered.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 24,
                 ),
-                child: Center(
-                  child: Text(
-                    'Eşleşen komut bulunamadı',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                child: Row(
+                  children: <Widget>[
+                    Text(
+                      'BLOK EKLE',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '↑↓ Gezin · ↵ Seç',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: 10,
+                        color: theme.colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.8,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (filtered.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 24,
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Eşleşen komut bulunamadı',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List<Widget>.generate(filtered.length, (index) {
+                        final item = filtered[index];
+                        final isSelected =
+                            index == selectedIndex.clamp(0, filtered.length - 1);
+
+                        return InkWell(
+                          key: ValueKey('slash_item_${item.id.name}'),
+                          onTap: () => onSelect(item),
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? theme.colorScheme.primaryContainer.withValues(
+                                      alpha: 0.45,
+                                    )
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                              border: isSelected
+                                  ? Border.all(
+                                      color: theme.colorScheme.primary.withValues(
+                                        alpha: 0.3,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            child: Row(
+                              children: <Widget>[
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? theme.colorScheme.primary.withValues(
+                                            alpha: 0.15,
+                                          )
+                                        : theme
+                                              .colorScheme
+                                              .surfaceContainerHighest
+                                              .withValues(alpha: 0.5),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Icon(
+                                    item.icon,
+                                    size: 18,
+                                    color: isSelected
+                                        ? theme.colorScheme.primary
+                                        : theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: <Widget>[
+                                      Text(
+                                        item.title,
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                              fontWeight: isSelected
+                                                  ? FontWeight.w600
+                                                  : FontWeight.w500,
+                                              color: theme.colorScheme.onSurface,
+                                            ),
+                                      ),
+                                      Text(
+                                        item.subtitle,
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              fontSize: 11,
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (isSelected)
+                                  Icon(
+                                    Icons.keyboard_return,
+                                    size: 14,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
                     ),
                   ),
                 ),
-              )
-            else
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: List<Widget>.generate(filtered.length, (index) {
-                      final item = filtered[index];
-                      final isSelected =
-                          index == selectedIndex.clamp(0, filtered.length - 1);
-
-                      return InkWell(
-                        key: ValueKey('slash_item_${item.id.name}'),
-                        onTap: () => onSelect(item),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? theme.colorScheme.primaryContainer.withValues(
-                                    alpha: 0.45,
-                                  )
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                            border: isSelected
-                                ? Border.all(
-                                    color: theme.colorScheme.primary.withValues(
-                                      alpha: 0.3,
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          child: Row(
-                            children: <Widget>[
-                              Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? theme.colorScheme.primary.withValues(
-                                          alpha: 0.15,
-                                        )
-                                      : theme
-                                            .colorScheme
-                                            .surfaceContainerHighest
-                                            .withValues(alpha: 0.5),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Icon(
-                                  item.icon,
-                                  size: 18,
-                                  color: isSelected
-                                      ? theme.colorScheme.primary
-                                      : theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: <Widget>[
-                                    Text(
-                                      item.title,
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
-                                            fontWeight: isSelected
-                                                ? FontWeight.w600
-                                                : FontWeight.w500,
-                                            color: theme.colorScheme.onSurface,
-                                          ),
-                                    ),
-                                    Text(
-                                      item.subtitle,
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            fontSize: 11,
-                                            color: theme
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (isSelected)
-                                Icon(
-                                  Icons.keyboard_return,
-                                  size: 14,
-                                  color: theme.colorScheme.primary,
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
