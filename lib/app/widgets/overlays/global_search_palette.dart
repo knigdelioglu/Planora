@@ -86,13 +86,17 @@ class _GlobalSearchPaletteState extends ConsumerState<GlobalSearchPalette> {
     if (_results.isEmpty) return KeyEventResult.ignored;
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       setState(() {
-        _selectedIndex = (_selectedIndex + 1).clamp(0, _results.length - 1);
+        _selectedIndex = (_selectedIndex + 1)
+            .clamp(0, _results.length - 1)
+            .toInt();
       });
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       setState(() {
-        _selectedIndex = (_selectedIndex - 1).clamp(0, _results.length - 1);
+        _selectedIndex = (_selectedIndex - 1)
+            .clamp(0, _results.length - 1)
+            .toInt();
       });
       return KeyEventResult.handled;
     }
@@ -106,23 +110,24 @@ class _GlobalSearchPaletteState extends ConsumerState<GlobalSearchPalette> {
   }
 
   IconData _icon(String type) => switch (type) {
-    'note' => Icons.description_outlined,
-    'card' => Icons.view_agenda_outlined,
-    'board' => Icons.view_kanban_outlined,
-    _ => Icons.search_rounded,
-  };
+        'note' => Icons.description_outlined,
+        'card' => Icons.view_agenda_outlined,
+        'board' => Icons.view_kanban_outlined,
+        _ => Icons.search_rounded,
+      };
 
   String _typeLabel(String type) => switch (type) {
-    'note' => 'Not',
-    'card' => 'Kart',
-    'board' => 'Pano',
-    _ => 'Sonuç',
-  };
+        'note' => 'Not',
+        'card' => 'Kart',
+        'board' => 'Pano',
+        _ => 'Sonuç',
+      };
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Dialog(
+      key: const ValueKey('global_search_palette'),
       alignment: const Alignment(0, -0.46),
       insetPadding: const EdgeInsets.symmetric(horizontal: 24),
       child: ConstrainedBox(
@@ -133,6 +138,7 @@ class _GlobalSearchPaletteState extends ConsumerState<GlobalSearchPalette> {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               AppSearchField(
+                key: const ValueKey('global_search_text_field'),
                 controller: _query,
                 focusNode: _focusNode,
                 autofocus: true,
@@ -206,7 +212,8 @@ class _GlobalSearchPaletteState extends ConsumerState<GlobalSearchPalette> {
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: <Widget>[
                                         Text(
                                           result.title.trim().isEmpty
@@ -214,7 +221,8 @@ class _GlobalSearchPaletteState extends ConsumerState<GlobalSearchPalette> {
                                               : result.title,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
                                             fontWeight: selected
                                                 ? FontWeight.w600
                                                 : FontWeight.w500,
