@@ -1,6 +1,6 @@
 import 'package:not_app/features/kanban/domain/entities/board.dart';
-import 'package:not_app/features/kanban/domain/entities/kanban_snapshot.dart';
 import 'package:not_app/features/kanban/domain/entities/kanban_card.dart';
+import 'package:not_app/features/kanban/domain/entities/kanban_snapshot.dart';
 
 abstract interface class KanbanRepository {
   Stream<List<BoardEntity>> watchBoards();

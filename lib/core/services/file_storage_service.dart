@@ -142,8 +142,9 @@ final class SandboxFileStorageService implements FileStorageService {
 
   @override
   Future<void> evictCacheUntil({required int maximumBytes}) async {
-    if (maximumBytes < 0)
+    if (maximumBytes < 0) {
       throw ArgumentError.value(maximumBytes, 'maximumBytes');
+    }
     final Directory root = await _supportRoot();
     final Directory cache = Directory(p.join(root.path, 'cache'));
     if (!await cache.exists()) return;

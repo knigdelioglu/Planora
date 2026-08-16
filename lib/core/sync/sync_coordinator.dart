@@ -23,20 +23,14 @@ final class SyncHealthState {
 
 final class SyncCoordinator {
   SyncCoordinator({
-    required NetworkInfo networkInfo,
-    required AuthService authService,
-    required SyncEngine engine,
-    required AppDatabase database,
-    required AppClock clock,
-    required Future<void> Function() reconcileReminders,
-    required AppLogger logger,
-  }) : _networkInfo = networkInfo,
-       _authService = authService,
-       _engine = engine,
-       _database = database,
-       _clock = clock,
-       _reconcileReminders = reconcileReminders,
-       _logger = logger;
+    required this._networkInfo,
+    required this._authService,
+    required this._engine,
+    required this._database,
+    required this._clock,
+    required this._reconcileReminders,
+    required this._logger,
+  });
 
   static const String _lastSuccessKey = 'last_successful_sync_at';
   static const String _lastErrorKey = 'last_sync_error';

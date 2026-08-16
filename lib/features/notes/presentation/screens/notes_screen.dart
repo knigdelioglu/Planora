@@ -99,7 +99,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               return ListView.separated(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
                 itemCount: notes.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final NoteEntity note = notes[index];
                   return ListTile(

@@ -7,12 +7,10 @@ import 'package:not_app/features/reminders/domain/repositories/reminders_reposit
 
 final class LifecycleKanbanRepository implements KanbanRepository {
   LifecycleKanbanRepository({
-    required KanbanRepository delegate,
-    required AttachmentsRepository attachments,
-    required RemindersRepository reminders,
-  }) : _delegate = delegate,
-       _attachments = attachments,
-       _reminders = reminders;
+    required this._delegate,
+    required this._attachments,
+    required this._reminders,
+  });
 
   final KanbanRepository _delegate;
   final AttachmentsRepository _attachments;

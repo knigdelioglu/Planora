@@ -17,19 +17,14 @@ import 'package:uuid/uuid.dart';
 
 final class DriftAttachmentsRepository implements AttachmentsRepository {
   DriftAttachmentsRepository({
-    required AppDatabase database,
-    required FileStorageService storage,
-    required SyncQueueRepository syncQueue,
-    required AppClock clock,
-    required RemoteGateway remote,
+    required this._database,
+    required this._storage,
+    required this._syncQueue,
+    required this._clock,
+    required this._remote,
     Dio? dio,
     Uuid? uuid,
-  }) : _database = database,
-       _storage = storage,
-       _syncQueue = syncQueue,
-       _clock = clock,
-       _remote = remote,
-       _dio = dio ?? Dio(),
+  }) : _dio = dio ?? Dio(),
        _uuid = uuid ?? const Uuid();
 
   final AppDatabase _database;
@@ -141,8 +136,9 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
     final Attachment? row = await (_database.select(
       _database.attachments,
     )..where((tbl) => tbl.id.equals(attachmentId))).getSingleOrNull();
-    if (row == null || row.deletedAt != null)
+    if (row == null || row.deletedAt != null) {
       throw StateError('Attachment does not exist.');
+    }
     if (row.localPath.isNotEmpty && await _storage.exists(row.localPath)) {
       await _touch(row.id);
       return File(row.localPath);

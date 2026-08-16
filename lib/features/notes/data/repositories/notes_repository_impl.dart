@@ -10,14 +10,11 @@ import 'package:uuid/uuid.dart';
 
 final class DriftNotesRepository implements NotesRepository {
   DriftNotesRepository({
-    required AppDatabase database,
-    required SyncQueueRepository syncQueue,
-    required AppClock clock,
+    required this._database,
+    required this._syncQueue,
+    required this._clock,
     Uuid? uuid,
-  }) : _database = database,
-       _syncQueue = syncQueue,
-       _clock = clock,
-       _uuid = uuid ?? const Uuid();
+  }) : _uuid = uuid ?? const Uuid();
 
   final AppDatabase _database;
   final SyncQueueRepository _syncQueue;

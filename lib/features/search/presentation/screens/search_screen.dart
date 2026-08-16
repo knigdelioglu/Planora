@@ -42,11 +42,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
     setState(() => _busy = true);
     final data = await ref.read(searchRepositoryProvider).search(value);
-    if (mounted)
+    if (mounted) {
       setState(() {
         _results = data;
         _busy = false;
       });
+    }
   }
 
   @override
@@ -121,7 +122,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
                 itemCount: _results.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final result = _results[index];
                   final icon = switch (result.entityType) {

@@ -10,16 +10,12 @@ import 'package:uuid/uuid.dart';
 
 final class DriftRemindersRepository implements RemindersRepository {
   DriftRemindersRepository({
-    required AppDatabase database,
-    required NotificationService notifications,
-    required SyncQueueRepository syncQueue,
-    required AppClock clock,
+    required this._database,
+    required this._notifications,
+    required this._syncQueue,
+    required this._clock,
     Uuid? uuid,
-  }) : _database = database,
-       _notifications = notifications,
-       _syncQueue = syncQueue,
-       _clock = clock,
-       _uuid = uuid ?? const Uuid();
+  }) : _uuid = uuid ?? const Uuid();
 
   final AppDatabase _database;
   final NotificationService _notifications;

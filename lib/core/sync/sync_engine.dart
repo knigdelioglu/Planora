@@ -24,20 +24,14 @@ final class SyncRunResult {
 
 final class SyncEngine {
   SyncEngine({
-    required AppDatabase database,
-    required SyncQueueRepository queue,
-    required RemoteGateway remote,
-    required LocalEntityStore localStore,
-    required ConflictRepository conflicts,
-    required AppClock clock,
-    required AppLogger logger,
-  }) : _database = database,
-       _queue = queue,
-       _remote = remote,
-       _localStore = localStore,
-       _conflicts = conflicts,
-       _clock = clock,
-       _logger = logger;
+    required this._database,
+    required this._queue,
+    required this._remote,
+    required this._localStore,
+    required this._conflicts,
+    required this._clock,
+    required this._logger,
+  });
 
   final AppDatabase _database;
   final SyncQueueRepository _queue;

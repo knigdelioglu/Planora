@@ -675,7 +675,7 @@ class _AttachmentBlockRowState extends ConsumerState<_AttachmentBlockRow> {
                     : Image.file(
                         _preview!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Center(
+                        errorBuilder: (_, _, _) => const Center(
                           child: Icon(Icons.broken_image_outlined, size: 42),
                         ),
                       ),

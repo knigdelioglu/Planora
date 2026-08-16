@@ -13,16 +13,12 @@ import 'package:uuid/uuid.dart';
 
 final class DriftConflictRepository implements ConflictRepository {
   DriftConflictRepository({
-    required AppDatabase database,
-    required SyncQueueRepository syncQueue,
-    required LocalEntityStore localStore,
-    required AppClock clock,
+    required this._database,
+    required this._syncQueue,
+    required this._localStore,
+    required this._clock,
     Uuid? uuid,
-  }) : _database = database,
-       _syncQueue = syncQueue,
-       _localStore = localStore,
-       _clock = clock,
-       _uuid = uuid ?? const Uuid();
+  }) : _uuid = uuid ?? const Uuid();
 
   final AppDatabase _database;
   final SyncQueueRepository _syncQueue;
@@ -160,8 +156,9 @@ final class DriftConflictRepository implements ConflictRepository {
     } else {
       final String? boardId = local['boardId'] as String?;
       final String? columnId = local['columnId'] as String?;
-      if (boardId == null || columnId == null)
+      if (boardId == null || columnId == null) {
         throw StateError('Card conflict data is incomplete.');
+      }
       await _database
           .into(_database.cards)
           .insert(
@@ -199,8 +196,9 @@ final class DriftConflictRepository implements ConflictRepository {
     final Conflict? row = await (_database.select(
       _database.conflicts,
     )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
-    if (row == null || row.resolvedAt != null)
+    if (row == null || row.resolvedAt != null) {
       throw StateError('Conflict is not open.');
+    }
     return row;
   }
 

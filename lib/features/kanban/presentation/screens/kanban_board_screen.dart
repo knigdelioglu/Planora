@@ -103,7 +103,7 @@ class KanbanBoardScreen extends ConsumerWidget {
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                     itemCount: data.columns.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    separatorBuilder: (_, _) => const SizedBox(width: 12),
                     itemBuilder: (context, columnIndex) {
                       final column = data.columns[columnIndex];
                       return SizedBox(

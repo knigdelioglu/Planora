@@ -25,12 +25,10 @@ abstract interface class SyncQueueRepository {
 
 final class DriftSyncQueueRepository implements SyncQueueRepository {
   DriftSyncQueueRepository({
-    required AppDatabase database,
-    required AppClock clock,
+    required this._database,
+    required this._clock,
     Uuid? uuid,
-  }) : _database = database,
-       _clock = clock,
-       _uuid = uuid ?? const Uuid();
+  }) : _uuid = uuid ?? const Uuid();
 
   final AppDatabase _database;
   final AppClock _clock;

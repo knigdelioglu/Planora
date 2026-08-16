@@ -106,7 +106,7 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
               return ListView.separated(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
                 itemCount: data.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final ReminderEntity item = data[index];
                   return ListTile(

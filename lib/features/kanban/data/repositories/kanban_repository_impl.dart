@@ -16,14 +16,11 @@ import 'package:uuid/uuid.dart';
 
 final class DriftKanbanRepository implements KanbanRepository {
   DriftKanbanRepository({
-    required AppDatabase database,
-    required SyncQueueRepository syncQueue,
-    required AppClock clock,
+    required this._database,
+    required this._syncQueue,
+    required this._clock,
     Uuid? uuid,
-  }) : _database = database,
-       _syncQueue = syncQueue,
-       _clock = clock,
-       _uuid = uuid ?? const Uuid();
+  }) : _uuid = uuid ?? const Uuid();
 
   final AppDatabase _database;
   final SyncQueueRepository _syncQueue;
@@ -376,8 +373,9 @@ final class DriftKanbanRepository implements KanbanRepository {
     String? description,
   }) async {
     final BoardColumn column = await _requireColumn(columnId);
-    if (column.boardId != boardId)
+    if (column.boardId != boardId) {
       throw StateError('Column does not belong to board.');
+    }
     final String clean = title.trim();
     if (clean.isEmpty) throw ArgumentError('Card title cannot be empty.');
     final List<Card> existing = await _cards(columnId);
