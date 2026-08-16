@@ -160,6 +160,14 @@ final class SyncEngine {
         await _deleteAttachmentBlobIfNeeded(operation);
         return false;
       }
+      final bool alreadyApplied =
+          result.remote.version == version &&
+          _jsonEquivalent(result.remote.payload, payload) &&
+          _sameInstant(result.remote.deletedAt, deletedAt);
+      if (alreadyApplied) {
+        await _deleteAttachmentBlobIfNeeded(operation);
+        return false;
+      }
       final Map<String, Object?>? local = await _localStore.payloadFor(
         operation.entityType,
         operation.entityId,
@@ -180,6 +188,32 @@ final class SyncEngine {
     }
     await _deleteAttachmentBlobIfNeeded(operation);
     return false;
+  }
+
+  bool _sameInstant(DateTime? first, DateTime? second) {
+    if (first == null || second == null) return first == second;
+    return first.toUtc().isAtSameMomentAs(second.toUtc());
+  }
+
+  bool _jsonEquivalent(Object? first, Object? second) {
+    if (first is Map && second is Map) {
+      if (first.length != second.length) return false;
+      for (final Object? key in first.keys) {
+        if (!second.containsKey(key) ||
+            !_jsonEquivalent(first[key], second[key])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    if (first is List && second is List) {
+      if (first.length != second.length) return false;
+      for (int index = 0; index < first.length; index++) {
+        if (!_jsonEquivalent(first[index], second[index])) return false;
+      }
+      return true;
+    }
+    return first == second;
   }
 
   Future<void> _deleteAttachmentBlobIfNeeded(SyncOperation operation) async {
