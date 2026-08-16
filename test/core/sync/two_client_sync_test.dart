@@ -32,6 +32,7 @@ final class _MemoryRemoteGateway implements RemoteGateway {
   final Map<String, RemoteEntity> _entities = <String, RemoteEntity>{};
   int _revision = 0;
   bool online = true;
+  bool failAfterNextApply = false;
 
   @override
   bool get available => online;
@@ -70,6 +71,10 @@ final class _MemoryRemoteGateway implements RemoteGateway {
       syncRevision: _revision,
     );
     _entities[key] = next;
+    if (failAfterNextApply) {
+      failAfterNextApply = false;
+      throw StateError('remote response lost after commit');
+    }
     return RemoteApplySuccess(_revision);
   }
 
@@ -112,16 +117,12 @@ final class _MemoryRemoteGateway implements RemoteGateway {
 final class _ClientHarness {
   _ClientHarness._({
     required this.database,
-    required this.queue,
-    required this.localStore,
     required this.conflicts,
     required this.notes,
     required this.engine,
   });
 
   final AppDatabase database;
-  final DriftSyncQueueRepository queue;
-  final LocalEntityStore localStore;
   final DriftConflictRepository conflicts;
   final DriftNotesRepository notes;
   final SyncEngine engine;
@@ -161,8 +162,6 @@ final class _ClientHarness {
     );
     return _ClientHarness._(
       database: database,
-      queue: queue,
-      localStore: localStore,
       conflicts: conflicts,
       notes: notes,
       engine: engine,
@@ -275,5 +274,51 @@ void main() {
             ))
             .get();
     expect(remainingPending, isEmpty);
+  });
+
+  test('retry after a lost remote acknowledgement is idempotent', () async {
+    final _MutableClock clock = _MutableClock(DateTime.utc(2026, 8, 16, 9));
+    final _MemoryRemoteGateway remote = _MemoryRemoteGateway()
+      ..failAfterNextApply = true;
+    final _ClientHarness client = _ClientHarness.create(
+      remote: remote,
+      clock: clock,
+    );
+    addTearDown(client.close);
+
+    await client.notes.createNote(title: 'Retry safe');
+    final SyncRunResult firstRun = await client.engine.runOnce();
+    expect(firstRun.pushed, 0);
+    expect(firstRun.conflicts, 0);
+
+    final List<SyncQueueData> waiting =
+        await (client.database.select(client.database.syncQueue)
+              ..where(
+                (tbl) => tbl.status.equals(
+                  SyncOperationStatus.retryWaiting.name,
+                ),
+              ))
+            .get();
+    expect(waiting, hasLength(1));
+
+    clock.advance(const Duration(hours: 1));
+    final SyncRunResult retryRun = await client.engine.runOnce();
+    expect(retryRun.pushed, 1);
+    expect(retryRun.conflicts, 0);
+
+    final List<SyncQueueData> remainingPending =
+        await (client.database.select(client.database.syncQueue)..where(
+              (tbl) => tbl.status.isNotIn(<String>[
+                SyncOperationStatus.completed.name,
+              ]),
+            ))
+            .get();
+    expect(remainingPending, isEmpty);
+
+    final List<Conflict> openConflicts =
+        await (client.database.select(client.database.conflicts)
+              ..where((tbl) => tbl.resolvedAt.isNull()))
+            .get();
+    expect(openConflicts, isEmpty);
   });
 }
