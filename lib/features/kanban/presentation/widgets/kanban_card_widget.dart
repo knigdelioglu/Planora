@@ -62,7 +62,18 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
     final bool showActions =
         !widget.feedback &&
         (_hovered || _focused || MediaQuery.sizeOf(context).width < 600);
-    final Color surface = widget.backgroundColor ?? theme.colorScheme.surface;
+    final Color baseSurface =
+        widget.backgroundColor ?? theme.colorScheme.surface;
+    final double tintAlpha = theme.brightness == Brightness.dark ? 0.22 : 0.15;
+    final Color surface = widget.accentColor == null
+        ? baseSurface
+        : Color.alphaBlend(
+            widget.accentColor!.withValues(alpha: tintAlpha),
+            baseSurface,
+          );
+    final Color borderColor = widget.accentColor == null
+        ? theme.dividerColor.withValues(alpha: 0.7)
+        : widget.accentColor!.withValues(alpha: 0.36);
 
     return Semantics(
       label: 'Kanban kartı: ${widget.card.title}',
@@ -92,7 +103,7 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
                     border: Border.all(
                       color: widget.feedback
                           ? theme.colorScheme.primary.withValues(alpha: 0.75)
-                          : theme.dividerColor.withValues(alpha: 0.7),
+                          : borderColor,
                     ),
                   ),
                   child: Row(
