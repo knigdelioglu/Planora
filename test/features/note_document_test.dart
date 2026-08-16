@@ -46,6 +46,6 @@ void main() {
     });
     final doc = NoteDocument.decode(raw);
     expect(doc.blocks.single.type, NoteBlockType.unknown);
-    expect(jsonDecode(doc.encode()), isA<Map>());
+    expect(jsonDecode(doc.encode()), isA<Map<Object?, Object?>>());
   });
 }
