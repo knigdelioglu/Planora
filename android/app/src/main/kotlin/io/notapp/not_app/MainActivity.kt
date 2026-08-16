@@ -45,14 +45,9 @@ class MainActivity : FlutterActivity() {
                 val intent = Intent(Intent.ACTION_VIEW).apply {
                     setDataAndType(uri, mimeType)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                if (intent.resolveActivity(packageManager) == null) {
-                    result.success(false)
-                } else {
-                    startActivity(intent)
-                    result.success(true)
-                }
+                startActivity(intent)
+                result.success(true)
             } catch (_: ActivityNotFoundException) {
                 result.success(false)
             } catch (error: Exception) {
