@@ -6,12 +6,9 @@ import 'package:not_app/core/remote/remote_models.dart';
 import 'package:not_app/core/utils/clock.dart';
 
 final class LocalEntityStore {
-  LocalEntityStore({required AppDatabase database, required AppClock clock})
-    : _database = database,
-      _clock = clock;
+  LocalEntityStore({required this._database, required AppClock clock});
 
   final AppDatabase _database;
-  final AppClock _clock;
 
   Future<bool> hasPendingMutation(String entityType, String entityId) async {
     final row =
@@ -317,11 +314,11 @@ final class LocalEntityStore {
   String _notePlainText(String contentJson) {
     try {
       final Object? decoded = jsonDecode(contentJson);
-      if (decoded is! Map) return '';
+      if (decoded is! Map<Object?, Object?>) return '';
       final Object? blocks = decoded['blocks'];
-      if (blocks is! List) return '';
+      if (blocks is! List<Object?>) return '';
       return blocks
-          .whereType<Map>()
+          .whereType<Map<Object?, Object?>>()
           .map((block) => (block['text'] ?? block['url'] ?? '').toString())
           .where((text) => text.isNotEmpty)
           .join('\n');
