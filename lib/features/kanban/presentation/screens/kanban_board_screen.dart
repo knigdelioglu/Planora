@@ -346,16 +346,20 @@ class _KanbanColumn extends ConsumerWidget {
         return DragTarget<_CardDragData>(
           onWillAcceptWithDetails: (details) =>
               details.data.card.columnId != column.id,
-          onAcceptWithDetails: (details) => ref
-              .read(kanbanRepositoryProvider)
-              .moveCard(
-                cardId: details.data.card.id,
-                destinationColumnId: column.id,
-                destinationIndex: cards.length,
-              ),
+          onAcceptWithDetails: (details) {
+            unawaited(
+              ref
+                  .read(kanbanRepositoryProvider)
+                  .moveCard(
+                    cardId: details.data.card.id,
+                    destinationColumnId: column.id,
+                    destinationIndex: cards.length,
+                  ),
+            );
+          },
           builder: (context, candidateData, rejectedData) {
             final bool crossColumnHover = candidateData.any(
-              (drag) => drag.card.columnId != column.id,
+              (drag) => drag != null && drag.card.columnId != column.id,
             );
             return Card(
               color: tintedSurface(context, columnColor, opacity: 0.08),
