@@ -84,13 +84,14 @@ final class _MemoryRemoteGateway implements RemoteGateway {
     int limit = 250,
   }) async {
     if (!online) throw StateError('remote unavailable');
-    final List<RemoteEntity> rows = _entities.values
-        .where((entity) => entity.syncRevision > afterRevision)
-        .toList()
-      ..sort(
-        (RemoteEntity a, RemoteEntity b) =>
-            a.syncRevision.compareTo(b.syncRevision),
-      );
+    final List<RemoteEntity> rows =
+        _entities.values
+            .where((entity) => entity.syncRevision > afterRevision)
+            .toList()
+          ..sort(
+            (RemoteEntity a, RemoteEntity b) =>
+                a.syncRevision.compareTo(b.syncRevision),
+          );
     return rows.take(limit).toList(growable: false);
   }
 
@@ -172,109 +173,104 @@ final class _ClientHarness {
 }
 
 void main() {
-  test('two clients converge after an offline edit conflict is resolved', () async {
-    final _MutableClock clock = _MutableClock(DateTime.utc(2026, 8, 16, 8));
-    final _MemoryRemoteGateway remote = _MemoryRemoteGateway();
-    final _ClientHarness deviceA = _ClientHarness.create(
-      remote: remote,
-      clock: clock,
-    );
-    final _ClientHarness deviceB = _ClientHarness.create(
-      remote: remote,
-      clock: clock,
-    );
-    addTearDown(deviceA.close);
-    addTearDown(deviceB.close);
+  test(
+    'two clients converge after an offline edit conflict is resolved',
+    () async {
+      final _MutableClock clock = _MutableClock(DateTime.utc(2026, 8, 16, 8));
+      final _MemoryRemoteGateway remote = _MemoryRemoteGateway();
+      final _ClientHarness deviceA = _ClientHarness.create(
+        remote: remote,
+        clock: clock,
+      );
+      final _ClientHarness deviceB = _ClientHarness.create(
+        remote: remote,
+        clock: clock,
+      );
+      addTearDown(deviceA.close);
+      addTearDown(deviceB.close);
 
-    final String noteId = await deviceA.notes.createNote(title: 'Original');
-    final SyncRunResult initialPush = await deviceA.engine.runOnce();
-    expect(initialPush.pushed, 1);
+      final String noteId = await deviceA.notes.createNote(title: 'Original');
+      final SyncRunResult initialPush = await deviceA.engine.runOnce();
+      expect(initialPush.pushed, 1);
 
-    final SyncRunResult initialPull = await deviceB.engine.runOnce();
-    expect(initialPull.pulled, 1);
-    expect((await deviceB.notes.getNote(noteId))?.title, 'Original');
+      final SyncRunResult initialPull = await deviceB.engine.runOnce();
+      expect(initialPull.pulled, 1);
+      expect((await deviceB.notes.getNote(noteId))?.title, 'Original');
 
-    clock.advance(const Duration(minutes: 1));
-    await deviceA.notes.updateTitle(noteId, 'Device A');
-    clock.advance(const Duration(minutes: 1));
-    await deviceB.notes.updateTitle(noteId, 'Device B');
+      clock.advance(const Duration(minutes: 1));
+      await deviceA.notes.updateTitle(noteId, 'Device A');
+      clock.advance(const Duration(minutes: 1));
+      await deviceB.notes.updateTitle(noteId, 'Device B');
 
-    final SyncRunResult deviceAUpdate = await deviceA.engine.runOnce();
-    expect(deviceAUpdate.pushed, 1);
+      final SyncRunResult deviceAUpdate = await deviceA.engine.runOnce();
+      expect(deviceAUpdate.pushed, 1);
 
-    final SyncRunResult conflictingRun = await deviceB.engine.runOnce();
-    expect(conflictingRun.conflicts, 1);
-    expect(
-      (await deviceB.notes.getNote(noteId))?.title,
-      'Device B',
-      reason: 'A pull must not overwrite an unresolved dirty local version.',
-    );
+      final SyncRunResult conflictingRun = await deviceB.engine.runOnce();
+      expect(conflictingRun.conflicts, 1);
+      expect(
+        (await deviceB.notes.getNote(noteId))?.title,
+        'Device B',
+        reason: 'A pull must not overwrite an unresolved dirty local version.',
+      );
 
-    final List<Conflict> openConflicts =
-        await (deviceB.database.select(deviceB.database.conflicts)
-              ..where((tbl) => tbl.resolvedAt.isNull()))
-            .get();
-    expect(openConflicts, hasLength(1));
+      final List<Conflict> openConflicts = await (deviceB.database.select(
+        deviceB.database.conflicts,
+      )..where((tbl) => tbl.resolvedAt.isNull())).get();
+      expect(openConflicts, hasLength(1));
 
-    final List<SyncQueueData> blockedBeforeResolution =
-        await (deviceB.database.select(deviceB.database.syncQueue)
-              ..where(
+      final List<SyncQueueData> blockedBeforeResolution =
+          await (deviceB.database.select(deviceB.database.syncQueue)..where(
                 (tbl) =>
                     tbl.entityType.equals('note') &
                     tbl.entityId.equals(noteId) &
-                    tbl.status.equals(
-                      SyncOperationStatus.blockedConflict.name,
-                    ),
+                    tbl.status.equals(SyncOperationStatus.blockedConflict.name),
               ))
-            .get();
-    expect(blockedBeforeResolution, hasLength(1));
+              .get();
+      expect(blockedBeforeResolution, hasLength(1));
 
-    clock.advance(const Duration(minutes: 1));
-    await deviceB.conflicts.resolveUsingLocal(openConflicts.single.id);
+      clock.advance(const Duration(minutes: 1));
+      await deviceB.conflicts.resolveUsingLocal(openConflicts.single.id);
 
-    final noteAfterResolution = await deviceB.notes.getNote(noteId);
-    expect(noteAfterResolution?.title, 'Device B');
-    expect(noteAfterResolution?.version, 3);
+      final noteAfterResolution = await deviceB.notes.getNote(noteId);
+      expect(noteAfterResolution?.title, 'Device B');
+      expect(noteAfterResolution?.version, 3);
 
-    final List<SyncQueueData> blockedAfterResolution =
-        await (deviceB.database.select(deviceB.database.syncQueue)
-              ..where(
+      final List<SyncQueueData> blockedAfterResolution =
+          await (deviceB.database.select(deviceB.database.syncQueue)..where(
                 (tbl) =>
                     tbl.entityType.equals('note') &
                     tbl.entityId.equals(noteId) &
-                    tbl.status.equals(
-                      SyncOperationStatus.blockedConflict.name,
-                    ),
+                    tbl.status.equals(SyncOperationStatus.blockedConflict.name),
               ))
-            .get();
-    expect(blockedAfterResolution, isEmpty);
+              .get();
+      expect(blockedAfterResolution, isEmpty);
 
-    final SyncRunResult resolvedPush = await deviceB.engine.runOnce();
-    expect(resolvedPush.pushed, 1);
-    expect(resolvedPush.conflicts, 0);
+      final SyncRunResult resolvedPush = await deviceB.engine.runOnce();
+      expect(resolvedPush.pushed, 1);
+      expect(resolvedPush.conflicts, 0);
 
-    final SyncRunResult convergencePull = await deviceA.engine.runOnce();
-    expect(convergencePull.pulled, 1);
-    expect((await deviceA.notes.getNote(noteId))?.title, 'Device B');
-    expect((await deviceA.notes.getNote(noteId))?.version, 3);
-    expect((await deviceB.notes.getNote(noteId))?.title, 'Device B');
-    expect((await deviceB.notes.getNote(noteId))?.version, 3);
+      final SyncRunResult convergencePull = await deviceA.engine.runOnce();
+      expect(convergencePull.pulled, 1);
+      expect((await deviceA.notes.getNote(noteId))?.title, 'Device B');
+      expect((await deviceA.notes.getNote(noteId))?.version, 3);
+      expect((await deviceB.notes.getNote(noteId))?.title, 'Device B');
+      expect((await deviceB.notes.getNote(noteId))?.version, 3);
 
-    final List<Conflict> remainingConflicts =
-        await (deviceB.database.select(deviceB.database.conflicts)
-              ..where((tbl) => tbl.resolvedAt.isNull()))
-            .get();
-    expect(remainingConflicts, isEmpty);
+      final List<Conflict> remainingConflicts = await (deviceB.database.select(
+        deviceB.database.conflicts,
+      )..where((tbl) => tbl.resolvedAt.isNull())).get();
+      expect(remainingConflicts, isEmpty);
 
-    final List<SyncQueueData> remainingPending =
-        await (deviceB.database.select(deviceB.database.syncQueue)..where(
-              (tbl) => tbl.status.isNotIn(<String>[
-                SyncOperationStatus.completed.name,
-              ]),
-            ))
-            .get();
-    expect(remainingPending, isEmpty);
-  });
+      final List<SyncQueueData> remainingPending =
+          await (deviceB.database.select(deviceB.database.syncQueue)..where(
+                (tbl) => tbl.status.isNotIn(<String>[
+                  SyncOperationStatus.completed.name,
+                ]),
+              ))
+              .get();
+      expect(remainingPending, isEmpty);
+    },
+  );
 
   test('retry after a lost remote acknowledgement is idempotent', () async {
     final _MutableClock clock = _MutableClock(DateTime.utc(2026, 8, 16, 9));
@@ -292,12 +288,9 @@ void main() {
     expect(firstRun.conflicts, 0);
 
     final List<SyncQueueData> waiting =
-        await (client.database.select(client.database.syncQueue)
-              ..where(
-                (tbl) => tbl.status.equals(
-                  SyncOperationStatus.retryWaiting.name,
-                ),
-              ))
+        await (client.database.select(client.database.syncQueue)..where(
+              (tbl) => tbl.status.equals(SyncOperationStatus.retryWaiting.name),
+            ))
             .get();
     expect(waiting, hasLength(1));
 
@@ -315,10 +308,9 @@ void main() {
             .get();
     expect(remainingPending, isEmpty);
 
-    final List<Conflict> openConflicts =
-        await (client.database.select(client.database.conflicts)
-              ..where((tbl) => tbl.resolvedAt.isNull()))
-            .get();
+    final List<Conflict> openConflicts = await (client.database.select(
+      client.database.conflicts,
+    )..where((tbl) => tbl.resolvedAt.isNull())).get();
     expect(openConflicts, isEmpty);
   });
 }

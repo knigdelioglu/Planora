@@ -91,7 +91,7 @@ final class AppBootstrap {
         syncQueue: queue,
         clock: clock,
       );
-      final AttachmentsRepository attachments = DriftAttachmentsRepository(
+      final DriftAttachmentsRepository attachments = DriftAttachmentsRepository(
         database: database,
         storage: storage,
         syncQueue: queue,
@@ -124,6 +124,7 @@ final class AppBootstrap {
         logger: logger,
       );
       await reminders.reconcile();
+      await attachments.reconcile();
       await coordinator.start();
 
       return AppServices(

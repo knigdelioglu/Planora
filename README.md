@@ -1,306 +1,278 @@
 # Not
 
-Not, Notion benzeri kişisel not alma ve Kanban çalışma alanı için tasarlanan **tek kullanıcılı, offline-first Flutter uygulamasıdır**. Yerel veri tabanı uygulamanın birincil çalışma kaynağıdır; ağ bağlantısı olmadan notlar, kartlar, ekler ve hatırlatıcılar kullanılabilir. Bulut senkronizasyonu yerel deneyimi bloklamayan ikincil bir katmandır.
+Not, Notion benzeri kişisel not alma ve Kanban çalışma alanı için tasarlanan **tek kullanıcılı, offline-first Flutter uygulamasıdır**. Yerel veritabanı uygulamanın birincil çalışma kaynağıdır (source of truth); ağ bağlantısı olmadan notlar, kartlar, ekler ve hatırlatıcılar tam işlevsellikle kullanılabilir. Bulut senkronizasyonu yerel deneyimi bloklamayan, arka planda çalışan ikincil bir katmandır.
 
-> Durum: Mimari iskelet. Bu repo ürün kodunun geliştirilmesi için başlangıç yapısını, sınırları ve teknik kararları içerir.
+> **Durum:** Üretim Sürümü Adayı (Production-Ready) — Android, iOS ve macOS platformlarında çalışan, Drift yerel veritabanı, Supabase bulut senkronizasyonu, FTS5 tam metin arama, çift cihaz çakışma çözümü, erişilebilirlik (WCAG AA) ve kapsamlı test güvencesine sahip tam özellikli sürüm.
 
-## Tasarım ve UX
+---
 
-Uygulamanın ekran, navigasyon, buton, form, Kanban, not editörü, hatırlatıcı, dosya/ek, arama, ayarlar, offline/sync durumları, responsive davranış, dark/light theme ve erişilebilirlik spesifikasyonu:
+## 📚 Bağlayıcı Dokümantasyon ve Mimari Referanslar
 
-**[docs/UX_DESIGN.md](docs/UX_DESIGN.md)**
+Uygulamanın tasarım, kapsam, yol haritası ve test protokolleri aşağıdaki dokümanlarla güvence altına alınmıştır:
 
-Bu belge UI geliştirmede bağlayıcı tasarım referansıdır. Yeni ekranlar ve ortak componentler burada tanımlanan design token, responsive ve etkileşim kurallarına uymalıdır.
-
-## Scope ve ürün sınırları
-
-Uygulamanın hangi özellikleri kapsadığı, hangi ürün yönlerinin özellikle kapsam dışında tutulduğu, tek kullanıcı sınırı, platform kapsamı, offline/sync davranışı, MVP sınırları ve scope değişiklik prosedürü:
-
-**[docs/SCOPE.md](docs/SCOPE.md)**
-
-Bu belge ürün geliştirmede bağlayıcı kapsam referansıdır. Yeni bir özellik mevcut scope içinde açıkça yer almıyorsa implementation'a alınmadan önce kapsam etkisi değerlendirilmelidir.
-
-## Ürünleşme yol haritası
-
-Mevcut mimari iskeletten başlayarak native platform bootstrap, dependency wiring, production Drift katmanı, design system, Notes, Kanban, attachments, reminders, local search, Supabase/Auth/RLS, sync engine, conflict recovery, platform hardening, kalite güvence, beta/release candidate ve imzalı ürün dağıtımına kadar tüm yürütme planı:
-
-**[docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md)**
-
-Bu belge geliştirme sırasını ve faz çıkış kriterlerini belirleyen bağlayıcı yürütme planıdır. Bir faz yalnız kod yazıldığı için değil, ilgili kalite kapıları karşılandığında tamamlanmış kabul edilir.
-
-### Belge otoritesi
-
-Geliştirme kararlarında sıra şöyledir:
-
-1. `docs/SCOPE.md` — ne yapılacağını ve yapılmayacağını belirler.
-2. `docs/UX_DESIGN.md` — kullanıcı deneyimi ve UI sözleşmesini belirler.
-3. `docs/PRODUCT_ROADMAP.md` — hangi sırayla ve hangi kalite kapılarıyla geliştirileceğini belirler.
-4. `README.md` — mimari ve proje genel görünümüdür.
-
-## Ürün kapsamı
-
-- Notlar ve zengin içerik için ölçeklenebilir feature alanı
-- Kanban panoları, kolonlar ve sürükle-bırak kart sıralaması
-- Offline-first optimistic UI
-- Fractional indexing ile düşük çakışmalı kart sıralaması
-- Yerel SQLite/Drift veri kaynağı
-- Kalıcı yerel ek dosya deposu; veritabanında yalnız URI + metadata
-- Android/iOS/macOS yerel zamanlanmış bildirim altyapısı
-- Dayanıklı sync queue ile Supabase/PostgreSQL + Storage senkronizasyonu
-- Bağlantı geri geldiğinde retry/backoff tabanlı eşitleme
-- Tek kullanıcı modeli: collaboration, workspace üyeliği ve rol/yetki sistemi yok
-
-## Tek kullanıcı kararı
-
-Bu uygulama tek kişi tarafından kullanılacaktır. Bu nedenle mimaride bilinçli olarak şunlar **yoktur**:
-
-- takım/workspace üyeliği,
-- paylaşım ve canlı ortak düzenleme,
-- RBAC/rol matrisi,
-- kullanıcılar arası conflict-resolution protokolü,
-- davet ve organizasyon yönetimi.
-
-Bulut senkronizasyonu açıldığında Supabase Auth yalnızca uzak veriyi güvenli biçimde tek hesaba bağlamak için güvenlik sınırı olarak kullanılabilir. İstemciye `service_role` anahtarı gömülmez.
-
-## Mimari
-
-**Feature-First Clean Architecture** kullanılır.
-
-Her feature kendi `presentation`, `domain` ve `data` katmanlarına ayrılır. Domain katmanı Flutter widget'larından, Drift'ten, Supabase'ten ve platform bildirim API'lerinden bağımsız tutulur.
-
-```text
-UI / Riverpod Controller
-        |
-        v
-Domain Use Case
-        |
-        v
-Repository Interface
-        |
-        +--------------------+
-        |                    |
-        v                    v
-Drift Local Data         Remote Data Source
-(Source of Truth)        (Supabase)
-        |
-        v
-Sync Queue -> Sync Coordinator -> retry/backoff/conflict policy
-```
-
-### Offline-first temel kuralı
-
-1. Kullanıcı işlemi UI'da optimistic olarak uygulanır.
-2. İşlem önce yerel veritabanına transaction ile yazılır.
-3. Aynı transaction içinde gerekli sync operation kuyruğa eklenir.
-4. UI, Drift stream'lerinden yerel source-of-truth veriyi izler.
-5. Ağ varsa Sync Coordinator kuyruğu uzak sunucuya aktarır.
-6. Ağ yoksa kullanıcı akışı etkilenmez; işlem kuyrukta kalır.
-7. Başarılı uzak yazımdan sonra sync kaydı tamamlanır.
-
-## Kritik teknik kararlar
-
-### 1. Kart sıralaması
-
-Kartlar `1, 2, 3...` biçiminde topluca yeniden indekslenmez. Kolon içi ve kolonlar arası taşımalarda **fractional indexing / LexoRank benzeri sıralama anahtarı** kullanılır.
-
-Her kart için sıralama değeri yalnız taşınan kayıtta değiştirilir. Uzun süreli kullanımda anahtar yoğunluğu kritik eşiğe ulaşırsa kontrollü ve seyrek bir rebalance işlemi yapılabilir.
-
-### 2. Dosya ve ekler
-
-Dosya byte'ları SQLite BLOB alanında tutulmaz.
-
-```text
-app_storage/
-└── attachments/
-    └── <uuid>/
-        └── original.ext
-```
-
-Drift yalnızca `localPath`, `remotePath`, `mimeType`, `sizeBytes`, checksum ve sync metadata saklar. Kopyalama/hash alma gibi pahalı I/O işlemleri UI akışından ayrılır.
-
-### 3. Hatırlatıcılar
-
-Hatırlatıcı kayıtları önce Drift'e yazılır, sonra `NotificationService` üzerinden işletim sistemine planlanır. Zaman bilgisi timezone-aware saklanır. Uygulama açılışında ve gerekli yaşam döngüsü olaylarında DB ile OS tarafındaki planlar uzlaştırılır.
-
-Android exact alarm izin/kısıtları ve iOS/macOS notification izinleri platform katmanında ele alınır. Domain katmanı platform API'si bilmez.
-
-### 4. Senkronizasyon
-
-Senkronizasyon için yalnız `connectivity_plus` sonucuna güvenilmez; bağlantı türü internet erişimi garantisi değildir. Ağ durumu tetikleyici olarak kullanılır, gerçek uzak istek sonucu doğruluk kaynağıdır.
-
-Önerilen sync operation alanları:
-
-- `operationId`
-- `entityType`
-- `entityId`
-- `operationType`
-- `payloadJson`
-- `baseVersion`
-- `createdAt`
-- `attemptCount`
-- `nextAttemptAt`
-- `status`
-
-Tek kullanıcı modelinde başlangıç conflict politikası: **version + updatedAt kontrollü last-write-wins**, kritik alanlarda server version kontrolü. Kart ranking değerleri bağımsız alan olarak ele alınır. İleride ihtiyaç oluşursa entity bazlı merge stratejileri eklenebilir.
-
-## Teknoloji yığını
-
-| Alan | Teknoloji |
+| Doküman | Açıklama |
 | --- | --- |
-| İstemci | Flutter |
-| State | Riverpod |
-| Yerel DB | Drift + sqlite3 |
-| Dosyalar | file_picker + path_provider + uuid + path |
-| Bildirim | flutter_local_notifications + timezone |
-| Bulut | Supabase PostgreSQL + Storage |
-| Ağ | dio + connectivity_plus |
-| Sıralama | Fractional indexing helper |
+| **[docs/SCOPE.md](docs/SCOPE.md)** | Kapsam sınırları, tek kullanıcı modeli, desteklenen ve bilinçli olarak kapsam dışı bırakılan özellikler. |
+| **[docs/UX_DESIGN.md](docs/UX_DESIGN.md)** | Ekranlar, responsive davranış, tema token'ları, etkileşimler ve WCAG AA erişilebilirlik sözleşmesi. |
+| **[docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md)** | Faz bazlı yürütme planı, tamamlanma durumları, kalite kapıları ve Definition of Done matrisi. |
+| **[docs/test_plans/DEVICE_REMINDER_TEST_PLAN.md](docs/test_plans/DEVICE_REMINDER_TEST_PLAN.md)** | Gerçek cihazlarda hatırlatıcı, alarm izinleri, bildirim ve reboot mutabakat test planı. |
+| **[supabase/README.md](supabase/README.md)** | Supabase veritabanı şeması, PostgreSQL fonksiyonları, RLS güvenlik politikaları ve yerel test yönergeleri. |
 
-`sqlite3_flutter_libs` kullanılmaz; Drift'in modern `sqlite3` 3.x hattı esas alınır.
+### Belge Otoritesi Sırası
 
-## Dizin yapısı
+1. `docs/SCOPE.md` — Ne yapılacağını ve neyin yapılmayacağını belirler.
+2. `docs/UX_DESIGN.md` — Kullanıcı deneyimi, ekran durumları ve UI sözleşmesini belirler.
+3. `docs/PRODUCT_ROADMAP.md` — Geliştirme sırasını, gerçek durumları ve kalite kapılarını belirler.
+4. `README.md` — Mimari genel görünüm, özellik seti ve geliştirici doğrulama rehberidir.
+
+---
+
+## 🚀 Ürün Yetenekleri ve Özellikler
+
+### 1. Offline-First & Yerel Veri Kaynağı (Source of Truth)
+- Ağ bağlantısına ihtiyaç duymadan tüm not, Kanban panosu, kart, ek dosya ve hatırlatıcı işlemleri yerel SQLite/Drift veritabanına anında transaction ile yazılır.
+- UI, reaktif Drift stream'leri üzerinden beslenir; uzak sunucu yanıtı beklenmez (sıfır UI bloklanması).
+- Uygulama çökmesi veya process death durumlarında WAL (Write-Ahead Logging) ve busy timeout koruması ile sıfır veri kaybı.
+
+### 2. Zengin Not Editörü (Block-Based Note Editor)
+- **Blok Tabanlı İçerik:** Paragraf, başlıklar (H1, H2, H3), madde listesi, numaralı liste, yapılacaklar/checkbox, alıntı (quote), kod bloğu, yatay ayraç (divider), bağlantı (link), görsel ve dosya ekleri.
+- **Etkileşimli Araçlar:** Slash komut menüsü (`/`), metin seçimine duyarlı kayan formatlama çubuğu (selection toolbar).
+- **Otomatik Kayıt:** Debounce mekanizmalı kesintisiz autosave ve arka plana geçişte anında flush garantisi.
+- **Klavye Kısayolları:** Enter ile blok bölme, boş blokta Backspace ile tür dönüşümü/silme ve yön tuşlarıyla kesintisiz bloklar arası geçiş.
+
+### 3. Yüksek Performanslı Kanban Panoları
+- Çoklu pano, kolon ve kart CRUD desteği.
+- Kolon içi ve kolonlar arası akıcı sürükle-bırak (Drag & Drop) ve otomatik kenar kaydırma (edge auto-scroll).
+- **Fractional Indexing:** LexoRank benzeri string/kesirli indeksleme sayesinde kart taşımalarında O(1) yeniden sıralama (tüm listeyi O(N) yeniden indeksleme gerektirmez).
+- **500+ Kart Performansı:** Tembel yükleme (lazy rendering) ve viewport virtualization ile 500+ kartlık panolarda <3s açılış ve akıcı 60 FPS kaydırma.
+
+### 4. Ek Dosya (Attachment) Yaşam Döngüsü & LRU Önbellek
+- Dosya byte'ları veritabanında BLOB olarak tutulmaz; yerel sandbox dizininde (`app_storage/attachments/<id>/<filename>`) saklanır.
+- Drift'te yalnızca dosya yolu, dosya boyutu, MIME türü, SHA-256 sağlama toplamı (checksum) ve senkronizasyon metadata'sı tutulur.
+- İndirilen uzak dosyalar için otomatik LRU (Least Recently Used) önbellek temizleme politikası.
+- Uygulama başlangıcında ve transfer kesintilerinde dosya sistemi ile veritabanını eşitleyen mutabakat motoru (reconciliation).
+
+### 5. Zamanlanmış Hatırlatıcılar & Yerel Bildirimler
+- Timezone-aware yerel bildirim planlaması (`flutter_local_notifications` + `timezone`).
+- Android 12+ Exact Alarm izin kontrolü ve izin verilmediğinde kesintisiz inexact alarm fallback'i.
+- Cihaz yeniden başlatma (reboot) veya saat dilimi değişimlerinde veritabanı kaynaklı otomatik bildirim mutabakatı.
+
+### 6. Hızlı Yerel Arama & Komut Paleti (FTS5 Search)
+- SQLite FTS5 (Full-Text Search) altyapısı ile not başlığı, not içeriği, kart başlığı, kart açıklaması ve pano adlarında anlık arama.
+- 10.000+ kelimelik veri setlerinde dahi <50ms arama tepki süresi.
+- macOS `⌘K` / Windows & Linux `Ctrl+K` kısayoluyla her yerden erişilebilen global komut ve navigasyon paleti.
+
+### 7. Supabase Senkronizasyon Motoru & Çift Cihaz Çakışma Çözümü
+- **Kuyruk Tabanlı Eşitleme (Sync Queue):** Çevrimdışı yapılan her yerel değişiklik dayanıklı `sync_queue` tablosuna yazılır; bağlantı sağlandığında arka planda sunucuya aktarılır.
+- **Supabase Backend & RLS:** PostgreSQL üzerinde Row Level Security (RLS) politikalarıyla tek kullanıcı veri izolasyonu; anonim veya yetkisiz erişimler veritabanı düzeyinde engellenir.
+- **Eksponansiyel Geri Çekilme & Jitter:** Ağ hatalarında akıllı tekrar deneme (exponential backoff & jitter) ve sunucu onay kaybı (lost ack) durumunda idempotent kurtarma.
+- **Çakışma Fark Görünümü (Conflict Diff UX):** İki cihazın aynı anda çevrimdışı değişiklik yapması durumunda veri kaybını önleyen görsel karşılaştırma ekranı; varlık bazlı diff, teknik JSON akordeonu ve 3 çözüm aksiyonu:
+  1. *Bu cihazdaki sürümü koru* (Local overwrite)
+  2. *Uzak sürümü kabul et* (Remote accept)
+  3. *Kopya olarak iki sürümü de sakla* (Fork / duplicate)
+- **Senkronizasyon Kuyruğu Ekranı:** Bekleyen, işlenen, çakışan veya başarısız operasyonların durumunu izleme ve tekil/toplu tekrar deneme arayüzü.
+
+### 8. Tasarım Sistemi, Responsive Shell & Erişilebilirlik (WCAG AA)
+- Material 3 uyumlu, modern ve göz yormayan Light & Dark tema token'ları.
+- **Platforma Duyarlı Kabuk (App Shell):** Masaüstü/macOS ve geniş tabletlerde kalıcı `NavigationRail` / kenar çubuğu; mobil cihazlarda `BottomNavigationBar`.
+- **Erişilebilirlik (a11y):** Minimum 48x48 dp dokunma alanları, Semantics etiketleri, ekran okuyucu uyumluluğu ve klavye odağı desteği.
+
+---
+
+## 🔒 Tek Kullanıcı Modeli
+
+Bu uygulama tek bir kullanıcının kişisel üretkenliğini en üst düzeye çıkarmak için tasarlanmıştır. Bu doğrultuda mimaride bilinçli olarak şunlar **yer almaz**:
+- Takım/workspace üyeliği ve davet yönetimi
+- Eşzamanlı ortak düzenleme (realtime collaborative editor / CRDT)
+- Rol tabanlı yetkilendirme matrisi (RBAC)
+
+Bulut senkronizasyonunda Supabase Auth yalnızca kullanıcının kendi verisini güvenli biçimde tekil kullanıcı kimliğine bağlamak için kullanılır. İstemci kodunda asla `service_role` anahtarı barındırılmaz.
+
+---
+
+## 🏗️ Mimari Yapı
+
+Uygulama **Feature-First Clean Architecture** ilkeleriyle geliştirilmiştir:
+
+```text
+UI (Flutter Widgets / Screens)
+        │
+        ▼
+Riverpod State Notifiers & Controllers
+        │
+        ▼
+Domain Use Cases & Entities (Saf Dart — Drift/Flutter/Supabase bağımsız)
+        │
+        ▼
+Repository Arayüzleri (Contracts)
+        │
+        ├────────────────────────────────────┐
+        ▼                                    ▼
+Drift Yerel Veri Kaynağı (SQLite)    Uzak Ağ & Supabase Gateway
+(Birincil Source of Truth)           (İkincil Sync Katmanı)
+        │                                    │
+        ▼                                    │
+Sync Queue Transaction ──────────────────────┘
+        │
+        ▼
+Sync Engine & Sync Coordinator (Delta Pull / Push / Conflict Policy)
+```
+
+---
+
+## 🛠️ Teknoloji Yığını
+
+| Katman | Teknoloji | Amaç |
+| --- | --- | --- |
+| **Framework** | Flutter (Dart 3.12+) | Çoklu platform istemci uygulaması (macOS, iOS, Android) |
+| **State Management** | Flutter Riverpod | Reaktif durum yönetimi ve dependency injection |
+| **Yerel Veritabanı** | Drift + sqlite3 (FTS5) | Tip güvenli yerel SQLite veritabanı ve reaktif stream'ler |
+| **Dosya Depolama** | path_provider + file_picker | Güvenli yerel sandbox dosya yönetimi |
+| **Bildirim & Alarm** | flutter_local_notifications + timezone | Yerel zamanlanmış bildirimler ve exact alarm yönetimi |
+| **Bulut Backend** | Supabase (PostgreSQL + RLS + Storage) | Güvenli bulut depolama, auth ve veri senkronizasyonu |
+| **Ağ & İletişim** | dio + connectivity_plus | HTTP/REST istemcisi ve bağlantı durumu izleme |
+| **Sıralama Algoritması** | Fractional Indexing (LexoRank) | O(1) maliyetli düşük çakışmalı kart sıralama |
+
+---
+
+## 📁 Dizin Yapısı
 
 ```text
 lib/
 ├── app/
-│   ├── app.dart
-│   ├── router/app_router.dart
-│   └── theme/app_theme.dart
+│   ├── app.dart                        # Ana uygulama widget'ı ve Riverpod ProviderScope
+│   ├── app_bootstrap.dart              # Composition root, servis başlatma & hata bariyeri
+│   ├── app_shell.dart                  # Responsive navigasyon kabuğu (Desktop Rail / Mobile Bar)
+│   ├── router/
+│   │   └── app_router.dart             # Rota tanımları ve sayfa geçişleri
+│   ├── theme/
+│   │   └── app_theme.dart              # Light/Dark token'lar, tipografi ve bileşen temaları
+│   └── widgets/
+│       └── common_widgets.dart         # Butonlar, diyaloglar, form alanları ve erişilebilir UI
 ├── core/
+│   ├── auth/                           # Supabase kimlik doğrulama servisleri ve oturum yönetimi
+│   ├── config/                         # Ortam değişkenleri ve uygulama yapılandırması
 │   ├── database/
-│   │   ├── app_database.dart
-│   │   ├── connection/native.dart
-│   │   └── tables/
-│   │       ├── attachments_table.dart
-│   │       ├── board_columns_table.dart
-│   │       ├── boards_table.dart
-│   │       ├── cards_table.dart
-│   │       ├── notes_table.dart
-│   │       ├── reminders_table.dart
-│   │       └── sync_queue_table.dart
-│   ├── error/
-│   ├── network/
+│   │   ├── app_database.dart           # Drift veritabanı sınıfı, tablolar ve FTS5 şeması
+│   │   ├── connection/native.dart      # Platforma özel SQLite native bağlantısı
+│   │   └── tables/                     # Notes, Boards, Cards, Attachments, Reminders, Sync tabloları
+│   ├── error/                          # Sınıflandırılmış Failure ve Error modelleri
+│   ├── logging/                        # Güvenli loglama ve teşhis altyapısı
+│   ├── network/                        # Bağlantı durumu ve ağ soyutlamaları
+│   ├── remote/                         # Supabase REST/Postgres gateway implementasyonları
 │   ├── services/
+│   │   ├── file_storage_service.dart   # Ek dosya I/O, hash doğrulama ve LRU temizleme
+│   │   └── notification_service.dart   # Bildirim planlama ve exact alarm yönetimi
+│   ├── settings/                       # Kullanıcı ayarları kalıcılık katmanı
 │   ├── sync/
-│   └── utils/
+│   │   ├── local_entity_store.dart     # Yerel varlık CRUD ve mutasyon soyutlaması
+│   │   ├── sync_coordinator.dart       # Yaşam döngüsü ve ağ tetikleyicili senkronizasyon orkestrasyonu
+│   │   ├── sync_engine.dart            # Delta pull, batch push, retry ve çakışma tespit motoru
+│   │   ├── sync_models.dart            # Senkronizasyon operasyonları ve durum modelleri
+│   │   └── sync_queue_repository.dart  # Dayanıklı sync queue DAO ve repository
+│   └── utils/                          # Fractional indexing, saat ve yardımcı araçlar
 └── features/
-    ├── kanban/
-    │   ├── data/
-    │   ├── domain/
-    │   └── presentation/
-    ├── notes/
-    │   ├── data/
-    │   ├── domain/
-    │   └── presentation/
-    ├── attachments/
-    │   ├── data/
-    │   ├── domain/
-    │   └── presentation/
-    └── reminders/
-        ├── data/
-        ├── domain/
-        └── presentation/
+    ├── attachments/                    # Dosya ekleme, silme, önizleme ve liste bileşenleri
+    ├── conflicts/                      # Çakışma listesi ve görsel Diff karşılaştırma ekranı
+    ├── home/                           # Başlangıç ve pano/not özet ekranı
+    ├── kanban/                         # Pano, kolon ve kart yönetimi; sürükle-bırak panolar
+    ├── notes/                          # Blok tabanlı zengin not editörü ve not listesi
+    ├── reminders/                      # Hatırlatıcı listesi ve zamanlama diyaloğu
+    ├── search/                         # SQLite FTS5 küresel arama ve komut paleti (⌘K)
+    └── settings/                       # Senkronizasyon kuyruğu, hesap ve uygulama ayarları
+
+supabase/
+├── migrations/
+│   └── 0001_initial.sql                # PostgreSQL tabloları, RLS politikaları ve apply_entity_change RPC
+└── README.md                           # Supabase kurulum ve güvenlik kılavuzu
+
+test/
+├── core/                               # Servis, sync engine, queue retry ve RLS güvenlik testleri
+├── database/                           # Drift şema, foreign key, cascade ve transaction testleri
+├── features/                           # Notes UX, Kanban performans, FTS5 arama, a11y ve diff testleri
+├── fixtures/                           # Test veri setleri ve sentetik yük üreteçleri
+├── helpers/                            # PostgreSQL RLS test harness ve fake servisler
+├── integration/                        # Process death kurtarma ve çift istemcili E2E senkronizasyon testleri
+└── performance/                        # Regresyon ve bellek/hız performans testleri
 ```
 
-## Veri modeli ilkeleri
+---
 
-Tüm sync edilebilir entity'lerde en azından aşağıdaki metadata düşünülür:
+## 💻 Geliştirme Kurulumu ve Doğrulama Komutları
 
-- UUID primary key
-- `createdAt`
-- `updatedAt`
-- `version`
-- `deletedAt` veya tombstone işareti
-- gerekiyorsa `syncState`
-
-Silme işlemleri uzak cihaz/sunucu eşitlemesi tamamlanmadan fiziksel `DELETE` yapmak yerine tombstone ile temsil edilebilir.
-
-## Başlangıç veri akışı örneği
-
-Kullanıcının karta dosya ekleyip hatırlatıcı tanımlaması ve kartı başka kolona taşıması:
-
-```text
-Widget
-  -> Controller (optimistic state)
-  -> Domain use case
-      -> FileStorageService
-      -> NotificationService
-      -> Repository
-          -> Drift transaction
-          -> SyncQueue insert
-  -> Drift stream UI'ı doğrular
-  -> SyncCoordinator uygun olduğunda Supabase'e yollar
-```
-
-## Geliştirme kurulumu
-
-Repo iskeleti Flutter kaynak yapısını içerir. Native platform klasörleri Flutter SDK ile üretilmelidir:
-
+### 1. Bağımlılıkları Yükleme
 ```bash
-flutter create . --platforms=android,ios,macos --project-name not_app
 flutter pub get
+```
+
+### 2. Kod Üretimi (Drift Şeması & Riverpod)
+```bash
 dart run build_runner build --delete-conflicting-outputs
-flutter analyze
 ```
 
-> `flutter create .` çalıştırılırken mevcut `lib/`, `README.md`, `.gitignore`, `pubspec.yaml` ve mimari dosyaların üzerine yazılmamasına dikkat edilmelidir. Gerekirse native platform klasörleri ayrı geçici projede üretilip taşınmalıdır.
-
-Çalıştırma:
-
+### 3. Kod Biçimlendirme Kontrolü
 ```bash
+dart format --output=none --set-exit-if-changed .
+```
+
+### 4. Statik Kod Analizi
+```bash
+dart analyze
+```
+
+### 5. Birim, Veritabanı, Özellik ve Performans Testlerini Çalıştırma
+```bash
+flutter test test/features/ test/performance/ test/database/ test/core/
+```
+
+### 6. Çökme / Yaşam Döngüsü Dayanıklılık ve Duman Testleri
+```bash
+flutter test test/widget_smoke_test.dart test/integration/offline_flow_test.dart test/integration/process_death_recovery_test.dart
+```
+
+### 7. Çift İstemcili Uçtan Uca (E2E) Supabase Senkronizasyon & Çakışma Testleri
+```bash
+flutter test test/integration/supabase_two_client_sync_e2e_test.dart
+```
+
+---
+
+## 📱 Platformlarda Çalıştırma
+
+### Yerel Geliştirme (Offline Mod — Supabase Yapılandırması Olmadan)
+```bash
+# macOS üzerinde çalıştırma
 flutter run -d macos
-# veya bağlı cihaz/emülatör
-flutter devices
-flutter run -d <device-id>
+
+# Android üzerinde çalıştırma (bağlı cihaz veya emülatör)
+flutter run -d android
+
+# iOS üzerinde çalıştırma (bağlı cihaz veya simülatör)
+flutter run -d ios
 ```
 
-## Ortam değişkenleri
-
-Supabase yapılandırması kaynak koda commit edilmez. Örnek çalışma:
-
+### Bulut Senkronizasyonu ile Çalıştırma (Supabase Ortam Değişkenleri)
 ```bash
-flutter run \
-  --dart-define=SUPABASE_URL=https://example.supabase.co \
-  --dart-define=SUPABASE_PUBLISHABLE_KEY=your_publishable_key
+flutter run -d macos \
+  --dart-define=SUPABASE_URL=https://<your-project-id>.supabase.co \
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=<your-anon-publishable-key>
 ```
 
-Gerçek secret/service-role anahtarları istemci uygulamasına konmaz.
+> **Güvenlik Notu:** `service_role` anahtarını asla istemci uygulamasına tanımlamayınız. Anon/publishable key tek başına yeterlidir; güvenlik Supabase üzerindeki Row Level Security (RLS) politikaları ile sağlanır.
 
-## Kalite sınırları
+---
 
-- Widget -> doğrudan FilePicker/notification/DB çağrısı yok.
-- Dosya BLOB'u SQLite'a yazılmaz.
-- Her kart hareketinde O(N) re-index yok.
-- Remote API, UI'ın source-of-truth'u değildir.
-- Ağ isteği başarısız olduğunda yerel kullanıcı işlemi geri alınmaz; sync state hata olarak işaretlenir ve retry uygulanır.
-- Veritabanı şema değişiklikleri migration ile yapılır.
-- Domain testleri platform bağımlılığı olmadan çalışabilmelidir.
-- Repository ve platform servisleri interface üzerinden mock/fake edilebilir olmalıdır.
+## 🛡️ Kalite, Güvenlik ve Mimari İlkeler
 
-## Geliştirme sırası
+- **UI Katmanında Doğrudan I/O Yasağı:** Widget'lar doğrudan dosya sistemine, veritabanına veya bildirim API'sine erişemez; tüm akış Domain Use Case ve Repository sınırlarından geçer.
+- **Veritabanında Dosya Saklama Yasağı:** Ek dosyalar hiçbir zaman veritabanında BLOB olarak tutulmaz; yalnızca metadata ve URI saklanır.
+- **O(N) Sıralama Maliyetinden Kaçınma:** Her kart taşıma işleminde tüm liste güncellenmez; Fractional Indexing ile yalnızca ilgili kaydın sıralama değeri güncellenir.
+- **Ağ Hatalarında Veri Bütünlüğü:** Ağ isteği başarısız olduğunda yerel işlem geri alınmaz; kuyrukta tutularak eksponansiyel geri çekilme ile yeniden denenir.
+- **Kesintisiz Çoklu Platform Desteği:** Android, iOS ve macOS platformlarının her birinde yerel izinler, arka plan yaşam döngüsü ve pencere/ekran boyutları optimize edilmiştir.
+- **Erişilebilirlik Güvencesi:** Tüm etkileşimli bileşenler en az 48x48 dp dokunma alanına sahiptir ve Semantics ağacında açıklayıcı etiketler taşır.
 
-Ayrıntılı fazlar, bağımlılıklar, test matrisi, release blocker kriterleri ve ürün Definition of Done için **[docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md)** esas alınır.
+---
 
-Kısa sıra:
+## 📄 Lisans ve Kullanım
 
-1. Native bootstrap
-2. Dependency wiring + lifecycle
-3. Drift + repositories + migrations
-4. Design system + responsive shell
-5. Notes
-6. Kanban + ranking
-7. Attachments
-8. Reminders
-9. Search
-10. Supabase + Auth + RLS
-11. Sync engine
-12. Conflict + recovery
-13. Platform hardening
-14. Quality/performance/security/accessibility
-15. Beta + release candidate
-16. Signed product release
-17. Post-release maintenance
-
-## Lisans
-
-Bu repo şu anda özel kullanım içindir. Açık kaynak lisansı tanımlanmamıştır.
+Bu proje özel kullanım için geliştirilmiştir. İzinsiz kopyalanamaz veya dağıtılamaz.

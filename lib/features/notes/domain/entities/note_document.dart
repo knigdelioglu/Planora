@@ -35,6 +35,82 @@ final class NoteBlock {
     text: text,
   );
 
+  factory NoteBlock.heading({String text = '', int level = 1, Uuid? uuid}) =>
+      NoteBlock(
+        id: (uuid ?? const Uuid()).v7(),
+        type: NoteBlockType.heading,
+        text: text,
+        level: level,
+      );
+
+  factory NoteBlock.bulletList({String text = '', Uuid? uuid}) => NoteBlock(
+    id: (uuid ?? const Uuid()).v7(),
+    type: NoteBlockType.bulletList,
+    text: text,
+  );
+
+  factory NoteBlock.numberedList({String text = '', Uuid? uuid}) => NoteBlock(
+    id: (uuid ?? const Uuid()).v7(),
+    type: NoteBlockType.numberedList,
+    text: text,
+  );
+
+  factory NoteBlock.checkbox({
+    String text = '',
+    bool checked = false,
+    Uuid? uuid,
+  }) => NoteBlock(
+    id: (uuid ?? const Uuid()).v7(),
+    type: NoteBlockType.checkbox,
+    text: text,
+    checked: checked,
+  );
+
+  factory NoteBlock.quote({String text = '', Uuid? uuid}) => NoteBlock(
+    id: (uuid ?? const Uuid()).v7(),
+    type: NoteBlockType.quote,
+    text: text,
+  );
+
+  factory NoteBlock.code({String text = '', Uuid? uuid}) => NoteBlock(
+    id: (uuid ?? const Uuid()).v7(),
+    type: NoteBlockType.code,
+    text: text,
+  );
+
+  factory NoteBlock.divider({Uuid? uuid}) =>
+      NoteBlock(id: (uuid ?? const Uuid()).v7(), type: NoteBlockType.divider);
+
+  factory NoteBlock.link({String text = '', String url = '', Uuid? uuid}) =>
+      NoteBlock(
+        id: (uuid ?? const Uuid()).v7(),
+        type: NoteBlockType.link,
+        text: text,
+        url: url,
+      );
+
+  factory NoteBlock.image({
+    String text = '',
+    String? attachmentId,
+    Uuid? uuid,
+  }) => NoteBlock(
+    id: (uuid ?? const Uuid()).v7(),
+    type: NoteBlockType.image,
+    text: text,
+    attachmentId: attachmentId,
+  );
+
+  factory NoteBlock.file({
+    String text = '',
+    String? attachmentId,
+    Uuid? uuid,
+  }) => NoteBlock(
+    id: (uuid ?? const Uuid()).v7(),
+    type: NoteBlockType.file,
+    text: text,
+    attachmentId: attachmentId,
+  );
+
   factory NoteBlock.fromJson(Map<String, Object?> json) {
     final String typeName = json['type'] as String? ?? 'unknown';
     final NoteBlockType type = NoteBlockType.values.firstWhere(

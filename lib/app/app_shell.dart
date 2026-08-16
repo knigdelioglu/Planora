@@ -21,6 +21,15 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   int _index = 0;
+  final FocusNode _searchFocusNode = FocusNode(
+    debugLabel: 'AppShellSearchFocusNode',
+  );
+
+  @override
+  void dispose() {
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
 
   static const List<_Destination> _destinations = <_Destination>[
     _Destination('Ana Sayfa', Icons.home_outlined, Icons.home_rounded),
@@ -48,11 +57,23 @@ class _AppShellState extends ConsumerState<AppShell> {
     1 => const NotesScreen(),
     2 => const BoardsScreen(),
     3 => const RemindersScreen(),
-    4 => const SearchScreen(),
+    4 => SearchScreen(focusNode: _searchFocusNode, autofocus: true),
     _ => const SettingsScreen(),
   };
 
-  void _openSearch() => setState(() => _index = 4);
+  void _openSearch() {
+    final double width = MediaQuery.sizeOf(context).width;
+    if (width < AppBreakpoints.compact) {
+      AppRouter.push<void>(context, const SearchScreen(autofocus: true));
+    } else {
+      setState(() => _index = 4);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _searchFocusNode.requestFocus();
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -121,52 +142,54 @@ class _AppShellState extends ConsumerState<AppShell> {
         Container(
           width: 248,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
             border: Border(
               right: BorderSide(color: Theme.of(context).dividerColor),
             ),
           ),
-          child: SafeArea(
-            child: Column(
-              children: <Widget>[
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 20, 20, 12),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Not',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
+          child: Material(
+            color: Theme.of(context).colorScheme.surface,
+            child: SafeArea(
+              child: Column(
+                children: <Widget>[
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 20, 20, 12),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Not',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    itemCount: _destinations.length,
-                    itemBuilder: (context, index) {
-                      final item = _destinations[index];
-                      return ListTile(
-                        selected: _index == index,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        leading: Icon(
-                          _index == index ? item.selectedIcon : item.icon,
-                        ),
-                        title: Text(item.label),
-                        onTap: () => setState(() => _index = index),
-                      );
-                    },
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      itemCount: _destinations.length,
+                      itemBuilder: (context, index) {
+                        final item = _destinations[index];
+                        return ListTile(
+                          selected: _index == index,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          leading: Icon(
+                            _index == index ? item.selectedIcon : item.icon,
+                          ),
+                          title: Text(item.label),
+                          onTap: () => setState(() => _index = index),
+                        );
+                      },
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: _sync(configured, signedIn),
-                ),
-              ],
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: _sync(configured, signedIn),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

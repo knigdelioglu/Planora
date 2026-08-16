@@ -1,23 +1,75 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
+import 'package:not_app/app/theme/app_theme.dart';
 import 'package:not_app/app/widgets/common_widgets.dart';
 import 'package:not_app/features/conflicts/domain/entities/sync_conflict.dart';
+import 'package:not_app/features/conflicts/domain/repositories/conflict_repository.dart';
+import 'package:not_app/features/conflicts/presentation/widgets/conflict_diff_view.dart';
 
-class ConflictsScreen extends ConsumerWidget {
+class ConflictsScreen extends ConsumerStatefulWidget {
   const ConflictsScreen({super.key});
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ConflictsScreen> createState() => _ConflictsScreenState();
+}
+
+class _ConflictsScreenState extends ConsumerState<ConflictsScreen> {
+  final Set<String> _resolvingIds = <String>{};
+
+  Future<void> _handleResolution({
+    required ConflictRepository repo,
+    required SyncConflictEntity item,
+    required Future<void> Function() action,
+    required String successMessage,
+  }) async {
+    if (_resolvingIds.contains(item.id)) return;
+
+    setState(() {
+      _resolvingIds.add(item.id);
+    });
+
+    try {
+      await action();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(successMessage),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Çakışma çözülemedi: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _resolvingIds.remove(item.id);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final repo = ref.watch(conflictRepositoryProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Senkronizasyon çakışmaları')),
       body: StreamBuilder<List<SyncConflictEntity>>(
         stream: repo.watchOpen(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return ErrorState(message: snapshot.error.toString());
+            return ErrorState(
+              message: snapshot.error.toString(),
+              onRetry: () => setState(() {}),
+            );
           }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -27,82 +79,56 @@ class ConflictsScreen extends ConsumerWidget {
             return const EmptyState(
               icon: Icons.check_circle_outline,
               title: 'Çakışma yok',
-              message: 'Cihazlar arasındaki değişiklikler uyumlu.',
+              message:
+                  'Cihazlar arasındaki tüm değişiklikler uyumlu ve güncel.',
             );
           }
+
           return ListView.builder(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             itemCount: data.length,
             itemBuilder: (context, index) {
               final item = data[index];
-              final bool canCopy =
-                  item.entityType == 'note' || item.entityType == 'card';
+              final bool isResolving = _resolvingIds.contains(item.id);
+
               return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ExpansionTile(
-                  leading: const Icon(Icons.compare_arrows_rounded),
-                  title: Text('${item.entityType} · ${item.entityId}'),
-                  subtitle: const Text(
-                    'İki cihaz aynı kaydı farklı biçimde değiştirdi.',
-                  ),
-                  childrenPadding: const EdgeInsets.all(16),
-                  children: <Widget>[
-                    _JsonPreview(label: 'Bu cihaz', raw: item.localJson),
-                    const SizedBox(height: 12),
-                    _JsonPreview(label: 'Diğer cihaz', raw: item.remoteJson),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: <Widget>[
-                        FilledButton(
-                          onPressed: () => repo.resolveUsingLocal(item.id),
-                          child: const Text('Bu sürümü kullan'),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => repo.resolveUsingRemote(item.id),
-                          child: const Text('Diğer sürümü kullan'),
-                        ),
-                        if (canCopy)
-                          OutlinedButton(
-                            onPressed: () => repo.resolveAsCopy(item.id),
-                            child: const Text('Kopya olarak sakla'),
-                          ),
-                      ],
+                key: Key('conflict_card_${item.id}'),
+                margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: ConflictDiffView(
+                    conflict: item,
+                    isResolving: isResolving,
+                    onResolveLocal: () => _handleResolution(
+                      repo: repo,
+                      item: item,
+                      action: () => repo.resolveUsingLocal(item.id),
+                      successMessage:
+                          '${item.displayTitle} için bu cihazdaki sürüm korundu.',
                     ),
-                  ],
+                    onResolveRemote: () => _handleResolution(
+                      repo: repo,
+                      item: item,
+                      action: () => repo.resolveUsingRemote(item.id),
+                      successMessage:
+                          '${item.displayTitle} için uzak sürüm kabul edildi.',
+                    ),
+                    onResolveCopy: item.canResolveAsCopy
+                        ? () => _handleResolution(
+                            repo: repo,
+                            item: item,
+                            action: () => repo.resolveAsCopy(item.id),
+                            successMessage:
+                                '${item.displayTitle} için iki sürüm de kopya olarak saklandı.',
+                          )
+                        : null,
+                  ),
                 ),
               );
             },
           );
         },
       ),
-    );
-  }
-}
-
-class _JsonPreview extends StatelessWidget {
-  const _JsonPreview({required this.label, required this.raw});
-  final String label;
-  final String raw;
-  @override
-  Widget build(BuildContext context) {
-    String pretty = raw;
-    try {
-      pretty = const JsonEncoder.withIndent('  ').convert(jsonDecode(raw));
-    } catch (_) {}
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(label, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 6),
-        SelectableText(
-          pretty,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
-        ),
-      ],
     );
   }
 }

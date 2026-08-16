@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -17,15 +18,22 @@ import 'package:uuid/uuid.dart';
 
 final class DriftAttachmentsRepository implements AttachmentsRepository {
   DriftAttachmentsRepository({
-    required this._database,
-    required this._storage,
-    required this._syncQueue,
-    required this._clock,
-    required this._remote,
+    required AppDatabase database,
+    required FileStorageService storage,
+    required SyncQueueRepository syncQueue,
+    required AppClock clock,
+    required RemoteGateway remote,
     Dio? dio,
     Uuid? uuid,
-  }) : _dio = dio ?? Dio(),
-       _uuid = uuid ?? const Uuid();
+    Future<Directory> Function()? tempDirectoryProvider,
+  }) : _database = database,
+       _storage = storage,
+       _syncQueue = syncQueue,
+       _clock = clock,
+       _remote = remote,
+       _dio = dio ?? Dio(),
+       _uuid = uuid ?? const Uuid(),
+       _tempDirectoryProvider = tempDirectoryProvider;
 
   final AppDatabase _database;
   final FileStorageService _storage;
@@ -34,6 +42,129 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
   final RemoteGateway _remote;
   final Dio _dio;
   final Uuid _uuid;
+  final Future<Directory> Function()? _tempDirectoryProvider;
+  final StreamController<AttachmentTransferProgress> _progressController =
+      StreamController<AttachmentTransferProgress>.broadcast();
+  final Map<String, double> _activeProgress = <String, double>{};
+  final Map<String, CancelToken> _activeCancelTokens = <String, CancelToken>{};
+
+  Stream<AttachmentTransferProgress> watchProgress(String attachmentId) =>
+      _progressController.stream.where(
+        (progress) => progress.attachmentId == attachmentId,
+      );
+
+  Stream<Map<String, double>> watchActiveProgress() async* {
+    yield Map<String, double>.unmodifiable(_activeProgress);
+    yield* _progressController.stream.map(
+      (_) => Map<String, double>.unmodifiable(_activeProgress),
+    );
+  }
+
+  double? getProgress(String attachmentId) => _activeProgress[attachmentId];
+
+  void _reportProgress({
+    required String attachmentId,
+    required bool isUpload,
+    required int bytesTransferred,
+    required int totalBytes,
+    required double progress,
+  }) {
+    _activeProgress[attachmentId] = progress;
+    _progressController.add(
+      AttachmentTransferProgress(
+        attachmentId: attachmentId,
+        isUpload: isUpload,
+        bytesTransferred: bytesTransferred,
+        totalBytes: totalBytes,
+        progress: progress,
+      ),
+    );
+  }
+
+  void _clearProgress(String attachmentId) {
+    _activeProgress.remove(attachmentId);
+    _progressController.add(
+      AttachmentTransferProgress(
+        attachmentId: attachmentId,
+        isUpload: false,
+        bytesTransferred: 0,
+        totalBytes: 0,
+        progress: 0.0,
+      ),
+    );
+  }
+
+  void cancelTransfer(String attachmentId) {
+    final CancelToken? token = _activeCancelTokens.remove(attachmentId);
+    if (token != null && !token.isCancelled) {
+      token.cancel('Transfer cancelled by user');
+    }
+    _clearProgress(attachmentId);
+    unawaited(
+      (_database.update(
+        _database.attachments,
+      )..where((tbl) => tbl.id.equals(attachmentId))).write(
+        const AttachmentsCompanion(transferState: Value<String>('failed')),
+      ),
+    );
+  }
+
+  Future<void> retryTransfer(
+    String attachmentId, {
+    CancelToken? cancelToken,
+  }) async {
+    final Attachment? row = await (_database.select(
+      _database.attachments,
+    )..where((tbl) => tbl.id.equals(attachmentId))).getSingleOrNull();
+    if (row == null || row.deletedAt != null) return;
+
+    if (row.localPath.isNotEmpty && await _storage.exists(row.localPath)) {
+      await _database.transaction(() async {
+        await (_database.update(
+          _database.attachments,
+        )..where((tbl) => tbl.id.equals(attachmentId))).write(
+          const AttachmentsCompanion(
+            transferState: Value<String>('pendingUpload'),
+          ),
+        );
+
+        final List<SyncQueueData> queued = await (_database.select(
+          _database.syncQueue,
+        )..where((tbl) => tbl.entityId.equals(attachmentId))).get();
+
+        bool hasUploadOp = false;
+        for (final op in queued) {
+          if (op.operationType == SyncOperationType.uploadAttachment.name) {
+            hasUploadOp = true;
+            await (_database.update(
+              _database.syncQueue,
+            )..where((tbl) => tbl.operationId.equals(op.operationId))).write(
+              const SyncQueueCompanion(
+                status: Value<String>('pending'),
+                nextAttemptAt: Value<DateTime?>(null),
+                lastError: Value<String?>(null),
+              ),
+            );
+          }
+        }
+        if (!hasUploadOp) {
+          await _syncQueue.enqueue(
+            entityType: 'attachment',
+            entityId: attachmentId,
+            operationType: SyncOperationType.uploadAttachment,
+            baseVersion: row.version,
+            payload: <String, Object?>{
+              'attachmentId': attachmentId,
+              'localPath': row.localPath,
+              'fileName': row.fileName,
+            },
+          );
+        }
+      });
+    } else if (row.remotePath != null && row.remotePath!.isNotEmpty) {
+      await ensureLocal(attachmentId, cancelToken: cancelToken);
+    }
+  }
 
   @override
   Stream<List<AttachmentEntity>> watchForParent(
@@ -85,6 +216,7 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
                 sizeBytes: stored.sizeBytes,
                 checksum: Value<String?>(stored.checksum),
                 isCache: const Value<bool>(false),
+                lastAccessedAt: Value<DateTime?>(now),
                 transferState: const Value<String>('pendingUpload'),
                 createdAt: now,
                 updatedAt: now,
@@ -122,7 +254,9 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
         );
       });
     } catch (_) {
-      await _storage.deleteOwned(stored.localPath);
+      try {
+        await _storage.deleteOwned(stored.localPath);
+      } catch (_) {}
       rethrow;
     }
     final row = await (_database.select(
@@ -132,7 +266,11 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
   }
 
   @override
-  Future<File> ensureLocal(String attachmentId) async {
+  Future<File> ensureLocal(
+    String attachmentId, {
+    CancelToken? cancelToken,
+    void Function(int received, int total)? onProgress,
+  }) async {
     final Attachment? row = await (_database.select(
       _database.attachments,
     )..where((tbl) => tbl.id.equals(attachmentId))).getSingleOrNull();
@@ -141,6 +279,13 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
     }
     if (row.localPath.isNotEmpty && await _storage.exists(row.localPath)) {
       await _touch(row.id);
+      if (row.transferState != 'synced') {
+        await (_database.update(
+          _database.attachments,
+        )..where((tbl) => tbl.id.equals(row.id))).write(
+          const AttachmentsCompanion(transferState: Value<String>('synced')),
+        );
+      }
       return File(row.localPath);
     }
     if (row.remotePath == null || !_remote.available) {
@@ -149,35 +294,136 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
       );
     }
 
+    final CancelToken token = cancelToken ?? CancelToken();
+    _activeCancelTokens[attachmentId] = token;
+
     final String url = await _remote.createAttachmentDownloadUrl(
       row.remotePath!,
     );
-    final Directory tempRoot = await getTemporaryDirectory();
+    final Directory tempRoot = _tempDirectoryProvider != null
+        ? await _tempDirectoryProvider()
+        : await getTemporaryDirectory();
     final Directory tempDir = Directory(
       p.join(tempRoot.path, 'not_attachment_downloads', row.id),
     );
     await tempDir.create(recursive: true);
-    final File temp = File(p.join(tempDir.path, row.fileName));
-    await _dio.download(url, temp.path, deleteOnError: true);
-    final StoredFile cached = await _storage.persistCache(
-      temp,
-      attachmentId: row.id,
+    final File temp = File(
+      p.join(tempDir.path, '${_uuid.v7()}_${row.fileName}.tmp'),
     );
-    if (await temp.exists()) await temp.delete();
-    final DateTime now = _clock.nowUtc();
-    await (_database.update(
-      _database.attachments,
-    )..where((tbl) => tbl.id.equals(row.id))).write(
-      AttachmentsCompanion(
-        localPath: Value<String>(cached.localPath),
-        isCache: const Value<bool>(true),
-        checksum: Value<String?>(cached.checksum),
-        sizeBytes: Value<int>(cached.sizeBytes),
-        lastAccessedAt: Value<DateTime?>(now),
-        transferState: const Value<String>('synced'),
-      ),
-    );
-    return File(cached.localPath);
+
+    try {
+      await (_database.update(
+        _database.attachments,
+      )..where((tbl) => tbl.id.equals(row.id))).write(
+        const AttachmentsCompanion(transferState: Value<String>('downloading')),
+      );
+      _reportProgress(
+        attachmentId: row.id,
+        isUpload: false,
+        bytesTransferred: 0,
+        totalBytes: row.sizeBytes,
+        progress: 0.0,
+      );
+
+      await _dio.download(
+        url,
+        temp.path,
+        cancelToken: token,
+        deleteOnError: true,
+        onReceiveProgress: (received, total) {
+          final int effectiveTotal = total > 0 ? total : row.sizeBytes;
+          final double ratio = effectiveTotal > 0
+              ? (received / effectiveTotal).clamp(0.0, 1.0)
+              : 0.0;
+          _reportProgress(
+            attachmentId: row.id,
+            isUpload: false,
+            bytesTransferred: received,
+            totalBytes: effectiveTotal,
+            progress: ratio,
+          );
+          onProgress?.call(received, total);
+        },
+      );
+
+      final StoredFile cached = await _storage.persistCache(
+        temp,
+        attachmentId: row.id,
+      );
+      if (await temp.exists()) {
+        try {
+          await temp.delete();
+        } catch (_) {}
+      }
+      try {
+        if (await tempDir.exists()) {
+          final List<FileSystemEntity> entries = await tempDir.list().toList();
+          if (entries.isEmpty) await tempDir.delete();
+        }
+      } catch (_) {}
+
+      final DateTime now = _clock.nowUtc();
+      await (_database.update(
+        _database.attachments,
+      )..where((tbl) => tbl.id.equals(row.id))).write(
+        AttachmentsCompanion(
+          localPath: Value<String>(cached.localPath),
+          isCache: const Value<bool>(true),
+          checksum: Value<String?>(cached.checksum),
+          sizeBytes: Value<int>(cached.sizeBytes),
+          lastAccessedAt: Value<DateTime?>(now),
+          transferState: const Value<String>('synced'),
+        ),
+      );
+      return File(cached.localPath);
+    } on DioException {
+      if (await temp.exists()) {
+        try {
+          await temp.delete();
+        } catch (_) {}
+      }
+      try {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      } catch (_) {}
+
+      await (_database.update(
+        _database.attachments,
+      )..where((tbl) => tbl.id.equals(row.id))).write(
+        const AttachmentsCompanion(
+          transferState: Value<String>('failed'),
+          localPath: Value<String>(''),
+          isCache: Value<bool>(false),
+        ),
+      );
+      rethrow;
+    } catch (_) {
+      if (await temp.exists()) {
+        try {
+          await temp.delete();
+        } catch (_) {}
+      }
+      try {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      } catch (_) {}
+
+      await (_database.update(
+        _database.attachments,
+      )..where((tbl) => tbl.id.equals(row.id))).write(
+        const AttachmentsCompanion(
+          transferState: Value<String>('failed'),
+          localPath: Value<String>(''),
+          isCache: Value<bool>(false),
+        ),
+      );
+      rethrow;
+    } finally {
+      _activeCancelTokens.remove(attachmentId);
+      _clearProgress(attachmentId);
+    }
   }
 
   Future<void> _touch(String id) async {
@@ -220,11 +466,13 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
       );
     });
     if (row.localPath.isNotEmpty) {
-      if (row.isCache) {
-        await _storage.deleteCache(row.localPath);
-      } else {
-        await _storage.deleteOwned(row.localPath);
-      }
+      try {
+        if (row.isCache) {
+          await _storage.deleteCache(row.localPath);
+        } else {
+          await _storage.deleteOwned(row.localPath);
+        }
+      } catch (_) {}
     }
   }
 
@@ -232,8 +480,207 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
   Future<int> cacheSizeBytes() => _storage.cacheSizeBytes();
 
   @override
-  Future<void> evictCacheUntil(int maximumBytes) =>
-      _storage.evictCacheUntil(maximumBytes: maximumBytes);
+  Future<void> evictCacheUntil(int maximumBytes) async {
+    if (maximumBytes < 0) {
+      throw ArgumentError.value(
+        maximumBytes,
+        'maximumBytes',
+        'Maximum bytes cannot be negative.',
+      );
+    }
+    int currentSize = await _storage.cacheSizeBytes();
+    if (maximumBytes > 0 && currentSize <= maximumBytes) {
+      return;
+    }
+
+    // DB-backed LRU: order cached attachments by lastAccessedAt ASC (nulls first), then createdAt ASC
+    final List<Attachment> candidates =
+        await (_database.select(_database.attachments)
+              ..where(
+                (tbl) => tbl.isCache.equals(true) & tbl.deletedAt.isNull(),
+              )
+              ..orderBy(<OrderingTerm Function($AttachmentsTable)>[
+                (tbl) => OrderingTerm(
+                  expression: tbl.lastAccessedAt,
+                  mode: OrderingMode.asc,
+                  nulls: NullsOrder.first,
+                ),
+                (tbl) => OrderingTerm.asc(tbl.createdAt),
+              ]))
+            .get();
+
+    for (final Attachment candidate in candidates) {
+      if (maximumBytes > 0 && currentSize <= maximumBytes) break;
+
+      int freedBytes = 0;
+      if (candidate.localPath.isNotEmpty) {
+        try {
+          final File file = File(candidate.localPath);
+          if (await file.exists()) {
+            freedBytes = await file.length();
+          }
+          await _storage.deleteCache(candidate.localPath);
+        } catch (_) {
+          // Graceful handling if file is already missing or inaccessible
+        }
+      }
+      currentSize -= (freedBytes > 0 ? freedBytes : candidate.sizeBytes);
+
+      // Consistent DB update: clear localPath, mark isCache false, update transferState
+      await (_database.update(
+        _database.attachments,
+      )..where((tbl) => tbl.id.equals(candidate.id))).write(
+        AttachmentsCompanion(
+          localPath: const Value<String>(''),
+          isCache: const Value<bool>(false),
+          transferState: Value<String>(
+            candidate.remotePath != null ? 'remoteOnly' : 'pendingUpload',
+          ),
+        ),
+      );
+    }
+
+    // If cache on disk still exceeds maximumBytes (e.g. unindexed leftover files in cache dir)
+    if (currentSize > maximumBytes) {
+      final List<File> remainingFiles = await _storage.listFiles(
+        bucket: 'cache',
+      );
+      for (final File file in remainingFiles) {
+        if (currentSize <= maximumBytes) break;
+        try {
+          final int size = await file.length();
+          await _storage.deleteCache(file.path);
+          currentSize -= size;
+        } catch (_) {}
+      }
+    }
+  }
+
+  Future<AttachmentReconciliationResult> reconcile() async {
+    int missingFilesHandled = 0;
+    int tombstonesCleaned = 0;
+    int orphanedFilesDeleted = 0;
+    int tempFilesCleaned = 0;
+
+    // 1. Clean temporary downloads
+    try {
+      await _storage.cleanTempDownloads();
+      tempFilesCleaned++;
+    } catch (_) {}
+
+    // 2. Fetch all DB attachment records
+    final List<Attachment> rows = await _database
+        .select(_database.attachments)
+        .get();
+
+    final Set<String> validSandboxFilePaths = <String>{};
+
+    for (final Attachment row in rows) {
+      if (row.localPath.trim().isEmpty) {
+        if (row.transferState == 'downloading' ||
+            row.transferState == 'uploading') {
+          await (_database.update(
+            _database.attachments,
+          )..where((tbl) => tbl.id.equals(row.id))).write(
+            AttachmentsCompanion(
+              transferState: Value<String>(
+                row.remotePath != null ? 'remoteOnly' : 'failed',
+              ),
+            ),
+          );
+        }
+        continue;
+      }
+
+      final String normalizedPath = p.normalize(p.absolute(row.localPath));
+
+      // Path traversal security check: must be strictly inside sandbox
+      final bool inSandbox = await _storage.isWithinSandbox(normalizedPath);
+      if (!inSandbox) {
+        // Unsafe path outside sandbox! Refuse to touch file on disk and sanitize DB record.
+        await (_database.update(
+          _database.attachments,
+        )..where((tbl) => tbl.id.equals(row.id))).write(
+          AttachmentsCompanion(
+            localPath: const Value<String>(''),
+            isCache: const Value<bool>(false),
+            transferState: Value<String>(
+              row.remotePath != null ? 'remoteOnly' : 'localOnly',
+            ),
+          ),
+        );
+        missingFilesHandled++;
+        continue;
+      }
+
+      // Tombstone record (deletedAt != null)
+      if (row.deletedAt != null) {
+        if (await _storage.exists(normalizedPath)) {
+          try {
+            if (row.isCache) {
+              await _storage.deleteCache(normalizedPath);
+            } else {
+              await _storage.deleteOwned(normalizedPath);
+            }
+            tombstonesCleaned++;
+          } catch (_) {}
+        }
+        await (_database.update(
+          _database.attachments,
+        )..where((tbl) => tbl.id.equals(row.id))).write(
+          const AttachmentsCompanion(
+            localPath: Value<String>(''),
+            isCache: Value<bool>(false),
+          ),
+        );
+        continue;
+      }
+
+      // Active record (deletedAt == null)
+      final bool fileExists = await _storage.exists(normalizedPath);
+      if (fileExists) {
+        validSandboxFilePaths.add(normalizedPath);
+      } else {
+        // DB record references a file that does not exist on disk
+        missingFilesHandled++;
+        await (_database.update(
+          _database.attachments,
+        )..where((tbl) => tbl.id.equals(row.id))).write(
+          AttachmentsCompanion(
+            localPath: const Value<String>(''),
+            isCache: const Value<bool>(false),
+            transferState: Value<String>(
+              row.remotePath != null ? 'remoteOnly' : 'localOnly',
+            ),
+          ),
+        );
+      }
+    }
+
+    // 3. Scan managed sandbox for unreferenced / orphaned files
+    final List<File> filesOnDisk = await _storage.listFiles();
+    for (final File diskFile in filesOnDisk) {
+      final String diskPath = p.normalize(p.absolute(diskFile.path));
+      if (!validSandboxFilePaths.contains(diskPath)) {
+        try {
+          await _storage.deleteSandboxFile(diskPath);
+          orphanedFilesDeleted++;
+        } catch (_) {}
+      }
+    }
+
+    // 4. Clean empty directories in sandbox
+    try {
+      await _storage.cleanEmptyDirectories();
+    } catch (_) {}
+
+    return AttachmentReconciliationResult(
+      missingFilesHandled: missingFilesHandled,
+      tombstonesCleaned: tombstonesCleaned,
+      orphanedFilesDeleted: orphanedFilesDeleted,
+      tempFilesCleaned: tempFilesCleaned,
+    );
+  }
 
   AttachmentEntity _map(Attachment row) => AttachmentEntity(
     id: row.id,
@@ -253,4 +700,43 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
     version: row.version,
     deletedAt: row.deletedAt,
   );
+}
+
+extension AttachmentsRepositoryTransferX on AttachmentsRepository {
+  void cancelTransfer(String attachmentId) {
+    if (this is DriftAttachmentsRepository) {
+      (this as DriftAttachmentsRepository).cancelTransfer(attachmentId);
+    }
+  }
+
+  Future<void> retryTransfer(String attachmentId, {CancelToken? cancelToken}) {
+    if (this is DriftAttachmentsRepository) {
+      return (this as DriftAttachmentsRepository).retryTransfer(
+        attachmentId,
+        cancelToken: cancelToken,
+      );
+    }
+    return ensureLocal(attachmentId);
+  }
+
+  Stream<AttachmentTransferProgress> watchProgress(String attachmentId) {
+    if (this is DriftAttachmentsRepository) {
+      return (this as DriftAttachmentsRepository).watchProgress(attachmentId);
+    }
+    return const Stream<AttachmentTransferProgress>.empty();
+  }
+
+  Stream<Map<String, double>> watchActiveProgress() {
+    if (this is DriftAttachmentsRepository) {
+      return (this as DriftAttachmentsRepository).watchActiveProgress();
+    }
+    return Stream<Map<String, double>>.value(const <String, double>{});
+  }
+
+  double? getProgress(String attachmentId) {
+    if (this is DriftAttachmentsRepository) {
+      return (this as DriftAttachmentsRepository).getProgress(attachmentId);
+    }
+    return null;
+  }
 }

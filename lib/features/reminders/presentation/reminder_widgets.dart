@@ -25,6 +25,7 @@ Future<ReminderDraft?> showReminderEditorDialog(
   required String defaultTitle,
   String? defaultBody,
   required String timeZoneId,
+  bool exactAlarmsAllowed = true,
 }) async {
   final TextEditingController title = TextEditingController(
     text: existing?.title ?? defaultTitle,
@@ -150,6 +151,33 @@ Future<ReminderDraft?> showReminderEditorDialog(
                     ),
                   ],
                 ),
+                if (!exactAlarmsAllowed) ...<Widget>[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withAlpha(30),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange),
+                    ),
+                    child: const Row(
+                      children: <Widget>[
+                        Icon(
+                          Icons.info_outline,
+                          size: 20,
+                          color: Colors.orange,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Kesin alarm izni verilmediği için bu hatırlatıcı inexact modda yaklaşık bir zamanda çalacaktır.',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (existing != null) ...<Widget>[
                   const SizedBox(height: 12),
                   SwitchListTile.adaptive(
@@ -202,16 +230,20 @@ Future<void> createReminderForParent(
   required String defaultTitle,
   String? defaultBody,
 }) async {
-  final String zone = ref.read(notificationServiceProvider).localTimeZoneId;
+  final notifService = ref.read(notificationServiceProvider);
+  final String zone = notifService.localTimeZoneId;
+  final permState = await notifService.permissionState();
+  if (!context.mounted) return;
   final ReminderDraft? draft = await showReminderEditorDialog(
     context,
     defaultTitle: defaultTitle,
     defaultBody: defaultBody,
     timeZoneId: zone,
+    exactAlarmsAllowed: permState.exactAlarmsAllowed,
   );
   if (draft == null) return;
   try {
-    await ref
+    final created = await ref
         .read(remindersRepositoryProvider)
         .create(
           parentType: parentType,
@@ -221,6 +253,15 @@ Future<void> createReminderForParent(
           scheduledAtUtc: draft.scheduledAtUtc,
           timeZoneId: draft.timeZoneId,
         );
+    if (context.mounted && created.schedulingStatus == 'inexact') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Hatırlatıcı kaydedildi (Kesin alarm izni olmadığı için yaklaşık zamanda çalacaktır).',
+          ),
+        ),
+      );
+    }
   } catch (error) {
     if (context.mounted) _showReminderError(context, error);
   }
@@ -231,12 +272,16 @@ Future<void> editReminderEntity(
   WidgetRef ref,
   ReminderEntity reminder,
 ) async {
+  final notifService = ref.read(notificationServiceProvider);
+  final permState = await notifService.permissionState();
+  if (!context.mounted) return;
   final ReminderDraft? draft = await showReminderEditorDialog(
     context,
     existing: reminder,
     defaultTitle: reminder.title,
     defaultBody: reminder.body,
     timeZoneId: reminder.timeZoneId,
+    exactAlarmsAllowed: permState.exactAlarmsAllowed,
   );
   if (draft == null) return;
   try {
@@ -395,7 +440,12 @@ String _reminderSubtitle(BuildContext context, ReminderEntity reminder) {
   final String date = MaterialLocalizations.of(context).formatFullDate(local);
   final String time = TimeOfDay.fromDateTime(local).format(context);
   final String state = reminder.enabled
-      ? reminder.schedulingStatus
+      ? switch (reminder.schedulingStatus) {
+          'scheduled' => 'kesin planlandı',
+          'inexact' => 'yaklaşık planlandı',
+          'failed' => 'başarısız',
+          _ => reminder.schedulingStatus,
+        }
       : 'devre dışı';
   return '$date · $time · $state';
 }

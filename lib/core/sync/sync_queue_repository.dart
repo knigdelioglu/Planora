@@ -16,9 +16,32 @@ abstract interface class SyncQueueRepository {
   });
 
   Future<List<SyncOperation>> dueOperations({int limit = 50});
+  Future<List<SyncOperation>> allOperations({
+    SyncOperationStatus? status,
+    bool includeCompleted = false,
+  });
+  Stream<List<SyncOperation>> watchOperations({
+    SyncOperationStatus? status,
+    bool includeCompleted = false,
+  });
+  Future<Map<SyncOperationStatus, int>> statusCounts();
+  Stream<Map<SyncOperationStatus, int>> watchStatusCounts();
+
+  Future<void> retryOperation(String operationId);
+  Future<void> retryAll({SyncOperationStatus? status});
+  Future<void> deleteOperation(String operationId);
+  Future<void> clearQueue({
+    SyncOperationStatus? status,
+    bool onlyUncompleted = true,
+  });
+
   Future<void> markProcessing(String operationId);
   Future<void> markCompleted(String operationId);
   Future<void> markRetry(String operationId, {required String error});
+  Future<void> markFailedRecoverable(
+    String operationId, {
+    required String error,
+  });
   Future<void> markConflict(String operationId, {required String error});
   Future<void> resolveBlockedConflicts({
     required String entityType,
@@ -87,12 +110,151 @@ final class DriftSyncQueueRepository implements SyncQueueRepository {
   }
 
   @override
+  Future<List<SyncOperation>> allOperations({
+    SyncOperationStatus? status,
+    bool includeCompleted = false,
+  }) async {
+    final selectQuery = _database.select(_database.syncQueue);
+    if (status != null) {
+      selectQuery.where((tbl) => tbl.status.equals(status.name));
+    } else if (!includeCompleted) {
+      selectQuery.where(
+        (tbl) =>
+            tbl.status.isNotIn(<String>[SyncOperationStatus.completed.name]),
+      );
+    }
+    selectQuery.orderBy(<OrderingTerm Function($SyncQueueTable)>[
+      (tbl) => OrderingTerm.desc(tbl.createdAt),
+    ]);
+    final rows = await selectQuery.get();
+    return rows.map(_map).toList(growable: false);
+  }
+
+  @override
+  Stream<List<SyncOperation>> watchOperations({
+    SyncOperationStatus? status,
+    bool includeCompleted = false,
+  }) {
+    final selectQuery = _database.select(_database.syncQueue);
+    if (status != null) {
+      selectQuery.where((tbl) => tbl.status.equals(status.name));
+    } else if (!includeCompleted) {
+      selectQuery.where(
+        (tbl) =>
+            tbl.status.isNotIn(<String>[SyncOperationStatus.completed.name]),
+      );
+    }
+    selectQuery.orderBy(<OrderingTerm Function($SyncQueueTable)>[
+      (tbl) => OrderingTerm.desc(tbl.createdAt),
+    ]);
+    return selectQuery.watch().map(
+      (rows) => rows.map(_map).toList(growable: false),
+    );
+  }
+
+  @override
+  Future<Map<SyncOperationStatus, int>> statusCounts() async {
+    final rows = await _database.select(_database.syncQueue).get();
+    final counts = <SyncOperationStatus, int>{
+      for (final s in SyncOperationStatus.values) s: 0,
+    };
+    for (final row in rows) {
+      final status = SyncOperationStatus.values.asNameMap()[row.status];
+      if (status != null) {
+        counts[status] = (counts[status] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }
+
+  @override
+  Stream<Map<SyncOperationStatus, int>> watchStatusCounts() {
+    return _database.select(_database.syncQueue).watch().map((rows) {
+      final counts = <SyncOperationStatus, int>{
+        for (final s in SyncOperationStatus.values) s: 0,
+      };
+      for (final row in rows) {
+        final status = SyncOperationStatus.values.asNameMap()[row.status];
+        if (status != null) {
+          counts[status] = (counts[status] ?? 0) + 1;
+        }
+      }
+      return counts;
+    });
+  }
+
+  @override
+  Future<void> retryOperation(String operationId) async {
+    await (_database.update(
+      _database.syncQueue,
+    )..where((tbl) => tbl.operationId.equals(operationId))).write(
+      const SyncQueueCompanion(
+        status: Value<String>('pending'),
+        nextAttemptAt: Value<DateTime?>(null),
+      ),
+    );
+  }
+
+  @override
+  Future<void> retryAll({SyncOperationStatus? status}) async {
+    final updateQuery = _database.update(_database.syncQueue);
+    if (status != null) {
+      updateQuery.where((tbl) => tbl.status.equals(status.name));
+    } else {
+      updateQuery.where(
+        (tbl) =>
+            tbl.status.isNotIn(<String>[SyncOperationStatus.completed.name]),
+      );
+    }
+    await updateQuery.write(
+      const SyncQueueCompanion(
+        status: Value<String>('pending'),
+        nextAttemptAt: Value<DateTime?>(null),
+      ),
+    );
+  }
+
+  @override
+  Future<void> deleteOperation(String operationId) async {
+    await (_database.delete(
+      _database.syncQueue,
+    )..where((tbl) => tbl.operationId.equals(operationId))).go();
+  }
+
+  @override
+  Future<void> clearQueue({
+    SyncOperationStatus? status,
+    bool onlyUncompleted = true,
+  }) async {
+    final deleteQuery = _database.delete(_database.syncQueue);
+    if (status != null) {
+      deleteQuery.where((tbl) => tbl.status.equals(status.name));
+    } else if (onlyUncompleted) {
+      deleteQuery.where(
+        (tbl) =>
+            tbl.status.isNotIn(<String>[SyncOperationStatus.completed.name]),
+      );
+    }
+    await deleteQuery.go();
+  }
+
+  @override
   Future<void> markProcessing(String operationId) =>
       _setStatus(operationId, SyncOperationStatus.processing, clearError: true);
 
   @override
   Future<void> markCompleted(String operationId) =>
       _setStatus(operationId, SyncOperationStatus.completed, clearError: true);
+
+  @override
+  Future<void> markFailedRecoverable(
+    String operationId, {
+    required String error,
+  }) => _setStatus(
+    operationId,
+    SyncOperationStatus.failedRecoverable,
+    error: error,
+  );
 
   @override
   Future<void> markConflict(String operationId, {required String error}) =>

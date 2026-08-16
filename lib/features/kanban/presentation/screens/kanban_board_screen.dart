@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
@@ -6,13 +8,129 @@ import 'package:not_app/features/kanban/domain/entities/board_column.dart';
 import 'package:not_app/features/kanban/domain/entities/kanban_card.dart';
 import 'package:not_app/features/kanban/domain/entities/kanban_snapshot.dart';
 import 'package:not_app/features/kanban/presentation/screens/card_detail_screen.dart';
+import 'package:not_app/features/kanban/presentation/widgets/kanban_card_widget.dart';
 import 'package:not_app/features/kanban/presentation/widgets/kanban_color.dart';
 
-class KanbanBoardScreen extends ConsumerWidget {
+class KanbanBoardScreen extends ConsumerStatefulWidget {
   const KanbanBoardScreen({super.key, required this.boardId});
   final String boardId;
 
-  Future<void> _addColumn(BuildContext context, WidgetRef ref) async {
+  static const double kEdgeThreshold = 48.0;
+
+  @override
+  ConsumerState<KanbanBoardScreen> createState() => _KanbanBoardScreenState();
+}
+
+class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
+  final ScrollController _horizontalScrollController = ScrollController();
+  final GlobalKey _boardAreaKey = GlobalKey();
+
+  Timer? _autoScrollTimer;
+  double _autoScrollDelta = 0.0;
+  Stream<KanbanSnapshot?>? _boardStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initStream();
+  }
+
+  @override
+  void didUpdateWidget(covariant KanbanBoardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.boardId != widget.boardId) {
+      _initStream();
+    }
+  }
+
+  void _initStream() {
+    _boardStream = ref
+        .read(kanbanRepositoryProvider)
+        .watchBoard(widget.boardId);
+  }
+
+  @override
+  void dispose() {
+    _stopAutoScroll();
+    _horizontalScrollController.dispose();
+    super.dispose();
+  }
+
+  void _onDragUpdate(Offset globalPosition) {
+    final RenderBox? box =
+        _boardAreaKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final Offset localPos = box.globalToLocal(globalPosition);
+    final double width = box.size.width;
+
+    if (localPos.dx < KanbanBoardScreen.kEdgeThreshold) {
+      final double clampedDx = localPos.dx.clamp(
+        0.0,
+        KanbanBoardScreen.kEdgeThreshold,
+      );
+      final double proximity =
+          ((KanbanBoardScreen.kEdgeThreshold - clampedDx) /
+                  KanbanBoardScreen.kEdgeThreshold)
+              .clamp(0.0, 1.0);
+      final double delta = -(8.0 + proximity * 16.0);
+      _startAutoScroll(delta);
+    } else if (localPos.dx > width - KanbanBoardScreen.kEdgeThreshold) {
+      final double clampedDx = localPos.dx.clamp(
+        width - KanbanBoardScreen.kEdgeThreshold,
+        width,
+      );
+      final double proximity =
+          ((clampedDx - (width - KanbanBoardScreen.kEdgeThreshold)) /
+                  KanbanBoardScreen.kEdgeThreshold)
+              .clamp(0.0, 1.0);
+      final double delta = 8.0 + proximity * 16.0;
+      _startAutoScroll(delta);
+    } else {
+      _stopAutoScroll();
+    }
+  }
+
+  void _startAutoScroll(double delta) {
+    _autoScrollDelta = delta;
+    if (_autoScrollTimer != null) return;
+    _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 16), (
+      timer,
+    ) {
+      if (!mounted ||
+          _autoScrollDelta == 0.0 ||
+          !_horizontalScrollController.hasClients) {
+        _stopAutoScroll();
+        return;
+      }
+      final position = _horizontalScrollController.position;
+      final double currentPixels = position.pixels;
+      if (_autoScrollDelta < 0 && currentPixels <= position.minScrollExtent) {
+        return;
+      }
+      if (_autoScrollDelta > 0 && currentPixels >= position.maxScrollExtent) {
+        return;
+      }
+      final double newPixels = (currentPixels + _autoScrollDelta).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      if (newPixels != currentPixels) {
+        _horizontalScrollController.jumpTo(newPixels);
+      }
+    });
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollDelta = 0.0;
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+  }
+
+  void _onDragEnd() {
+    _stopAutoScroll();
+  }
+
+  Future<void> _addColumn(BuildContext context) async {
     final TitleColorValue? value = await showTitleColorDialog(
       context,
       dialogTitle: 'Yeni kolon',
@@ -23,7 +141,7 @@ class KanbanBoardScreen extends ConsumerWidget {
       await ref
           .read(kanbanRepositoryProvider)
           .createColumn(
-            boardId: boardId,
+            boardId: widget.boardId,
             title: value.title,
             colorHex: value.colorHex,
           );
@@ -31,21 +149,20 @@ class KanbanBoardScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(kanbanRepositoryProvider);
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pano'),
         actions: <Widget>[
           TextButton.icon(
-            onPressed: () => _addColumn(context, ref),
+            onPressed: () => _addColumn(context),
             icon: const Icon(Icons.add),
             label: const Text('Kolon'),
           ),
         ],
       ),
       body: StreamBuilder<KanbanSnapshot?>(
-        stream: repo.watchBoard(boardId),
+        stream: _boardStream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(child: Text(snapshot.error.toString()));
@@ -60,7 +177,7 @@ class KanbanBoardScreen extends ConsumerWidget {
           if (data.columns.isEmpty) {
             return Center(
               child: FilledButton.icon(
-                onPressed: () => _addColumn(context, ref),
+                onPressed: () => _addColumn(context),
                 icon: const Icon(Icons.add),
                 label: const Text('İlk kolonu ekle'),
               ),
@@ -98,26 +215,33 @@ class KanbanBoardScreen extends ConsumerWidget {
                 ),
               ),
               Expanded(
-                child: Scrollbar(
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                    itemCount: data.columns.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 12),
-                    itemBuilder: (context, columnIndex) {
-                      final column = data.columns[columnIndex];
-                      return SizedBox(
-                        width: 320,
-                        child: _KanbanColumn(
-                          snapshot: data,
-                          column: column,
-                          columnIndex: columnIndex,
-                          cards:
-                              data.cardsByColumn[column.id] ??
-                              const <KanbanCard>[],
-                        ),
-                      );
-                    },
+                child: KeyedSubtree(
+                  key: _boardAreaKey,
+                  child: Scrollbar(
+                    controller: _horizontalScrollController,
+                    child: ListView.separated(
+                      controller: _horizontalScrollController,
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                      itemCount: data.columns.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 12),
+                      itemBuilder: (context, columnIndex) {
+                        final column = data.columns[columnIndex];
+                        return SizedBox(
+                          width: 320,
+                          child: _KanbanColumn(
+                            snapshot: data,
+                            column: column,
+                            columnIndex: columnIndex,
+                            cards:
+                                data.cardsByColumn[column.id] ??
+                                const <KanbanCard>[],
+                            onDragUpdate: _onDragUpdate,
+                            onDragEnd: _onDragEnd,
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -140,11 +264,15 @@ class _KanbanColumn extends ConsumerWidget {
     required this.column,
     required this.columnIndex,
     required this.cards,
+    required this.onDragUpdate,
+    required this.onDragEnd,
   });
   final KanbanSnapshot snapshot;
   final BoardColumnEntity column;
   final int columnIndex;
   final List<KanbanCard> cards;
+  final ValueChanged<Offset> onDragUpdate;
+  final VoidCallback onDragEnd;
 
   Future<void> _newCard(BuildContext context, WidgetRef ref) async {
     final controller = TextEditingController();
@@ -184,6 +312,9 @@ class _KanbanColumn extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final Color? columnColor = colorFromHex(column.colorHex);
+    final bool hasPrev = columnIndex > 0;
+    final bool hasNext = columnIndex < snapshot.columns.length - 1;
+
     return Card(
       child: Column(
         children: <Widget>[
@@ -235,20 +366,96 @@ class _KanbanColumn extends ConsumerWidget {
                 }
                 final int cardIndex = rawIndex ~/ 2;
                 final KanbanCard card = cards[cardIndex];
+                final bool canTop = cardIndex > 0;
+                final bool canBottom = cardIndex < cards.length - 1;
+
                 return LongPressDraggable<_CardDragData>(
                   data: _CardDragData(card),
+                  onDragUpdate: (details) =>
+                      onDragUpdate(details.globalPosition),
+                  onDragEnd: (_) => onDragEnd(),
+                  onDraggableCanceled: (_, _) => onDragEnd(),
+                  onDragCompleted: () => onDragEnd(),
                   feedback: Material(
                     color: Colors.transparent,
                     child: SizedBox(
                       width: 292,
-                      child: _CardTile(card: card, feedback: true),
+                      child: KanbanCardWidget(card: card, feedback: true),
                     ),
                   ),
                   childWhenDragging: Opacity(
                     opacity: 0.25,
-                    child: _CardTile(card: card),
+                    child: KanbanCardWidget(
+                      card: card,
+                      hasPreviousColumn: hasPrev,
+                      hasNextColumn: hasNext,
+                      canMoveToTop: canTop,
+                      canMoveToBottom: canBottom,
+                    ),
                   ),
-                  child: _CardTile(card: card),
+                  child: KanbanCardWidget(
+                    card: card,
+                    hasPreviousColumn: hasPrev,
+                    hasNextColumn: hasNext,
+                    canMoveToTop: canTop,
+                    canMoveToBottom: canBottom,
+                    onTap: () => AppRouter.push<void>(
+                      context,
+                      CardDetailScreen(cardId: card.id),
+                    ),
+                    onMovePrev: hasPrev
+                        ? () => ref
+                              .read(kanbanRepositoryProvider)
+                              .moveCard(
+                                cardId: card.id,
+                                destinationColumnId:
+                                    snapshot.columns[columnIndex - 1].id,
+                                destinationIndex:
+                                    snapshot
+                                        .cardsByColumn[snapshot
+                                            .columns[columnIndex - 1]
+                                            .id]
+                                        ?.length ??
+                                    0,
+                              )
+                        : null,
+                    onMoveNext: hasNext
+                        ? () => ref
+                              .read(kanbanRepositoryProvider)
+                              .moveCard(
+                                cardId: card.id,
+                                destinationColumnId:
+                                    snapshot.columns[columnIndex + 1].id,
+                                destinationIndex:
+                                    snapshot
+                                        .cardsByColumn[snapshot
+                                            .columns[columnIndex + 1]
+                                            .id]
+                                        ?.length ??
+                                    0,
+                              )
+                        : null,
+                    onMoveTop: canTop
+                        ? () => ref
+                              .read(kanbanRepositoryProvider)
+                              .moveCard(
+                                cardId: card.id,
+                                destinationColumnId: column.id,
+                                destinationIndex: 0,
+                              )
+                        : null,
+                    onMoveBottom: canBottom
+                        ? () => ref
+                              .read(kanbanRepositoryProvider)
+                              .moveCard(
+                                cardId: card.id,
+                                destinationColumnId: column.id,
+                                destinationIndex: cards.length - 1,
+                              )
+                        : null,
+                    onDelete: () =>
+                        ref.read(kanbanRepositoryProvider).deleteCard(card.id),
+                  ),
                 );
               },
             ),
@@ -289,43 +496,6 @@ class _DropZone extends StatelessWidget {
       child: candidates.isEmpty
           ? null
           : const Center(child: Text('Buraya taşı')),
-    ),
-  );
-}
-
-class _CardTile extends StatelessWidget {
-  const _CardTile({required this.card, this.feedback = false});
-  final KanbanCard card;
-  final bool feedback;
-  @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.symmetric(vertical: 3),
-    child: InkWell(
-      onTap: feedback
-          ? null
-          : () => AppRouter.push<void>(
-              context,
-              CardDetailScreen(cardId: card.id),
-            ),
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(card.title, style: Theme.of(context).textTheme.titleMedium),
-            if (card.description?.trim().isNotEmpty == true) ...<Widget>[
-              const SizedBox(height: 6),
-              Text(
-                card.description!,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ],
-        ),
-      ),
     ),
   );
 }

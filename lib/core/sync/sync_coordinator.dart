@@ -48,7 +48,8 @@ final class SyncCoordinator {
   StreamSubscription<bool>? _networkSubscription;
   StreamSubscription<AuthSessionState>? _authSubscription;
   Timer? _periodic;
-  bool _syncing = false;
+  Completer<SyncRunResult>? _inFlight;
+  bool _pendingFollowUp = false;
   SyncHealthState _health = const SyncHealthState();
 
   SyncHealthState get currentHealth => _health;
@@ -95,42 +96,63 @@ final class SyncCoordinator {
   }
 
   Future<SyncRunResult> syncNow() async {
-    if (_syncing || !_authService.currentState.isSignedIn) {
+    if (!_authService.currentState.isSignedIn) {
       return const SyncRunResult(pushed: 0, pulled: 0, conflicts: 0);
     }
+    if (_inFlight != null) {
+      _pendingFollowUp = true;
+      return _inFlight!.future;
+    }
+    final Completer<SyncRunResult> completer = Completer<SyncRunResult>();
+    _inFlight = completer;
     try {
-      if (!await _networkInfo.isConnected()) {
+      int totalPushed = 0;
+      int totalPulled = 0;
+      int totalConflicts = 0;
+
+      while (true) {
+        _pendingFollowUp = false;
+        if (!await _networkInfo.isConnected()) {
+          _setHealth(
+            SyncHealthState(
+              isOnline: false,
+              lastSuccessfulSyncAt: _health.lastSuccessfulSyncAt,
+              lastError: _health.lastError,
+            ),
+          );
+          break;
+        }
         _setHealth(
           SyncHealthState(
-            isOnline: false,
+            isSyncing: true,
+            isOnline: true,
             lastSuccessfulSyncAt: _health.lastSuccessfulSyncAt,
-            lastError: _health.lastError,
           ),
         );
-        return const SyncRunResult(pushed: 0, pulled: 0, conflicts: 0);
+        final SyncRunResult result = await _engine.runOnce();
+        await _reconcileReminders();
+        totalPushed += result.pushed;
+        totalPulled += result.pulled;
+        totalConflicts += result.conflicts;
+        final DateTime successAt = _clock.nowUtc();
+        await _writeMeta(_lastSuccessKey, successAt.toIso8601String());
+        await _deleteMeta(_lastErrorKey);
+        _setHealth(
+          SyncHealthState(isOnline: true, lastSuccessfulSyncAt: successAt),
+        );
+        if (!_pendingFollowUp) break;
       }
-      _syncing = true;
-      _setHealth(
-        SyncHealthState(
-          isSyncing: true,
-          isOnline: true,
-          lastSuccessfulSyncAt: _health.lastSuccessfulSyncAt,
-        ),
+
+      final SyncRunResult combined = SyncRunResult(
+        pushed: totalPushed,
+        pulled: totalPulled,
+        conflicts: totalConflicts,
       );
-      final SyncRunResult result = await _engine.runOnce();
-      await _reconcileReminders();
-      final DateTime successAt = _clock.nowUtc();
-      await _writeMeta(_lastSuccessKey, successAt.toIso8601String());
-      await _deleteMeta(_lastErrorKey);
-      _syncing = false;
-      _setHealth(
-        SyncHealthState(isOnline: true, lastSuccessfulSyncAt: successAt),
-      );
-      return result;
+      completer.complete(combined);
+      return combined;
     } catch (error, stackTrace) {
       final String safeError = _safeError(error);
       await _writeMeta(_lastErrorKey, safeError);
-      _syncing = false;
       _setHealth(
         SyncHealthState(
           isOnline: true,
@@ -139,7 +161,15 @@ final class SyncCoordinator {
         ),
       );
       _logger.warning('Synchronization cycle failed.', error, stackTrace);
-      return const SyncRunResult(pushed: 0, pulled: 0, conflicts: 0);
+      const SyncRunResult failResult = SyncRunResult(
+        pushed: 0,
+        pulled: 0,
+        conflicts: 0,
+      );
+      completer.complete(failResult);
+      return failResult;
+    } finally {
+      _inFlight = null;
     }
   }
 
@@ -150,6 +180,11 @@ final class SyncCoordinator {
     await _authSubscription?.cancel();
     _networkSubscription = null;
     _authSubscription = null;
+    if (_inFlight != null) {
+      try {
+        await _inFlight!.future;
+      } catch (_) {}
+    }
   }
 
   Future<void> _loadHealth() async {

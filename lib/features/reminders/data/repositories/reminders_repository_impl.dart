@@ -232,6 +232,8 @@ final class DriftRemindersRepository implements RemindersRepository {
         .select(_database.reminders)
         .get();
     final Set<int> pending = await _notifications.pendingIds();
+    final Set<int> activeNotificationIds = <int>{};
+
     for (final Reminder row in rows) {
       final bool shouldExist =
           row.deletedAt == null &&
@@ -243,17 +245,17 @@ final class DriftRemindersRepository implements RemindersRepository {
         }
         continue;
       }
-      if (!pending.contains(row.notificationId)) {
+      activeNotificationIds.add(row.notificationId);
+      try {
         await _scheduleAndMark(row.id);
-      } else {
-        await (_database.update(
-          _database.reminders,
-        )..where((tbl) => tbl.id.equals(row.id))).write(
-          RemindersCompanion(
-            schedulingStatus: const Value<String>('scheduled'),
-            lastReconciledAt: Value<DateTime?>(now),
-          ),
-        );
+      } catch (_) {
+        // Continue reconciling remaining reminders if an individual schedule throws
+      }
+    }
+
+    for (final int id in pending) {
+      if (!activeNotificationIds.contains(id)) {
+        await _notifications.cancel(id);
       }
     }
   }
@@ -262,8 +264,14 @@ final class DriftRemindersRepository implements RemindersRepository {
     final Reminder row = await (_database.select(
       _database.reminders,
     )..where((tbl) => tbl.id.equals(id))).getSingle();
+    final DateTime now = _clock.nowUtc();
+    if (row.deletedAt != null ||
+        !row.enabled ||
+        !row.scheduledAtUtc.isAfter(now)) {
+      return;
+    }
     try {
-      await _notifications.schedule(
+      final NotificationScheduleResult result = await _notifications.schedule(
         id: row.notificationId,
         title: row.title,
         body: row.body ?? 'Hatırlatıcınız hazır.',
@@ -271,11 +279,12 @@ final class DriftRemindersRepository implements RemindersRepository {
         timeZoneId: row.timeZoneId,
         payload: '${row.parentType}:${row.parentId}',
       );
+      final String status = result.isExact ? 'scheduled' : 'inexact';
       await (_database.update(
         _database.reminders,
       )..where((tbl) => tbl.id.equals(id))).write(
         RemindersCompanion(
-          schedulingStatus: const Value<String>('scheduled'),
+          schedulingStatus: Value<String>(status),
           lastReconciledAt: Value<DateTime?>(_clock.nowUtc()),
         ),
       );

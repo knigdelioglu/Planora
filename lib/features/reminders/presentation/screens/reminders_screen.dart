@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
 import 'package:not_app/app/widgets/common_widgets.dart';
+import 'package:not_app/core/services/notification_service.dart';
 import 'package:not_app/features/reminders/domain/entities/reminder.dart';
 import 'package:not_app/features/reminders/presentation/reminder_widgets.dart';
 
@@ -13,23 +14,74 @@ class RemindersScreen extends ConsumerStatefulWidget {
   ConsumerState<RemindersScreen> createState() => _RemindersScreenState();
 }
 
-class _RemindersScreenState extends ConsumerState<RemindersScreen> {
+class _RemindersScreenState extends ConsumerState<RemindersScreen>
+    with WidgetsBindingObserver {
   _ReminderView _view = _ReminderView.upcoming;
+  NotificationPermissionState? _permissionState;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _loadPermissions();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadPermissions();
+    }
+  }
+
+  Future<void> _loadPermissions() async {
+    if (!mounted) return;
+    try {
+      final state = await ref
+          .read(notificationServiceProvider)
+          .permissionState();
+      if (mounted) {
+        setState(() => _permissionState = state);
+      }
+    } catch (_) {}
+  }
 
   Future<void> _requestPermissions() async {
     final state = await ref
         .read(notificationServiceProvider)
         .requestPermissions();
     if (!mounted) return;
+    setState(() => _permissionState = state);
     final String message = state.notificationsAllowed
         ? state.exactAlarmsAllowed
               ? 'Bildirim izinleri hazır.'
-              : 'Bildirim izni açık; kesin alarm izni cihaz tarafından sınırlanıyor.'
+              : 'Bildirim izni açık; kesin alarm izni olmadığı için inexact mod devrede.'
         : 'Bildirim izni verilmedi. Ayarlardan daha sonra açabilirsiniz.';
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
     await ref.read(remindersRepositoryProvider).reconcile();
+  }
+
+  Future<void> _openAppSettings() async {
+    final opened = await ref
+        .read(notificationServiceProvider)
+        .openAppSettings();
+    if (!mounted) return;
+    if (!opened) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Ayarlar sayfası açılamadı. Lütfen cihaz ayarlarından kontrol edin.',
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -40,6 +92,13 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
       _ReminderView.past => repo.watchPast(),
       _ReminderView.disabled => repo.watchDisabled(),
     };
+    final NotificationPermissionState permState =
+        _permissionState ??
+        const NotificationPermissionState(
+          notificationsAllowed: true,
+          exactAlarmsAllowed: true,
+        );
+
     return Column(
       children: <Widget>[
         AppPageHeader(
@@ -53,6 +112,73 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
             ),
           ],
         ),
+        if (permState.isDenied)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.errorContainer.withAlpha(50),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Theme.of(context).colorScheme.error),
+              ),
+              child: Row(
+                children: <Widget>[
+                  Icon(
+                    Icons.notifications_off_outlined,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Bildirim izni kapalı. Hatırlatıcıların çalması için lütfen izin verin.',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _requestPermissions,
+                    child: const Text('İzin İste'),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: _openAppSettings,
+                    child: const Text('Ayarları Aç'),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (permState.hasInexactFallbackOnly)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withAlpha(30),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange),
+              ),
+              child: Row(
+                children: <Widget>[
+                  const Icon(Icons.info_outline, color: Colors.orange),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Kesin alarm izni kapalı. Hatırlatıcılar inexact modda planlandı ve yaklaşık zamanda gelecektir.',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.tonal(
+                    onPressed: _openAppSettings,
+                    child: const Text('Ayarları Aç'),
+                  ),
+                ],
+              ),
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Align(
@@ -112,10 +238,22 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
                   return ListTile(
                     leading: Icon(
                       item.enabled
-                          ? item.schedulingStatus == 'scheduled'
-                                ? Icons.notifications_active_outlined
-                                : Icons.notifications_none
+                          ? switch (item.schedulingStatus) {
+                              'scheduled' =>
+                                Icons.notifications_active_outlined,
+                              'inexact' => Icons.alarm_outlined,
+                              'failed' => Icons.error_outline,
+                              _ => Icons.notifications_none,
+                            }
                           : Icons.notifications_off_outlined,
+                      color: item.enabled
+                          ? switch (item.schedulingStatus) {
+                              'scheduled' => Colors.green,
+                              'inexact' => Colors.orange,
+                              'failed' => Theme.of(context).colorScheme.error,
+                              _ => null,
+                            }
+                          : null,
                     ),
                     title: Text(item.title),
                     subtitle: Text(reminderSubtitle(context, item)),

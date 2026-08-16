@@ -167,4 +167,19 @@ class AppDatabase extends _$AppDatabase {
       <Object?>[entityType, entityId],
     );
   }
+
+  Future<List<String>> integrityCheck() async {
+    final rows = await customSelect('PRAGMA integrity_check').get();
+    return rows.map((row) => row.read<String>('integrity_check')).toList();
+  }
+
+  Future<List<String>> quickCheck() async {
+    final rows = await customSelect('PRAGMA quick_check').get();
+    return rows.map((row) => row.read<String>('quick_check')).toList();
+  }
+
+  Future<void> checkpoint({bool truncate = false}) async {
+    final mode = truncate ? 'TRUNCATE' : 'PASSIVE';
+    await customStatement('PRAGMA wal_checkpoint($mode)');
+  }
 }

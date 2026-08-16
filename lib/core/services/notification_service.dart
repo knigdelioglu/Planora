@@ -4,6 +4,18 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:url_launcher/url_launcher.dart';
+
+enum NotificationScheduleMode { exact, inexact }
+
+final class NotificationScheduleResult {
+  const NotificationScheduleResult({required this.mode, this.warning});
+
+  final NotificationScheduleMode mode;
+  final String? warning;
+
+  bool get isExact => mode == NotificationScheduleMode.exact;
+}
 
 final class NotificationPermissionState {
   const NotificationPermissionState({
@@ -13,13 +25,20 @@ final class NotificationPermissionState {
 
   final bool notificationsAllowed;
   final bool exactAlarmsAllowed;
+
+  bool get fullyGranted => notificationsAllowed && exactAlarmsAllowed;
+  bool get hasInexactFallbackOnly =>
+      notificationsAllowed && !exactAlarmsAllowed;
+  bool get isDenied => !notificationsAllowed;
 }
 
 abstract interface class NotificationService {
   Future<void> initialize();
+  Future<void> refreshTimeZone();
   Future<NotificationPermissionState> requestPermissions();
   Future<NotificationPermissionState> permissionState();
-  Future<void> schedule({
+  Future<bool> openAppSettings();
+  Future<NotificationScheduleResult> schedule({
     required int id,
     required String title,
     required String body,
@@ -45,14 +64,7 @@ final class LocalNotificationService implements NotificationService {
   @override
   Future<void> initialize() async {
     tzdata.initializeTimeZones();
-    try {
-      final TimezoneInfo info = await FlutterTimezone.getLocalTimezone();
-      _localTimeZoneId = info.identifier;
-      tz.setLocalLocation(tz.getLocation(info.identifier));
-    } catch (_) {
-      _localTimeZoneId = 'UTC';
-      tz.setLocalLocation(tz.UTC);
-    }
+    await refreshTimeZone();
     const InitializationSettings settings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
       iOS: DarwinInitializationSettings(
@@ -70,14 +82,26 @@ final class LocalNotificationService implements NotificationService {
   }
 
   @override
+  Future<void> refreshTimeZone() async {
+    try {
+      final TimezoneInfo info = await FlutterTimezone.getLocalTimezone();
+      _localTimeZoneId = info.identifier;
+      tz.setLocalLocation(tz.getLocation(info.identifier));
+    } catch (_) {
+      _localTimeZoneId = 'UTC';
+      tz.setLocalLocation(tz.UTC);
+    }
+  }
+
+  @override
   Future<NotificationPermissionState> requestPermissions() async {
     bool notifications = true;
     bool exact = true;
-    if (Platform.isAndroid) {
-      final android = _plugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >();
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (Platform.isAndroid || android != null) {
       notifications = await android?.requestNotificationsPermission() ?? true;
       exact = await android?.requestExactAlarmsPermission() ?? true;
     } else if (Platform.isIOS) {
@@ -115,11 +139,11 @@ final class LocalNotificationService implements NotificationService {
   Future<NotificationPermissionState> permissionState() async {
     bool notifications = true;
     bool exact = true;
-    if (Platform.isAndroid) {
-      final android = _plugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >();
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (Platform.isAndroid || android != null) {
       notifications = await android?.areNotificationsEnabled() ?? true;
       exact = await android?.canScheduleExactNotifications() ?? true;
     }
@@ -130,7 +154,34 @@ final class LocalNotificationService implements NotificationService {
   }
 
   @override
-  Future<void> schedule({
+  Future<bool> openAppSettings() async {
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (Platform.isAndroid || android != null) {
+      final bool? requested = await android?.requestExactAlarmsPermission();
+      if (requested == true) return true;
+      try {
+        final uri = Uri.parse('package:com.example.not_app');
+        if (await canLaunchUrl(uri)) {
+          return await launchUrl(uri);
+        }
+      } catch (_) {}
+      return false;
+    } else if (Platform.isIOS || Platform.isMacOS) {
+      try {
+        final uri = Uri.parse('app-settings:');
+        if (await canLaunchUrl(uri)) {
+          return await launchUrl(uri);
+        }
+      } catch (_) {}
+    }
+    return false;
+  }
+
+  @override
+  Future<NotificationScheduleResult> schedule({
     required int id,
     required String title,
     required String body,
@@ -138,11 +189,24 @@ final class LocalNotificationService implements NotificationService {
     required String timeZoneId,
     String? payload,
   }) async {
-    final tz.Location location;
-    try {
-      location = tz.getLocation(timeZoneId);
-    } catch (_) {
-      throw ArgumentError.value(timeZoneId, 'timeZoneId', 'Unknown timezone.');
+    tz.Location location;
+    if (timeZoneId.toUpperCase() == 'UTC' || timeZoneId.isEmpty) {
+      location = tz.UTC;
+    } else {
+      try {
+        location = tz.getLocation(timeZoneId);
+      } catch (_) {
+        if (_localTimeZoneId.toUpperCase() == 'UTC' ||
+            _localTimeZoneId.isEmpty) {
+          location = tz.UTC;
+        } else {
+          try {
+            location = tz.getLocation(_localTimeZoneId);
+          } catch (_) {
+            location = tz.UTC;
+          }
+        }
+      }
     }
     final tz.TZDateTime scheduled = tz.TZDateTime.from(
       scheduledAtUtc.toUtc(),
@@ -151,25 +215,108 @@ final class LocalNotificationService implements NotificationService {
     if (!scheduled.isAfter(tz.TZDateTime.now(location))) {
       throw ArgumentError('Reminder time must be in the future.');
     }
-    await _plugin.zonedSchedule(
-      id: id,
-      title: title,
-      body: body,
-      scheduledDate: scheduled,
-      notificationDetails: const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'reminders',
-          'Hatırlatıcılar',
-          channelDescription: 'Not ve kart hatırlatıcıları',
-          importance: Importance.high,
-          priority: Priority.high,
-        ),
-        iOS: DarwinNotificationDetails(),
-        macOS: DarwinNotificationDetails(),
+
+    const notificationDetails = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'reminders',
+        'Hatırlatıcılar',
+        channelDescription: 'Not ve kart hatırlatıcıları',
+        importance: Importance.high,
+        priority: Priority.high,
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      payload: payload,
+      iOS: DarwinNotificationDetails(),
+      macOS: DarwinNotificationDetails(),
     );
+
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    final bool isAndroid = Platform.isAndroid || android != null;
+
+    if (isAndroid) {
+      final bool canExact =
+          await android?.canScheduleExactNotifications() ?? true;
+
+      if (canExact) {
+        try {
+          await _plugin.zonedSchedule(
+            id: id,
+            title: title,
+            body: body,
+            scheduledDate: scheduled,
+            notificationDetails: notificationDetails,
+            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            payload: payload,
+          );
+          return const NotificationScheduleResult(
+            mode: NotificationScheduleMode.exact,
+          );
+        } catch (_) {
+          // If exact scheduling fails with exact alarm permission error, fall back to inexactAllowWhileIdle
+          await _plugin.zonedSchedule(
+            id: id,
+            title: title,
+            body: body,
+            scheduledDate: scheduled,
+            notificationDetails: notificationDetails,
+            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+            payload: payload,
+          );
+          return const NotificationScheduleResult(
+            mode: NotificationScheduleMode.inexact,
+            warning:
+                'Kesin alarm izni bulunamadı; hatırlatıcı inexact modunda planlandı.',
+          );
+        }
+      } else {
+        // Controlled fallback without crashing
+        await _plugin.zonedSchedule(
+          id: id,
+          title: title,
+          body: body,
+          scheduledDate: scheduled,
+          notificationDetails: notificationDetails,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          payload: payload,
+        );
+        return const NotificationScheduleResult(
+          mode: NotificationScheduleMode.inexact,
+          warning:
+              'Kesin alarm izni verilmediği için yaklaşık zamanlı planlama yapıldı.',
+        );
+      }
+    }
+
+    try {
+      await _plugin.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: scheduled,
+        notificationDetails: notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: payload,
+      );
+      return const NotificationScheduleResult(
+        mode: NotificationScheduleMode.exact,
+      );
+    } catch (_) {
+      await _plugin.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: scheduled,
+        notificationDetails: notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: payload,
+      );
+      return const NotificationScheduleResult(
+        mode: NotificationScheduleMode.inexact,
+        warning:
+            'Kesin alarm planlaması desteklenmiyor; yaklaşık mod kullanıldı.',
+      );
+    }
   }
 
   @override

@@ -21,26 +21,89 @@ final class StoredFile {
   final String checksum;
 }
 
+final class AttachmentReconciliationResult {
+  const AttachmentReconciliationResult({
+    this.missingFilesHandled = 0,
+    this.tombstonesCleaned = 0,
+    this.orphanedFilesDeleted = 0,
+    this.tempFilesCleaned = 0,
+  });
+
+  final int missingFilesHandled;
+  final int tombstonesCleaned;
+  final int orphanedFilesDeleted;
+  final int tempFilesCleaned;
+
+  int get totalActions =>
+      missingFilesHandled +
+      tombstonesCleaned +
+      orphanedFilesDeleted +
+      tempFilesCleaned;
+}
+
 abstract interface class FileStorageService {
   Future<StoredFile> persist(File source, {String? attachmentId});
   Future<StoredFile> persistCache(File source, {required String attachmentId});
   Future<void> deleteOwned(String localPath);
   Future<void> deleteCache(String localPath);
+  Future<void> deleteSandboxFile(String localPath);
   Future<int> cacheSizeBytes();
   Future<void> evictCacheUntil({required int maximumBytes});
   Future<bool> exists(String localPath);
+  Future<bool> isWithinSandbox(String localPath, {String? bucket});
+  Future<List<File>> listFiles({String? bucket});
+  Future<void> cleanTempDownloads();
+  Future<void> cleanEmptyDirectories({String? bucket});
 }
 
 final class SandboxFileStorageService implements FileStorageService {
-  SandboxFileStorageService({Uuid? uuid}) : _uuid = uuid ?? const Uuid();
+  SandboxFileStorageService({
+    Future<Directory> Function()? rootDirectoryProvider,
+    Future<Directory> Function()? tempDirectoryProvider,
+    Uuid? uuid,
+  }) : _rootDirectoryProvider = rootDirectoryProvider,
+       _tempDirectoryProvider = tempDirectoryProvider,
+       _uuid = uuid ?? const Uuid();
 
+  final Future<Directory> Function()? _rootDirectoryProvider;
+  final Future<Directory> Function()? _tempDirectoryProvider;
   final Uuid _uuid;
 
   Future<Directory> _supportRoot() async {
-    final Directory support = await getApplicationSupportDirectory();
-    final Directory root = Directory(p.join(support.path, 'app_storage'));
+    final Directory base = _rootDirectoryProvider != null
+        ? await _rootDirectoryProvider()
+        : await getApplicationSupportDirectory();
+    final Directory root = Directory(p.join(base.path, 'app_storage'));
     await root.create(recursive: true);
     return root;
+  }
+
+  Future<Directory> _tempRoot() async {
+    final Directory base = _tempDirectoryProvider != null
+        ? await _tempDirectoryProvider()
+        : await getTemporaryDirectory();
+    final Directory temp = Directory(
+      p.join(base.path, 'not_attachment_downloads'),
+    );
+    return temp;
+  }
+
+  @override
+  Future<bool> isWithinSandbox(String localPath, {String? bucket}) async {
+    if (localPath.trim().isEmpty) return false;
+    final Directory root = await _supportRoot();
+    final String target = p.normalize(p.absolute(localPath));
+    if (bucket != null) {
+      final String allowed = p.normalize(p.absolute(p.join(root.path, bucket)));
+      return p.isWithin(allowed, target);
+    }
+    final String allowedOwned = p.normalize(
+      p.absolute(p.join(root.path, 'attachments')),
+    );
+    final String allowedCache = p.normalize(
+      p.absolute(p.join(root.path, 'cache')),
+    );
+    return p.isWithin(allowedOwned, target) || p.isWithin(allowedCache, target);
   }
 
   @override
@@ -106,27 +169,124 @@ final class SandboxFileStorageService implements FileStorageService {
   Future<void> deleteCache(String localPath) =>
       _deleteWithin(localPath, 'cache');
 
-  Future<void> _deleteWithin(String localPath, String bucket) async {
-    final Directory root = await _supportRoot();
-    final String allowed = p.normalize(p.absolute(p.join(root.path, bucket)));
-    final String target = p.normalize(p.absolute(localPath));
-    if (!p.isWithin(allowed, target)) {
+  @override
+  Future<void> deleteSandboxFile(String localPath) =>
+      _deleteWithin(localPath, null);
+
+  Future<void> _deleteWithin(String localPath, String? bucket) async {
+    if (localPath.trim().isEmpty) return;
+    final bool within = await isWithinSandbox(localPath, bucket: bucket);
+    if (!within) {
       throw FileSystemException(
         'Refusing to delete outside managed sandbox.',
-        target,
+        localPath,
       );
     }
+    final String target = p.normalize(p.absolute(localPath));
     final File file = File(target);
-    if (await file.exists()) await file.delete();
-    final Directory parent = file.parent;
-    if (await parent.exists() && p.isWithin(allowed, parent.path)) {
-      final List<FileSystemEntity> remaining = await parent.list().toList();
-      if (remaining.isEmpty) await parent.delete();
+    if (await file.exists()) {
+      await file.delete();
+    }
+    final Directory root = await _supportRoot();
+    final String allowedOwned = p.normalize(
+      p.absolute(p.join(root.path, 'attachments')),
+    );
+    final String allowedCache = p.normalize(
+      p.absolute(p.join(root.path, 'cache')),
+    );
+    Directory parent = file.parent;
+    while (p.isWithin(allowedOwned, parent.path) ||
+        p.isWithin(allowedCache, parent.path)) {
+      if (await parent.exists()) {
+        final List<FileSystemEntity> remaining = await parent.list().toList();
+        if (remaining.isEmpty) {
+          await parent.delete();
+          parent = parent.parent;
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
     }
   }
 
   @override
-  Future<bool> exists(String localPath) => File(localPath).exists();
+  Future<bool> exists(String localPath) async {
+    if (localPath.trim().isEmpty) return false;
+    final bool within = await isWithinSandbox(localPath);
+    if (!within) return false;
+    return File(p.normalize(p.absolute(localPath))).exists();
+  }
+
+  @override
+  Future<List<File>> listFiles({String? bucket}) async {
+    final Directory root = await _supportRoot();
+    final List<File> result = <File>[];
+    if (bucket != null) {
+      final Directory dir = Directory(p.join(root.path, bucket));
+      if (await dir.exists()) {
+        await for (final FileSystemEntity entity in dir.list(recursive: true)) {
+          if (entity is File) result.add(entity);
+        }
+      }
+    } else {
+      for (final String b in const <String>['attachments', 'cache']) {
+        final Directory dir = Directory(p.join(root.path, b));
+        if (await dir.exists()) {
+          await for (final FileSystemEntity entity in dir.list(
+            recursive: true,
+          )) {
+            if (entity is File) result.add(entity);
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  @override
+  Future<void> cleanTempDownloads() async {
+    final Directory temp = await _tempRoot();
+    if (await temp.exists()) {
+      try {
+        await temp.delete(recursive: true);
+      } catch (_) {}
+    }
+  }
+
+  @override
+  Future<void> cleanEmptyDirectories({String? bucket}) async {
+    final Directory root = await _supportRoot();
+    final List<String> buckets = bucket != null
+        ? <String>[bucket]
+        : const <String>['attachments', 'cache'];
+    for (final String b in buckets) {
+      final Directory dir = Directory(p.join(root.path, b));
+      if (!await dir.exists()) continue;
+      await _cleanEmptyDirsRecursive(dir);
+    }
+  }
+
+  Future<bool> _cleanEmptyDirsRecursive(Directory dir) async {
+    if (!await dir.exists()) return true;
+    bool isEmpty = true;
+    final List<FileSystemEntity> entities = await dir.list().toList();
+    for (final FileSystemEntity entity in entities) {
+      if (entity is Directory) {
+        final bool subEmpty = await _cleanEmptyDirsRecursive(entity);
+        if (!subEmpty) isEmpty = false;
+      } else {
+        isEmpty = false;
+      }
+    }
+    if (isEmpty) {
+      try {
+        await dir.delete();
+      } catch (_) {}
+    }
+    return isEmpty;
+  }
 
   @override
   Future<int> cacheSizeBytes() async {
@@ -160,7 +320,9 @@ final class SandboxFileStorageService implements FileStorageService {
     for (final File file in files) {
       if (total <= maximumBytes) break;
       final int size = await file.length();
-      await file.delete();
+      try {
+        await file.delete();
+      } catch (_) {}
       total -= size;
     }
   }

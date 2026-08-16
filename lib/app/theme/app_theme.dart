@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -21,6 +22,59 @@ abstract final class AppColors {
   static const Color darkBorder = Color(0xFF383836);
   static const Color darkAccent = Color(0xFF918DFF);
   static const Color darkDanger = Color(0xFFEF7772);
+
+  // Status colors
+  static const Color success = Color(0xFF2E7D32);
+  static const Color successContainerLight = Color(0xFFE8F5E9);
+  static const Color successContainerDark = Color(0xFF1B3820);
+  static const Color onSuccessContainerLight = Color(0xFF1B5E20);
+  static const Color onSuccessContainerDark = Color(0xFFA5D6A7);
+
+  static const Color warning = Color(0xFFE65100);
+  static const Color warningContainerLight = Color(0xFFFFF3E0);
+  static const Color warningContainerDark = Color(0xFF3E2713);
+  static const Color onWarningContainerLight = Color(0xFFBF360C);
+  static const Color onWarningContainerDark = Color(0xFFFFCC80);
+
+  static const Color info = Color(0xFF0277BD);
+  static const Color infoContainerLight = Color(0xFFE1F5FE);
+  static const Color infoContainerDark = Color(0xFF0D2D42);
+  static const Color onInfoContainerLight = Color(0xFF01579B);
+  static const Color onInfoContainerDark = Color(0xFF81D4FA);
+
+  static const Color error = Color(0xFFC73E3A);
+  static const Color errorContainerLight = Color(0xFFFFEBEE);
+  static const Color errorContainerDark = Color(0xFF3E1C1A);
+  static const Color onErrorContainerLight = Color(0xFFB71C1C);
+  static const Color onErrorContainerDark = Color(0xFFFFCDD2);
+
+  /// Calculates relative luminance according to WCAG 2.1 specs
+  static double getRelativeLuminance(Color color) {
+    double transformComponent(double c) {
+      return c <= 0.03928
+          ? c / 12.92
+          : math.pow((c + 0.055) / 1.055, 2.4).toDouble();
+    }
+
+    final double r = transformComponent(
+      ((color.toARGB32() >> 16) & 0xFF) / 255.0,
+    );
+    final double g = transformComponent(
+      ((color.toARGB32() >> 8) & 0xFF) / 255.0,
+    );
+    final double b = transformComponent((color.toARGB32() & 0xFF) / 255.0);
+
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  /// Calculates WCAG 2.1 contrast ratio between two colors (returns value between 1.0 and 21.0)
+  static double getContrastRatio(Color foreground, Color background) {
+    final double lum1 = getRelativeLuminance(foreground);
+    final double lum2 = getRelativeLuminance(background);
+    final double brighter = math.max(lum1, lum2);
+    final double darker = math.min(lum1, lum2);
+    return (brighter + 0.05) / (darker + 0.05);
+  }
 }
 
 abstract final class AppSpacing {
@@ -69,6 +123,9 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: canvas,
       canvasColor: canvas,
       dividerColor: border,
+      focusColor: accent.withValues(alpha: 0.12),
+      hoverColor: (dark ? Colors.white : Colors.black).withValues(alpha: 0.04),
+      highlightColor: accent.withValues(alpha: 0.08),
       textTheme: typography.copyWith(
         headlineLarge: typography.headlineLarge?.copyWith(
           fontSize: 28,
@@ -116,27 +173,44 @@ abstract final class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: accent, width: 1.5),
+          borderSide: BorderSide(color: accent, width: 2.0),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: danger, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: danger, width: 2.0),
         ),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 11,
+          horizontal: 14,
+          vertical: 14,
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
-        style: IconButton.styleFrom(minimumSize: const Size(44, 44)),
+        style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
       ),
       snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,

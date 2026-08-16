@@ -11,6 +11,38 @@ enum SyncOperationStatus {
 
 enum SyncOperationType { upsert, delete, uploadAttachment }
 
+extension SyncOperationStatusX on SyncOperationStatus {
+  String get displayName {
+    switch (this) {
+      case SyncOperationStatus.pending:
+        return 'Bekliyor';
+      case SyncOperationStatus.processing:
+        return 'İşleniyor';
+      case SyncOperationStatus.retryWaiting:
+        return 'Tekrar Denenecek';
+      case SyncOperationStatus.failedRecoverable:
+        return 'Başarısız';
+      case SyncOperationStatus.completed:
+        return 'Tamamlandı';
+      case SyncOperationStatus.blockedConflict:
+        return 'Çakışmada';
+    }
+  }
+}
+
+extension SyncOperationTypeX on SyncOperationType {
+  String get displayName {
+    switch (this) {
+      case SyncOperationType.upsert:
+        return 'Kaydet / Güncelle';
+      case SyncOperationType.delete:
+        return 'Sil';
+      case SyncOperationType.uploadAttachment:
+        return 'Dosya Yükle';
+    }
+  }
+}
+
 final class SyncOperation {
   const SyncOperation({
     required this.id,
@@ -39,6 +71,15 @@ final class SyncOperation {
   final String? lastError;
 
   String get payloadJson => jsonEncode(payload);
+
+  String get targetEntityDisplayName {
+    final dynamic title =
+        payload['title'] ?? payload['name'] ?? payload['fileName'];
+    if (title is String && title.trim().isNotEmpty) {
+      return '$entityType: ${title.trim()}';
+    }
+    return '$entityType · $entityId';
+  }
 }
 
 final class SyncConflictRecord {

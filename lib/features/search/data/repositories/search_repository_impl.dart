@@ -23,33 +23,40 @@ final class DriftSearchRepository implements SearchRepository {
         .where((token) => token.isNotEmpty)
         .map((token) => '"${token.replaceAll('"', '""')}"*')
         .toList(growable: false);
+    if (tokens.isEmpty) {
+      return const <SearchResultEntity>[];
+    }
     final String expression = tokens.join(' AND ');
-    final List<QueryRow> rows = await _database
-        .customSelect(
-          '''
-      SELECT entity_type, entity_id, title,
-             snippet(search_fts, 3, '', '', ' … ', 18) AS preview
-      FROM search_fts
-      WHERE search_fts MATCH ?
-      ORDER BY bm25(search_fts)
-      LIMIT ?
-      ''',
-          variables: <Variable<Object>>[
-            Variable<String>(expression),
-            Variable<int>(limit.clamp(1, 200)),
-          ],
-        )
-        .get();
-    return rows
-        .map(
-          (row) => SearchResultEntity(
-            entityType: row.read<String>('entity_type'),
-            entityId: row.read<String>('entity_id'),
-            title: row.read<String>('title'),
-            preview: row.read<String>('preview'),
-          ),
-        )
-        .toList(growable: false);
+    try {
+      final List<QueryRow> rows = await _database
+          .customSelect(
+            '''
+        SELECT entity_type, entity_id, title,
+               snippet(search_fts, 3, '', '', ' … ', 18) AS preview
+        FROM search_fts
+        WHERE search_fts MATCH ?
+        ORDER BY bm25(search_fts)
+        LIMIT ?
+        ''',
+            variables: <Variable<Object>>[
+              Variable<String>(expression),
+              Variable<int>(limit.clamp(1, 200)),
+            ],
+          )
+          .get();
+      return rows
+          .map(
+            (row) => SearchResultEntity(
+              entityType: row.read<String>('entity_type'),
+              entityId: row.read<String>('entity_id'),
+              title: row.read<String>('title'),
+              preview: row.read<String>('preview'),
+            ),
+          )
+          .toList(growable: false);
+    } catch (_) {
+      return const <SearchResultEntity>[];
+    }
   }
 
   @override

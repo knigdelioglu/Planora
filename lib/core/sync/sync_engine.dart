@@ -68,6 +68,16 @@ final class SyncEngine {
             error,
             stackTrace,
           );
+          if (operation.entityType == 'attachment' &&
+              operation.operationType == SyncOperationType.uploadAttachment) {
+            await (_database.update(
+              _database.attachments,
+            )..where((tbl) => tbl.id.equals(operation.entityId))).write(
+              const AttachmentsCompanion(
+                transferState: Value<String>('retryWaiting'),
+              ),
+            );
+          }
           await _queue.markRetry(operation.id, error: _safeError(error));
         }
       }
@@ -243,6 +253,11 @@ final class SyncEngine {
     if (beforeUpload == null || beforeUpload.deletedAt != null) return;
     final String remotePath =
         '$uid/${operation.entityId}/${_safeRemoteName(fileName)}';
+    await (_database.update(
+      _database.attachments,
+    )..where((tbl) => tbl.id.equals(operation.entityId))).write(
+      const AttachmentsCompanion(transferState: Value<String>('uploading')),
+    );
     await _remote.uploadAttachment(
       remotePath: remotePath,
       file: File(localPath),

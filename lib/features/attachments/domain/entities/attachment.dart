@@ -1,3 +1,21 @@
+final class AttachmentTransferProgress {
+  const AttachmentTransferProgress({
+    required this.attachmentId,
+    required this.isUpload,
+    required this.bytesTransferred,
+    required this.totalBytes,
+    required this.progress,
+  });
+
+  final String attachmentId;
+  final bool isUpload;
+  final int bytesTransferred;
+  final int totalBytes;
+  final double progress;
+
+  int get percentage => (progress * 100).clamp(0, 100).toInt();
+}
+
 final class AttachmentEntity {
   const AttachmentEntity({
     required this.id,
@@ -37,4 +55,45 @@ final class AttachmentEntity {
 
   bool get isDeleted => deletedAt != null;
   bool get hasLocalCopy => localPath.isNotEmpty;
+  bool get isUploading => transferState == 'uploading';
+  bool get isDownloading => transferState == 'downloading';
+  bool get isPending =>
+      transferState == 'pending' ||
+      transferState == 'pendingUpload' ||
+      transferState == 'pendingDownload';
+  bool get isFailed =>
+      transferState == 'failed' ||
+      transferState == 'error' ||
+      transferState == 'cancelled';
+  bool get isRetryPending =>
+      transferState == 'retryPending' || transferState == 'retryWaiting';
+  bool get isSynced =>
+      transferState == 'synced' || transferState == 'completed';
+  bool get isLocalOnly => transferState == 'localOnly';
+  bool get isRemoteOnly => transferState == 'remoteOnly';
+  bool get isTransferring => isUploading || isDownloading;
+  bool get canRetry =>
+      isFailed ||
+      isRetryPending ||
+      (remotePath != null && localPath.isEmpty && !isDownloading);
+
+  String transferStatusLabel([double? progress]) {
+    if (isUploading) {
+      return progress != null && progress > 0
+          ? 'Yükleniyor (%${(progress * 100).clamp(0, 100).toInt()})'
+          : 'Yükleniyor';
+    }
+    if (isDownloading) {
+      return progress != null && progress > 0
+          ? 'İndiriliyor (%${(progress * 100).clamp(0, 100).toInt()})'
+          : 'İndiriliyor';
+    }
+    if (isPending) return 'Bekliyor';
+    if (isFailed) return 'Başarısız';
+    if (isRetryPending) return 'Tekrar denenecek';
+    if (isSynced) return 'Tamamlandı';
+    if (isLocalOnly) return 'Cihazda';
+    if (isRemoteOnly) return 'Bulutta';
+    return transferState;
+  }
 }
