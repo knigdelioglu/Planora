@@ -7,12 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
 import 'package:not_app/features/attachments/data/repositories/attachments_repository_impl.dart';
 import 'package:not_app/features/attachments/domain/entities/attachment.dart';
+import 'package:not_app/features/attachments/presentation/attachment_file_opener.dart';
 import 'package:not_app/features/notes/domain/entities/note.dart';
 import 'package:not_app/features/notes/domain/entities/note_document.dart';
 import 'package:not_app/features/notes/presentation/widgets/formatting_toolbar.dart';
 import 'package:not_app/features/notes/presentation/widgets/slash_command_palette.dart';
 import 'package:not_app/features/reminders/presentation/reminder_widgets.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 class NoteEditorScreen extends ConsumerStatefulWidget {
@@ -290,7 +290,6 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     final block = _blocks[index];
     final isSlashOpen = _activeSlashBlockIndex == index;
 
-    // 1. When Slash Command Palette is active
     if (isSlashOpen) {
       final filtered = filterSlashCommands(_slashQuery);
       if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
@@ -325,7 +324,6 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
       }
     }
 
-    // 2. Keyboard shortcuts for formatting (Cmd/Ctrl + B, I, U, K)
     final isMetaOrControl =
         HardwareKeyboard.instance.isMetaPressed ||
         HardwareKeyboard.instance.isControlPressed;
@@ -348,17 +346,15 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
       }
     }
 
-    // 3. Enter key -> Create next block / split text / convert empty list
     if (event.logicalKey == LogicalKeyboardKey.enter ||
         event.logicalKey == LogicalKeyboardKey.numpadEnter) {
       if (HardwareKeyboard.instance.isShiftPressed) {
         return KeyEventResult.ignored;
       }
       if (block.type == NoteBlockType.code) {
-        return KeyEventResult.ignored; // Multi-line in code blocks
+        return KeyEventResult.ignored;
       }
 
-      // If empty list/checkbox, Enter converts it to paragraph
       final isListType =
           block.type == NoteBlockType.bulletList ||
           block.type == NoteBlockType.numberedList ||
@@ -373,7 +369,6 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
         return KeyEventResult.handled;
       }
 
-      // Split text at cursor
       final int cursorPos = block.controller.selection.isValid
           ? block.controller.selection.baseOffset
           : block.controller.text.length;
@@ -425,12 +420,10 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
       return KeyEventResult.handled;
     }
 
-    // 4. Backspace key -> Delete block / merge with previous / convert special block
     if (event.logicalKey == LogicalKeyboardKey.backspace ||
         event.logicalKey == LogicalKeyboardKey.delete) {
       final selection = block.controller.selection;
       if (selection.isCollapsed && selection.baseOffset == 0) {
-        // If not paragraph, convert back to paragraph first
         if (block.type != NoteBlockType.paragraph) {
           setState(() {
             block.type = NoteBlockType.paragraph;
@@ -441,7 +434,6 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
           return KeyEventResult.handled;
         }
 
-        // If paragraph and index > 0, merge into previous block
         if (index > 0) {
           final String currentText = block.controller.text;
           final _EditableBlock prevBlock = _blocks[index - 1];
@@ -480,7 +472,6 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
       }
     }
 
-    // 5. Arrow Up -> Move cursor to previous block
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       final selection = block.controller.selection;
       if (selection.isCollapsed && selection.baseOffset <= 0) {
@@ -495,7 +486,6 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
       }
     }
 
-    // 6. Arrow Down -> Move cursor to next block
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       final selection = block.controller.selection;
       if (selection.isCollapsed &&
@@ -1097,12 +1087,13 @@ class _AttachmentBlockRowState extends ConsumerState<_AttachmentBlockRow> {
     try {
       final File? file = await _ensureLocal();
       if (file == null) throw StateError('Ek kaydı bulunamadı.');
-      final bool opened = await launchUrl(Uri.file(file.path));
-      if (!opened && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Dosya bu cihazda açılamadı.')),
-        );
-      }
+      if (!mounted) return;
+      await openLocalAttachment(
+        context,
+        file: file,
+        mimeType: attachment?.mimeType,
+        title: attachment?.fileName ?? widget.fallbackName,
+      );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
