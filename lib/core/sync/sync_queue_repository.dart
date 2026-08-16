@@ -20,6 +20,10 @@ abstract interface class SyncQueueRepository {
   Future<void> markCompleted(String operationId);
   Future<void> markRetry(String operationId, {required String error});
   Future<void> markConflict(String operationId, {required String error});
+  Future<void> resolveBlockedConflicts({
+    required String entityType,
+    required String entityId,
+  });
   Stream<int> watchPendingCount();
 }
 
@@ -97,6 +101,26 @@ final class DriftSyncQueueRepository implements SyncQueueRepository {
         SyncOperationStatus.blockedConflict,
         error: error,
       );
+
+  @override
+  Future<void> resolveBlockedConflicts({
+    required String entityType,
+    required String entityId,
+  }) {
+    return (_database.update(_database.syncQueue)..where(
+          (tbl) =>
+              tbl.entityType.equals(entityType) &
+              tbl.entityId.equals(entityId) &
+              tbl.status.equals(SyncOperationStatus.blockedConflict.name),
+        ))
+        .write(
+          SyncQueueCompanion(
+            status: Value<String>(SyncOperationStatus.completed.name),
+            nextAttemptAt: const Value<DateTime?>(null),
+            lastError: const Value<String?>(null),
+          ),
+        );
+  }
 
   @override
   Future<void> markRetry(String operationId, {required String error}) async {
