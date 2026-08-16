@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
 import 'package:not_app/features/attachments/data/repositories/attachments_repository_impl.dart';
 import 'package:not_app/features/attachments/domain/entities/attachment.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:not_app/features/attachments/presentation/attachment_file_opener.dart';
 
 class AttachmentsSection extends ConsumerWidget {
   const AttachmentsSection({
@@ -97,16 +97,13 @@ class AttachmentsSection extends ConsumerWidget {
                         }
                         try {
                           final file = await repo.ensureLocal(item.id);
-                          final bool opened = await launchUrl(
-                            Uri.file(file.path),
+                          if (!context.mounted) return;
+                          await openLocalAttachment(
+                            context,
+                            file: file,
+                            mimeType: item.mimeType,
+                            title: item.fileName,
                           );
-                          if (!opened && context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Dosya bu cihazda açılamadı.'),
-                              ),
-                            );
-                          }
                         } catch (error) {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
