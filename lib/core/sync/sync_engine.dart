@@ -87,19 +87,21 @@ final class SyncEngine {
             remote.entityType,
             remote.entityId,
           );
-          if (dirty && localVersion > 0 && remote.version != localVersion) {
-            final Map<String, Object?>? local = await _localStore.payloadFor(
-              remote.entityType,
-              remote.entityId,
-            );
-            if (local != null) {
-              await _conflicts.record(
-                entityType: remote.entityType,
-                entityId: remote.entityId,
-                local: local,
-                remote: remote,
+          if (dirty && localVersion > 0) {
+            if (remote.version != localVersion) {
+              final Map<String, Object?>? local = await _localStore.payloadFor(
+                remote.entityType,
+                remote.entityId,
               );
-              conflictCount++;
+              if (local != null) {
+                await _conflicts.record(
+                  entityType: remote.entityType,
+                  entityId: remote.entityId,
+                  local: local,
+                  remote: remote,
+                );
+                conflictCount++;
+              }
             }
           } else if (remote.version >= localVersion) {
             await _localStore.applyRemote(remote);
