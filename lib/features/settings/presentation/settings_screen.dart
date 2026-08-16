@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
 import 'package:not_app/app/router/app_router.dart';
-import 'package:not_app/app/theme/app_theme.dart';
 import 'package:not_app/app/widgets/content/app_content.dart';
 import 'package:not_app/app/widgets/feedback/app_feedback.dart';
 import 'package:not_app/app/widgets/navigation/app_toolbar.dart';
