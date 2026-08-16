@@ -47,9 +47,7 @@ final class FractionalIndexing {
 
   static String encode(BigInt value) {
     if (value < BigInt.zero || value > maxValue) {
-      throw RangeError(
-        'Rank value $value must be between 0 and $maxValue.',
-      );
+      throw RangeError('Rank value $value must be between 0 and $maxValue.');
     }
     BigInt remaining = value;
     final List<String> chars = List<String>.filled(width, '0');
