@@ -129,8 +129,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                             onSelected: (value) async {
                               if (value == 'restore') {
                                 await repository.restore(note.id);
-                              }
-                              if (value == 'delete') {
+                              } else if (value == 'delete') {
                                 final bool confirmed =
                                     await showDialog<bool>(
                                       context: context,

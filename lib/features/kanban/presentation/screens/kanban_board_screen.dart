@@ -349,14 +349,13 @@ class _ColumnMenu extends ConsumerWidget {
           columnId: column.id,
           destinationIndex: columnIndex - 1,
         );
-      }
-      if (value == 'right' && columnIndex < snapshot.columns.length - 1) {
+      } else if (value == 'right' &&
+          columnIndex < snapshot.columns.length - 1) {
         await repo.reorderColumn(
           columnId: column.id,
           destinationIndex: columnIndex + 1,
         );
-      }
-      if (value == 'rename') {
+      } else if (value == 'rename') {
         final controller = TextEditingController(text: column.title);
         final String? title = await showDialog<String>(
           context: context,
@@ -379,8 +378,7 @@ class _ColumnMenu extends ConsumerWidget {
         if (title != null && title.isNotEmpty) {
           await repo.renameColumn(column.id, title);
         }
-      }
-      if (value == 'delete') {
+      } else if (value == 'delete') {
         final List<KanbanCard> cards =
             snapshot.cardsByColumn[column.id] ?? const <KanbanCard>[];
         String? destination;

@@ -162,8 +162,7 @@ class _BoardMenu extends ConsumerWidget {
         if (title != null && title.isNotEmpty) {
           await ref.read(kanbanRepositoryProvider).renameBoard(board.id, title);
         }
-      }
-      if (value == 'delete') {
+      } else if (value == 'delete') {
         final bool ok =
             await showDialog<bool>(
               context: context,

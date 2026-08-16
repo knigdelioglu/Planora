@@ -895,6 +895,9 @@ Stream<R> _combine3<A, B, C, R>(
       await sa?.cancel();
       await sb?.cancel();
       await sc?.cancel();
+      if (!controller.isClosed) {
+        unawaited(controller.close());
+      }
     },
   );
   return controller.stream;
