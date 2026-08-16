@@ -6,6 +6,12 @@ abstract interface class AppSettingsRepository {
   Future<void> setThemeMode(String mode);
   Stream<int> watchCacheLimitBytes();
   Future<void> setCacheLimitBytes(int bytes);
+  Stream<String?> watchEntityColor(String entityType, String entityId);
+  Future<void> setEntityColor(
+    String entityType,
+    String entityId,
+    String? colorHex,
+  );
 }
 
 final class DriftAppSettingsRepository implements AppSettingsRepository {
@@ -37,6 +43,51 @@ final class DriftAppSettingsRepository implements AppSettingsRepository {
       throw ArgumentError('Cache limit must be at least 50 MiB.');
     }
     return _set('cache_limit_bytes', bytes.toString());
+  }
+
+  @override
+  Stream<String?> watchEntityColor(String entityType, String entityId) {
+    final String key = _entityColorKey(entityType, entityId);
+    return (_database.select(_database.appSettings)
+          ..where((tbl) => tbl.key.equals(key)))
+        .watchSingleOrNull()
+        .map((row) => row?.valueJson)
+        .distinct();
+  }
+
+  @override
+  Future<void> setEntityColor(
+    String entityType,
+    String entityId,
+    String? colorHex,
+  ) async {
+    final String key = _entityColorKey(entityType, entityId);
+    final String? normalized = _normalizeColor(colorHex);
+    if (normalized == null) {
+      await (_database.delete(
+        _database.appSettings,
+      )..where((tbl) => tbl.key.equals(key))).go();
+      return;
+    }
+    await _set(key, normalized);
+  }
+
+  String _entityColorKey(String entityType, String entityId) {
+    final String cleanType = entityType.trim().toLowerCase();
+    final String cleanId = entityId.trim();
+    if (cleanType.isEmpty || cleanId.isEmpty) {
+      throw ArgumentError('Entity type and id cannot be empty.');
+    }
+    return 'entity_color:$cleanType:$cleanId';
+  }
+
+  String? _normalizeColor(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    final String clean = value.trim().toUpperCase();
+    if (!RegExp(r'^#[0-9A-F]{6}$').hasMatch(clean)) {
+      throw ArgumentError.value(value, 'colorHex', 'Expected #RRGGBB.');
+    }
+    return clean;
   }
 
   Stream<String> _watch(String key, String fallback) {
