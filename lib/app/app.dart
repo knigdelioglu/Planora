@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/app_shell.dart';
@@ -31,6 +33,7 @@ class _NotAppState extends ConsumerState<NotApp> with WidgetsBindingObserver {
         final services = ref.read(appServicesProvider);
         services.notifications.refreshTimeZone();
         services.reminders.reconcile();
+        unawaited(services.syncCoordinator.syncNow());
       } catch (_) {}
     }
   }
