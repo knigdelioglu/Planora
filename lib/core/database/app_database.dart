@@ -10,6 +10,7 @@ import 'package:not_app/core/database/tables/notes_table.dart';
 import 'package:not_app/core/database/tables/reminders_table.dart';
 import 'package:not_app/core/database/tables/sync_meta_table.dart';
 import 'package:not_app/core/database/tables/sync_queue_table.dart';
+import 'package:not_app/core/security/local_data_key_service.dart';
 import 'package:not_app/core/utils/fractional_indexing_helper.dart';
 
 part 'app_database.g.dart';
@@ -31,8 +32,8 @@ part 'app_database.g.dart';
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
-  static Future<AppDatabase> open() async =>
-      AppDatabase(await openNativeConnection());
+  static Future<AppDatabase> open({LocalDataKeyService? keyService}) async =>
+      AppDatabase(await openNativeConnection(keyService: keyService));
 
   @override
   int get schemaVersion => 3;
@@ -73,6 +74,7 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('PRAGMA busy_timeout = 5000');
       await _createSearchFts();
       await _createProductIndexes();
+      await _installSensitiveDataRetentionGuards();
     },
   );
 
@@ -106,6 +108,37 @@ class AppDatabase extends _$AppDatabase {
     for (final String statement in statements) {
       await customStatement(statement);
     }
+  }
+
+  Future<void> _installSensitiveDataRetentionGuards() async {
+    await customStatement(
+      "UPDATE sync_queue SET payload_json = '{}', last_error = NULL "
+      "WHERE status = 'completed'",
+    );
+    await customStatement(
+      "UPDATE conflicts SET local_json = '{}', remote_json = '{}' "
+      'WHERE resolved_at IS NOT NULL',
+    );
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS sync_queue_scrub_completed
+      AFTER UPDATE OF status ON sync_queue
+      WHEN NEW.status = 'completed'
+      BEGIN
+        UPDATE sync_queue
+        SET payload_json = '{}', last_error = NULL
+        WHERE operation_id = NEW.operation_id;
+      END
+    ''');
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS conflicts_scrub_resolved
+      AFTER UPDATE OF resolved_at ON conflicts
+      WHEN NEW.resolved_at IS NOT NULL
+      BEGIN
+        UPDATE conflicts
+        SET local_json = '{}', remote_json = '{}'
+        WHERE id = NEW.id;
+      END
+    ''');
   }
 
   Future<void> _migrateLegacyRanks() async {

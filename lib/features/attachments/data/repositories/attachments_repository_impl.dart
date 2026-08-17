@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import 'package:mime/mime.dart';
 import 'package:not_app/core/database/app_database.dart';
 import 'package:not_app/core/remote/remote_gateway.dart';
+import 'package:not_app/core/services/encrypted_file_storage_service.dart';
 import 'package:not_app/core/services/file_storage_service.dart';
 import 'package:not_app/core/sync/sync_models.dart';
 import 'package:not_app/core/sync/sync_queue_repository.dart';
@@ -288,7 +289,7 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
           const AttachmentsCompanion(transferState: Value<String>('synced')),
         );
       }
-      return File(row.localPath);
+      return _materializeForUse(row.localPath, row.fileName);
     }
     if (row.remotePath == null || !_remote.available) {
       throw FileSystemException(
@@ -306,11 +307,14 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
         ? await _tempDirectoryProvider!()
         : await getTemporaryDirectory();
     final Directory tempDir = Directory(
-      p.join(tempRoot.path, 'not_attachment_downloads', row.id),
+      p.join(tempRoot.path, 'not_attachment_downloads', _uuid.v7()),
     );
     await tempDir.create(recursive: true);
     final File temp = File(
-      p.join(tempDir.path, '${_uuid.v7()}_${row.fileName}.tmp'),
+      p.join(
+        tempDir.path,
+        '${_uuid.v7()}_${_safeTempFileName(row.fileName)}.tmp',
+      ),
     );
 
     try {
@@ -377,7 +381,7 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
           transferState: const Value<String>('synced'),
         ),
       );
-      return File(cached.localPath);
+      return _materializeForUse(cached.localPath, row.fileName);
     } on DioException {
       if (await temp.exists()) {
         try {
@@ -426,6 +430,26 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
       _activeCancelTokens.remove(attachmentId);
       _clearProgress(attachmentId);
     }
+  }
+
+  Future<File> _materializeForUse(String localPath, String fileName) {
+    final FileStorageService currentStorage = _storage;
+    if (currentStorage is EncryptedFileStorageService) {
+      return currentStorage.materializeForRead(
+        localPath,
+        fileName: fileName,
+      );
+    }
+    return Future<File>.value(File(localPath));
+  }
+
+  String _safeTempFileName(String candidate) {
+    final String basename = p.basename(candidate);
+    final String stripped = basename
+        .replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1F]'), '_')
+        .trim();
+    final String normalized = stripped.isEmpty ? 'attachment' : stripped;
+    return normalized.length <= 180 ? normalized : normalized.substring(0, 180);
   }
 
   Future<void> _touch(String id) async {
@@ -495,7 +519,6 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
       return;
     }
 
-    // DB-backed LRU: order cached attachments by lastAccessedAt ASC (nulls first), then createdAt ASC
     final List<Attachment> candidates =
         await (_database.select(_database.attachments)
               ..where(
@@ -522,13 +545,10 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
             freedBytes = await file.length();
           }
           await _storage.deleteCache(candidate.localPath);
-        } catch (_) {
-          // Graceful handling if file is already missing or inaccessible
-        }
+        } catch (_) {}
       }
       currentSize -= (freedBytes > 0 ? freedBytes : candidate.sizeBytes);
 
-      // Consistent DB update: clear localPath, mark isCache false, update transferState
       await (_database.update(
         _database.attachments,
       )..where((tbl) => tbl.id.equals(candidate.id))).write(
@@ -542,7 +562,6 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
       );
     }
 
-    // If cache on disk still exceeds maximumBytes (e.g. unindexed leftover files in cache dir)
     if (currentSize > maximumBytes) {
       final List<File> remainingFiles = await _storage.listFiles(
         bucket: 'cache',
@@ -564,13 +583,11 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
     int orphanedFilesDeleted = 0;
     int tempFilesCleaned = 0;
 
-    // 1. Clean temporary downloads
     try {
       await _storage.cleanTempDownloads();
       tempFilesCleaned++;
     } catch (_) {}
 
-    // 2. Fetch all DB attachment records
     final List<Attachment> rows = await _database
         .select(_database.attachments)
         .get();
@@ -595,11 +612,8 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
       }
 
       final String normalizedPath = p.normalize(p.absolute(row.localPath));
-
-      // Path traversal security check: must be strictly inside sandbox
       final bool inSandbox = await _storage.isWithinSandbox(normalizedPath);
       if (!inSandbox) {
-        // Unsafe path outside sandbox! Refuse to touch file on disk and sanitize DB record.
         await (_database.update(
           _database.attachments,
         )..where((tbl) => tbl.id.equals(row.id))).write(
@@ -615,7 +629,6 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
         continue;
       }
 
-      // Tombstone record (deletedAt != null)
       if (row.deletedAt != null) {
         if (await _storage.exists(normalizedPath)) {
           try {
@@ -638,12 +651,10 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
         continue;
       }
 
-      // Active record (deletedAt == null)
       final bool fileExists = await _storage.exists(normalizedPath);
       if (fileExists) {
         validSandboxFilePaths.add(normalizedPath);
       } else {
-        // DB record references a file that does not exist on disk
         missingFilesHandled++;
         await (_database.update(
           _database.attachments,
@@ -659,7 +670,6 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
       }
     }
 
-    // 3. Scan managed sandbox for unreferenced / orphaned files
     final List<File> filesOnDisk = await _storage.listFiles();
     for (final File diskFile in filesOnDisk) {
       final String diskPath = p.normalize(p.absolute(diskFile.path));
@@ -671,7 +681,6 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
       }
     }
 
-    // 4. Clean empty directories in sandbox
     try {
       await _storage.cleanEmptyDirectories();
     } catch (_) {}
