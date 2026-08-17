@@ -9,6 +9,7 @@ import 'package:not_app/core/sync/sync_queue_repository.dart';
 import 'package:not_app/features/attachments/domain/repositories/attachments_repository.dart';
 import 'package:not_app/features/conflicts/domain/repositories/conflict_repository.dart';
 import 'package:not_app/features/kanban/domain/repositories/kanban_repository.dart';
+import 'package:not_app/features/notes/domain/repositories/note_kanban_repository.dart';
 import 'package:not_app/features/notes/domain/repositories/notes_repository.dart';
 import 'package:not_app/features/reminders/domain/repositories/reminders_repository.dart';
 import 'package:not_app/features/search/domain/repositories/search_repository.dart';
@@ -38,6 +39,9 @@ final notesRepositoryProvider = Provider<NotesRepository>(
 );
 final kanbanRepositoryProvider = Provider<KanbanRepository>(
   (ref) => ref.watch(appServicesProvider).kanban,
+);
+final noteKanbanRepositoryProvider = Provider<NoteKanbanRepository>(
+  (ref) => ref.watch(appServicesProvider).noteKanban,
 );
 final attachmentsRepositoryProvider = Provider<AttachmentsRepository>(
   (ref) => ref.watch(appServicesProvider).attachments,
