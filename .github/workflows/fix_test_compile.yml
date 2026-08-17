@@ -1,0 +1,102 @@
+name: Fix test compile drift
+
+on:
+  push:
+    paths:
+      - tools/fix_test_compile.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - name: Patch SyncCoordinator test call sites
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              found = text.count(old)
+              if found != count:
+                  raise SystemExit(f'{path}: expected {count} occurrences, found {found}: {old!r}')
+              p.write_text(text.replace(old, new))
+
+          replace_exact(
+              'test/core/sync/sync_queue_screen_test.dart',
+              '          engine: engine,\n          database: database,',
+              '          engine: engine,\n          queue: queue,\n          database: database,',
+          )
+          replace_exact(
+              'test/features/kanban_performance_test.dart',
+              '      engine: engine,\n      database: db,',
+              '      engine: engine,\n      queue: syncQueue,\n      database: db,',
+          )
+          replace_exact(
+              'test/features/reminders_reconciliation_test.dart',
+              '        engine: engine,\n        database: database,',
+              '        engine: engine,\n        queue: queue,\n        database: database,',
+          )
+          replace_exact(
+              'test/features/search_performance_test.dart',
+              '      engine: engine,\n      database: db,',
+              '      engine: engine,\n      queue: syncQueue,\n      database: db,',
+          )
+          replace_exact(
+              'test/integration/process_death_recovery_test.dart',
+              '            engine: engine2,\n            database: db2,',
+              '            engine: engine2,\n            queue: queue2,\n            database: db2,',
+          )
+          replace_exact(
+              'test/integration/process_death_recovery_test.dart',
+              '              engine: engine,\n              database: db,',
+              '              engine: engine,\n              queue: queue,\n              database: db,',
+          )
+          replace_exact(
+              'test/integration/supabase_two_client_sync_e2e_test.dart',
+              '      engine: engine,\n      database: database,',
+              '      engine: engine,\n      queue: queue,\n      database: database,',
+          )
+
+          p = Path('test/features/search_performance_test.dart')
+          text = p.read_text()
+          for line in [
+              "import 'package:not_app/features/kanban/presentation/screens/kanban_board_screen.dart';\n",
+              "import 'package:not_app/features/notes/presentation/screens/note_editor_screen.dart';\n",
+          ]:
+              if line not in text:
+                  raise SystemExit(f'missing expected unused import: {line!r}')
+              text = text.replace(line, '')
+          if 'overrides: <Override>[' not in text:
+              raise SystemExit('missing expected Override annotation')
+          text = text.replace('overrides: <Override>[', 'overrides: [', 1)
+          p.write_text(text)
+          PY
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Format
+        run: dart format lib test
+      - name: Commit compile fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add test lib/core/database/app_database.g.dart
+          git commit -m "Fix test harnesses for sync coordinator" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
