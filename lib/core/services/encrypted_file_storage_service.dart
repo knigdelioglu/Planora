@@ -32,23 +32,17 @@ final class EncryptedFileStorageService implements FileStorageService {
 
   int get _headerLength => _magic.length + _cipher.nonceLength;
 
-  Future<SecretKey> _secretKey() => _secretKeyFuture ??=
-      _keyService.attachmentKey().then((bytes) => SecretKey(bytes));
+  Future<SecretKey> _secretKey() => _secretKeyFuture ??= _keyService
+      .attachmentKey()
+      .then((bytes) => SecretKey(bytes));
 
   @override
   Future<StoredFile> persist(File source, {String? attachmentId}) {
-    return _persistEncrypted(
-      source,
-      attachmentId: attachmentId,
-      cache: false,
-    );
+    return _persistEncrypted(source, attachmentId: attachmentId, cache: false);
   }
 
   @override
-  Future<StoredFile> persistCache(
-    File source, {
-    required String attachmentId,
-  }) {
+  Future<StoredFile> persistCache(File source, {required String attachmentId}) {
     return _persistEncrypted(source, attachmentId: attachmentId, cache: true);
   }
 
@@ -70,10 +64,7 @@ final class EncryptedFileStorageService implements FileStorageService {
     try {
       await _encrypt(source, encrypted);
       final StoredFile stored = cache
-          ? await _delegate.persistCache(
-              encrypted,
-              attachmentId: attachmentId!,
-            )
+          ? await _delegate.persistCache(encrypted, attachmentId: attachmentId!)
           : await _delegate.persist(encrypted, attachmentId: attachmentId);
       return StoredFile(
         id: stored.id,
@@ -163,7 +154,8 @@ final class EncryptedFileStorageService implements FileStorageService {
   }
 
   Future<bool> _isEncrypted(File file) async {
-    if (!await file.exists() || await file.length() < _headerLength + _macLength) {
+    if (!await file.exists() ||
+        await file.length() < _headerLength + _macLength) {
       return false;
     }
     final RandomAccessFile handle = await file.open();
@@ -309,10 +301,12 @@ final class EncryptedFileStorageService implements FileStorageService {
   }
 
   @override
-  Future<void> deleteOwned(String localPath) => _delegate.deleteOwned(localPath);
+  Future<void> deleteOwned(String localPath) =>
+      _delegate.deleteOwned(localPath);
 
   @override
-  Future<void> deleteCache(String localPath) => _delegate.deleteCache(localPath);
+  Future<void> deleteCache(String localPath) =>
+      _delegate.deleteCache(localPath);
 
   @override
   Future<void> deleteSandboxFile(String localPath) =>

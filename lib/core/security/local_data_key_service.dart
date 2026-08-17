@@ -10,7 +10,8 @@ abstract interface class LocalDataKeyService {
 
 final class SecureLocalDataKeyService implements LocalDataKeyService {
   SecureLocalDataKeyService({FlutterSecureStorage? storage})
-    : _storage = storage ??
+    : _storage =
+          storage ??
           const FlutterSecureStorage(
             aOptions: AndroidOptions(
               resetOnError: false,
@@ -28,15 +29,17 @@ final class SecureLocalDataKeyService implements LocalDataKeyService {
 
   @override
   Future<String> databasePassphrase() async {
-    final List<int> bytes =
-        _databaseKeyCache ??= await _loadOrCreate(_databaseKeyName);
+    final List<int> bytes = _databaseKeyCache ??= await _loadOrCreate(
+      _databaseKeyName,
+    );
     return base64UrlEncode(bytes);
   }
 
   @override
   Future<List<int>> attachmentKey() async {
-    final List<int> bytes =
-        _attachmentKeyCache ??= await _loadOrCreate(_attachmentKeyName);
+    final List<int> bytes = _attachmentKeyCache ??= await _loadOrCreate(
+      _attachmentKeyName,
+    );
     return List<int>.unmodifiable(bytes);
   }
 

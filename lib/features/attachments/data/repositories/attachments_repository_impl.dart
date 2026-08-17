@@ -435,10 +435,7 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
   Future<File> _materializeForUse(String localPath, String fileName) {
     final FileStorageService currentStorage = _storage;
     if (currentStorage is EncryptedFileStorageService) {
-      return currentStorage.materializeForRead(
-        localPath,
-        fileName: fileName,
-      );
+      return currentStorage.materializeForRead(localPath, fileName: fileName);
     }
     return Future<File>.value(File(localPath));
   }

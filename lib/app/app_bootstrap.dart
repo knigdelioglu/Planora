@@ -69,10 +69,7 @@ final class AppBootstrap {
       final FileStorageService storage = encryptedStorage;
       final RemoteGateway remote = rawRemote is DisabledRemoteGateway
           ? rawRemote
-          : SecureRemoteGateway(
-              delegate: rawRemote,
-              storage: encryptedStorage,
-            );
+          : SecureRemoteGateway(delegate: rawRemote, storage: encryptedStorage);
       final FilePickerService picker = PlatformFilePickerService();
       final SyncQueueRepository queue = DriftSyncQueueRepository(
         database: database,

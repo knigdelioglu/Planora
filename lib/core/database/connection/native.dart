@@ -18,7 +18,9 @@ Future<QueryExecutor> openNativeConnection({
   await dbDirectory.create(recursive: true);
 
   final File legacyFile = File(p.join(dbDirectory.path, 'not.sqlite'));
-  final File encryptedFile = File(p.join(dbDirectory.path, 'not.secure.sqlite'));
+  final File encryptedFile = File(
+    p.join(dbDirectory.path, 'not.secure.sqlite'),
+  );
   final String sqliteTempDirectory = (await getTemporaryDirectory()).path;
 
   return NativeDatabase.createInBackground(

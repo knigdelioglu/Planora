@@ -133,7 +133,9 @@ final class SecureRemoteGateway implements RemoteGateway {
         !_remoteFilePattern.hasMatch(parts[2]) ||
         parts[2] == '.' ||
         parts[2] == '..') {
-      throw StateError('Remote attachment path is outside the account sandbox.');
+      throw StateError(
+        'Remote attachment path is outside the account sandbox.',
+      );
     }
   }
 
