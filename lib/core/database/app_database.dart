@@ -35,13 +35,14 @@ class AppDatabase extends _$AppDatabase {
       AppDatabase(await openNativeConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator migrator) async {
       await migrator.createAll();
       await _createSearchFts();
+      await _createCardNoteLinks();
     },
     onUpgrade: (Migrator migrator, int from, int to) async {
       if (from < 2) {
@@ -66,12 +67,16 @@ class AppDatabase extends _$AppDatabase {
       if (from == 2) {
         await migrator.addColumn(conflicts, conflicts.resolution);
       }
+      if (from < 4) {
+        await _createCardNoteLinks();
+      }
     },
     beforeOpen: (OpeningDetails details) async {
       await customStatement('PRAGMA foreign_keys = ON');
       await customStatement('PRAGMA journal_mode = WAL');
       await customStatement('PRAGMA busy_timeout = 5000');
       await _createSearchFts();
+      await _createCardNoteLinks();
       await _createProductIndexes();
     },
   );
@@ -86,6 +91,28 @@ class AppDatabase extends _$AppDatabase {
         tokenize = 'unicode61 remove_diacritics 2'
       )
     ''');
+  }
+
+  Future<void> _createCardNoteLinks() async {
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS card_note_links(
+        id TEXT NOT NULL PRIMARY KEY,
+        note_id TEXT NOT NULL UNIQUE,
+        card_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        deleted_at TEXT
+      )
+    ''');
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS card_note_links_card_idx '
+      'ON card_note_links (card_id, deleted_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS card_note_links_note_idx '
+      'ON card_note_links (note_id, deleted_at)',
+    );
   }
 
   Future<void> _createProductIndexes() async {
