@@ -5,11 +5,7 @@ import 'package:not_app/features/notes/domain/repositories/notes_repository.dart
 import 'package:not_app/features/reminders/domain/repositories/reminders_repository.dart';
 
 final class LifecycleNotesRepository implements NotesRepository {
-  LifecycleNotesRepository(
-    this._delegate,
-    this._attachments,
-    this._reminders,
-  );
+  LifecycleNotesRepository(this._delegate, this._attachments, this._reminders);
 
   final NotesRepository _delegate;
   final AttachmentsRepository _attachments;
