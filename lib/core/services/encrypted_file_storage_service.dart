@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:cryptography/cryptography.dart';
 import 'package:crypto/crypto.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:not_app/core/security/local_data_key_service.dart';
 import 'package:not_app/core/services/file_storage_service.dart';
 import 'package:path/path.dart' as p;
@@ -10,22 +10,19 @@ import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 final class EncryptedFileStorageService implements FileStorageService {
-  EncryptedFileStorageService({
-    required FileStorageService delegate,
-    required LocalDataKeyService keyService,
-    Future<Directory> Function()? tempDirectoryProvider,
+  EncryptedFileStorageService(
+    this._delegate,
+    this._keyService, {
+    this.tempDirectoryProvider,
     Uuid? uuid,
-  }) : _delegate = delegate,
-       _keyService = keyService,
-       _tempDirectoryProvider = tempDirectoryProvider,
-       _uuid = uuid ?? const Uuid();
+  }) : _uuid = uuid ?? const Uuid();
 
   static final List<int> _magic = ascii.encode('NOTENC01');
   static const int _macLength = 16;
 
   final FileStorageService _delegate;
   final LocalDataKeyService _keyService;
-  final Future<Directory> Function()? _tempDirectoryProvider;
+  final Future<Directory> Function()? tempDirectoryProvider;
   final Uuid _uuid;
   final AesGcm _cipher = AesGcm.with256bits();
   Future<SecretKey>? _secretKeyFuture;
@@ -253,9 +250,10 @@ final class EncryptedFileStorageService implements FileStorageService {
     }
   }
 
-  Future<Directory> _tempRoot() => _tempDirectoryProvider != null
-      ? _tempDirectoryProvider!()
-      : getTemporaryDirectory();
+  Future<Directory> _tempRoot() {
+    final Future<Directory> Function()? provider = tempDirectoryProvider;
+    return provider != null ? provider() : getTemporaryDirectory();
+  }
 
   Future<Directory> _cryptoWorkspace() async {
     final Directory root = await _tempRoot();
