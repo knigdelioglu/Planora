@@ -349,14 +349,21 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     await repository.trash(widget.noteId);
     if (!mounted) return;
     Navigator.of(context).pop();
-    messenger.showSnackBar(
-      SnackBar(
-        content: const Text('Not çöp kutusuna taşındı.'),
-        action: SnackBarAction(
-          label: 'Geri al',
-          onPressed: () => repository.restore(widget.noteId),
-        ),
-      ),
+    final ScaffoldFeatureController<SnackBar, SnackBarClosedReason> feedback =
+        messenger.showSnackBar(
+          SnackBar(
+            content: const Text('Not çöp kutusuna taşındı.'),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Geri al',
+              onPressed: () => repository.restore(widget.noteId),
+            ),
+          ),
+        );
+    unawaited(
+      Future<void>.delayed(const Duration(seconds: 5), () {
+        feedback.close();
+      }),
     );
   }
 
