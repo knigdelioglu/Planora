@@ -199,7 +199,7 @@ class _CardDetailPaneState extends ConsumerState<CardDetailPane> {
     if (widget.onClose != null) {
       widget.onClose!();
     } else {
-      Navigator.of(context).maybePop();
+      unawaited(Navigator.of(context).maybePop());
     }
   }
 
@@ -301,7 +301,7 @@ class _CardDetailPaneState extends ConsumerState<CardDetailPane> {
                       const SizedBox(height: 18),
                       if (board != null)
                         DropdownButtonFormField<String>(
-                          value: card.columnId,
+                          initialValue: card.columnId,
                           decoration: const InputDecoration(
                             labelText: 'Kolon',
                             prefixIcon: Icon(

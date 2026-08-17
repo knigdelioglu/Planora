@@ -341,6 +341,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
 
   Future<void> _trashNote() async {
     await _persist(showState: false);
+    if (!mounted) return;
     final repository = ref.read(notesRepositoryProvider);
     final messenger = ScaffoldMessenger.of(context);
     await repository.trash(widget.noteId);
@@ -630,8 +631,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     _scheduleSave();
   }
 
-  void _reorder(int oldIndex, int newIndex) {
-    if (newIndex > oldIndex) newIndex -= 1;
+  void _reorderItem(int oldIndex, int newIndex) {
     if (oldIndex == newIndex || oldIndex < 0 || oldIndex >= _blocks.length) {
       return;
     }
@@ -781,7 +781,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
                                 physics: const NeverScrollableScrollPhysics(),
                                 buildDefaultDragHandles: false,
                                 itemCount: _blocks.length,
-                                onReorder: _reorder,
+                                onReorderItem: _reorderItem,
                                 itemBuilder: (context, index) {
                                   final _EditableBlock block = _blocks[index];
                                   return _EditorBlockRow(
@@ -1196,7 +1196,7 @@ class _AttachmentBlock extends StatelessWidget {
                 child: Image.file(
                   file,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => _fileTile(context, name),
+                  errorBuilder: (_, _, _) => _fileTile(context, name),
                 ),
               ),
             ),

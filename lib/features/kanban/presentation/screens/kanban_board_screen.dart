@@ -266,7 +266,7 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
                             scrollDirection: Axis.horizontal,
                             padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
                             itemCount: data.columns.length + 1,
-                            separatorBuilder: (_, __) =>
+                            separatorBuilder: (_, _) =>
                                 const SizedBox(width: 12),
                             itemBuilder: (context, columnIndex) {
                               if (columnIndex == data.columns.length) {
@@ -753,7 +753,7 @@ class _AdaptiveDraggableCard extends StatelessWidget {
         childWhenDragging: Opacity(opacity: 0.24, child: child),
         onDragUpdate: (details) => onDragUpdate(details.globalPosition),
         onDragEnd: (_) => onDragEnd(),
-        onDraggableCanceled: (_, __) => onDragEnd(),
+        onDraggableCanceled: (_, _) => onDragEnd(),
         onDragCompleted: onDragEnd,
         child: child,
       );
@@ -764,7 +764,7 @@ class _AdaptiveDraggableCard extends StatelessWidget {
       childWhenDragging: Opacity(opacity: 0.24, child: child),
       onDragUpdate: (details) => onDragUpdate(details.globalPosition),
       onDragEnd: (_) => onDragEnd(),
-      onDraggableCanceled: (_, __) => onDragEnd(),
+      onDraggableCanceled: (_, _) => onDragEnd(),
       onDragCompleted: onDragEnd,
       child: child,
     );
@@ -988,7 +988,7 @@ class _NewCardSheetState extends State<_NewCardSheet> {
             ),
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(
-              value: _columnId,
+              initialValue: _columnId,
               decoration: const InputDecoration(labelText: 'Kolon'),
               items: widget.columns
                   .map(

@@ -21,7 +21,7 @@ class AppSectionHeader extends StatelessWidget {
         Expanded(
           child: Text(title, style: Theme.of(context).textTheme.titleLarge),
         ),
-        if (trailing != null) trailing!,
+        ?trailing,
       ],
     ),
   );

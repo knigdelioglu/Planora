@@ -68,7 +68,7 @@ class AppSheetHeader extends StatelessWidget {
         Expanded(
           child: Text(title, style: Theme.of(context).textTheme.titleLarge),
         ),
-        if (trailing != null) trailing!,
+        ?trailing,
         IconButton(
           tooltip: 'Kapat',
           onPressed: onClose ?? () => Navigator.of(context).pop(),

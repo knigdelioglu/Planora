@@ -456,7 +456,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   FilledButton.icon(
                     onPressed: () async {
                       final result = await services.syncCoordinator.syncNow();
-                      if (!mounted) return;
+                      if (!context.mounted) return;
                       final health = services.syncCoordinator.currentHealth;
                       final String message =
                           health.lastError?.trim().isNotEmpty == true
