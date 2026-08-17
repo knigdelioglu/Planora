@@ -88,10 +88,7 @@ final class SyncCoordinator {
     _queueSubscription = _queue.watchPendingCount().listen((pendingCount) {
       if (pendingCount <= 0) return;
       _queueDebounce?.cancel();
-      _queueDebounce = Timer(
-        _mutationDebounce,
-        () => unawaited(syncNow()),
-      );
+      _queueDebounce = Timer(_mutationDebounce, () => unawaited(syncNow()));
     });
     _periodic = Timer.periodic(
       const Duration(minutes: 5),

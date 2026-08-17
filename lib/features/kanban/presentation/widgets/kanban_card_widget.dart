@@ -128,7 +128,8 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: <Widget>[
-                                if (!widget.feedback && widget.onMovePrev != null)
+                                if (!widget.feedback &&
+                                    widget.onMovePrev != null)
                                   AnimatedOpacity(
                                     opacity: showActions ? 1 : 0.58,
                                     duration: quickMotion,
@@ -149,7 +150,8 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                if (!widget.feedback && widget.onMoveNext != null)
+                                if (!widget.feedback &&
+                                    widget.onMoveNext != null)
                                   AnimatedOpacity(
                                     opacity: showActions ? 1 : 0.58,
                                     duration: quickMotion,
@@ -209,16 +211,16 @@ class _QuickMoveButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Icon(icon, size: 16),
-        visualDensity: VisualDensity.compact,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints.tightFor(width: 34, height: 34),
-        style: IconButton.styleFrom(
-          foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      );
+    tooltip: tooltip,
+    onPressed: onPressed,
+    icon: Icon(icon, size: 16),
+    visualDensity: VisualDensity.compact,
+    padding: EdgeInsets.zero,
+    constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+    style: IconButton.styleFrom(
+      foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+    ),
+  );
 }
 
 class _CardMenu extends StatelessWidget {

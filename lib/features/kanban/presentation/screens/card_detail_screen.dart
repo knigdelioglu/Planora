@@ -101,7 +101,9 @@ class _CardDetailPaneState extends ConsumerState<CardDetailPane> {
     if (cardId == null) return;
     if (mounted) setState(() => _saving = true);
     try {
-      await ref.read(kanbanRepositoryProvider).updateCard(
+      await ref
+          .read(kanbanRepositoryProvider)
+          .updateCard(
             cardId: cardId,
             title: _title.text.trim(),
             description: _description.text.trim(),
@@ -126,29 +128,31 @@ class _CardDetailPaneState extends ConsumerState<CardDetailPane> {
     final file = await ref.read(filePickerServiceProvider).pickSingleFile();
     if (file == null) return;
     try {
-      await ref.read(attachmentsRepositoryProvider).addFromFile(
+      await ref
+          .read(attachmentsRepositoryProvider)
+          .addFromFile(
             parentType: 'card',
             parentId: widget.cardId,
             source: file,
           );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
   Future<void> _addReminder(KanbanCard card) => createReminderForParent(
-        context,
-        ref,
-        parentType: 'card',
-        parentId: card.id,
-        defaultTitle: _title.text.trim().isEmpty
-            ? 'Kart hatırlatıcısı'
-            : _title.text.trim(),
-        defaultBody: _description.text.trim(),
-      );
+    context,
+    ref,
+    parentType: 'card',
+    parentId: card.id,
+    defaultTitle: _title.text.trim().isEmpty
+        ? 'Kart hatırlatıcısı'
+        : _title.text.trim(),
+    defaultBody: _description.text.trim(),
+  );
 
   Future<void> _moveColumn(
     KanbanCard card,
@@ -158,7 +162,9 @@ class _CardDetailPaneState extends ConsumerState<CardDetailPane> {
     if (destinationColumnId == card.columnId) return;
     final int destinationIndex =
         board.cardsByColumn[destinationColumnId]?.length ?? 0;
-    await ref.read(kanbanRepositoryProvider).moveCard(
+    await ref
+        .read(kanbanRepositoryProvider)
+        .moveCard(
           cardId: card.id,
           destinationColumnId: destinationColumnId,
           destinationIndex: destinationIndex,
@@ -262,7 +268,9 @@ class _CardDetailPaneState extends ConsumerState<CardDetailPane> {
                           Icon(
                             _saveIcon,
                             size: 14,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 5),
                           Text(
@@ -283,7 +291,10 @@ class _CardDetailPaneState extends ConsumerState<CardDetailPane> {
                                 child: Text('Kartı sil'),
                               ),
                             ],
-                            icon: const Icon(Icons.more_horiz_rounded, size: 19),
+                            icon: const Icon(
+                              Icons.more_horiz_rounded,
+                              size: 19,
+                            ),
                           ),
                         ],
                       ),
@@ -293,7 +304,10 @@ class _CardDetailPaneState extends ConsumerState<CardDetailPane> {
                           value: card.columnId,
                           decoration: const InputDecoration(
                             labelText: 'Kolon',
-                            prefixIcon: Icon(Icons.view_column_outlined, size: 19),
+                            prefixIcon: Icon(
+                              Icons.view_column_outlined,
+                              size: 19,
+                            ),
                           ),
                           items: board.columns
                               .map(
@@ -325,7 +339,10 @@ class _CardDetailPaneState extends ConsumerState<CardDetailPane> {
                         tilePadding: EdgeInsets.zero,
                         childrenPadding: const EdgeInsets.only(bottom: 12),
                         title: const Text('Ekler'),
-                        leading: const Icon(Icons.attach_file_rounded, size: 19),
+                        leading: const Icon(
+                          Icons.attach_file_rounded,
+                          size: 19,
+                        ),
                         trailing: IconButton(
                           tooltip: 'Dosya ekle',
                           onPressed: _addAttachment,
@@ -385,46 +402,44 @@ class _EmbeddedHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 8, 8),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: Theme.of(context).dividerColor),
-          ),
-        ),
-        child: Row(
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    padding: const EdgeInsets.fromLTRB(16, 10, 8, 8),
+    decoration: BoxDecoration(
+      border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
+    ),
+    child: Row(
+      children: <Widget>[
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 2),
+              Row(
                 children: <Widget>[
-                  Text(title, style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: <Widget>[
-                      Icon(saveIcon, size: 13),
-                      const SizedBox(width: 4),
-                      Text(saveLabel, style: Theme.of(context).textTheme.bodySmall),
-                    ],
-                  ),
+                  Icon(saveIcon, size: 13),
+                  const SizedBox(width: 4),
+                  Text(saveLabel, style: Theme.of(context).textTheme.bodySmall),
                 ],
               ),
-            ),
-            PopupMenuButton<String>(
-              tooltip: 'Kart işlemleri',
-              onSelected: (value) {
-                if (value == 'delete') onDelete();
-              },
-              itemBuilder: (_) => const <PopupMenuEntry<String>>[
-                PopupMenuItem(value: 'delete', child: Text('Kartı sil')),
-              ],
-              icon: const Icon(Icons.more_horiz_rounded, size: 19),
-            ),
-            IconButton(
-              tooltip: 'Kapat',
-              onPressed: onClose,
-              icon: const Icon(Icons.close_rounded),
-            ),
-          ],
+            ],
+          ),
         ),
-      );
+        PopupMenuButton<String>(
+          tooltip: 'Kart işlemleri',
+          onSelected: (value) {
+            if (value == 'delete') onDelete();
+          },
+          itemBuilder: (_) => const <PopupMenuEntry<String>>[
+            PopupMenuItem(value: 'delete', child: Text('Kartı sil')),
+          ],
+          icon: const Icon(Icons.more_horiz_rounded, size: 19),
+        ),
+        IconButton(
+          tooltip: 'Kapat',
+          onPressed: onClose,
+          icon: const Icon(Icons.close_rounded),
+        ),
+      ],
+    ),
+  );
 }

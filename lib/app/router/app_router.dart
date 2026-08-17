@@ -8,7 +8,9 @@ abstract final class AppRouter {
 
   static Future<T?> push<T>(BuildContext context, Widget page) {
     return Navigator.of(context).push<T>(
-      MaterialPageRoute<T>(builder: (routeContext) => _safePage(routeContext, page)),
+      MaterialPageRoute<T>(
+        builder: (routeContext) => _safePage(routeContext, page),
+      ),
     );
   }
 

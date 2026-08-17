@@ -114,25 +114,27 @@ abstract final class AppTheme {
     final Color surface = dark ? AppColors.darkSurface : AppColors.lightSurface;
     final Color subtle = dark ? AppColors.darkSubtle : AppColors.lightSubtle;
     final Color text = dark ? AppColors.darkText : AppColors.lightText;
-    final Color secondary =
-        dark ? AppColors.darkSecondary : AppColors.lightSecondary;
+    final Color secondary = dark
+        ? AppColors.darkSecondary
+        : AppColors.lightSecondary;
     final Color accent = dark ? AppColors.darkAccent : AppColors.lightAccent;
     final Color border = dark ? AppColors.darkBorder : AppColors.lightBorder;
     final Color danger = dark ? AppColors.darkDanger : AppColors.lightDanger;
 
-    final ColorScheme scheme = ColorScheme.fromSeed(
-      seedColor: accent,
-      brightness: brightness,
-      surface: surface,
-      error: danger,
-    ).copyWith(
-      primary: accent,
-      surfaceContainerLowest: canvas,
-      surfaceContainerLow: surface,
-      surfaceContainer: subtle,
-      outline: border,
-      outlineVariant: border.withValues(alpha: 0.72),
-    );
+    final ColorScheme scheme =
+        ColorScheme.fromSeed(
+          seedColor: accent,
+          brightness: brightness,
+          surface: surface,
+          error: danger,
+        ).copyWith(
+          primary: accent,
+          surfaceContainerLowest: canvas,
+          surfaceContainerLow: surface,
+          surfaceContainer: subtle,
+          outline: border,
+          outlineVariant: border.withValues(alpha: 0.72),
+        );
 
     final TextTheme baseTypography = Typography.material2021(
       platform: defaultTargetPlatform,
@@ -165,10 +167,7 @@ abstract final class AppTheme {
         fontSize: 14,
         fontWeight: FontWeight.w600,
       ),
-      bodyLarge: baseTypography.bodyLarge?.copyWith(
-        fontSize: 16,
-        height: 1.55,
-      ),
+      bodyLarge: baseTypography.bodyLarge?.copyWith(fontSize: 16, height: 1.55),
       bodyMedium: baseTypography.bodyMedium?.copyWith(
         fontSize: 14,
         height: 1.45,
@@ -204,8 +203,7 @@ abstract final class AppTheme {
       visualDensity: density,
       splashFactory: InkSparkle.splashFactory,
       focusColor: accent.withValues(alpha: 0.12),
-      hoverColor:
-          (dark ? Colors.white : Colors.black).withValues(alpha: 0.035),
+      hoverColor: (dark ? Colors.white : Colors.black).withValues(alpha: 0.035),
       highlightColor: accent.withValues(alpha: 0.07),
       textTheme: typography,
       appBarTheme: AppBarTheme(
@@ -315,16 +313,14 @@ abstract final class AppTheme {
         elevation: 0,
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
-        indicatorColor:
-            dark ? AppColors.darkSelected : AppColors.lightSelected,
+        indicatorColor: dark ? AppColors.darkSelected : AppColors.lightSelected,
         labelTextStyle: WidgetStatePropertyAll(typography.labelSmall),
       ),
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: surface,
         elevation: 0,
         minWidth: 68,
-        indicatorColor:
-            dark ? AppColors.darkSelected : AppColors.lightSelected,
+        indicatorColor: dark ? AppColors.darkSelected : AppColors.lightSelected,
         selectedIconTheme: IconThemeData(color: accent, size: 21),
         unselectedIconTheme: IconThemeData(color: secondary, size: 20),
         selectedLabelTextStyle: typography.labelSmall?.copyWith(

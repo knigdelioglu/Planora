@@ -36,7 +36,10 @@ class AppSearchField extends StatelessWidget {
       decoration: InputDecoration(
         prefixIcon: const Icon(Icons.search_rounded, size: 20),
         hintText: hintText,
-        suffixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        suffixIconConstraints: const BoxConstraints(
+          minWidth: 44,
+          minHeight: 44,
+        ),
         suffixIcon: busy
             ? const Padding(
                 padding: EdgeInsets.all(12),

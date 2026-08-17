@@ -199,9 +199,9 @@ class _TitleColorEditorState extends State<_TitleColorEditor> {
   void _submit() {
     final String title = _controller.text.trim();
     if (title.isEmpty) return;
-    Navigator.of(context).pop(
-      TitleColorValue(title: title, colorHex: _selected),
-    );
+    Navigator.of(
+      context,
+    ).pop(TitleColorValue(title: title, colorHex: _selected));
   }
 
   @override

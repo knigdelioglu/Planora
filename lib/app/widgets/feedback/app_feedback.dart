@@ -20,36 +20,32 @@ class AppStatusChip extends StatelessWidget {
   Color _foreground(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     return switch (tone) {
-      AppBannerTone.info => dark
-          ? AppColors.onInfoContainerDark
-          : AppColors.onInfoContainerLight,
-      AppBannerTone.warning => dark
-          ? AppColors.onWarningContainerDark
-          : AppColors.onWarningContainerLight,
-      AppBannerTone.error => dark
-          ? AppColors.onErrorContainerDark
-          : AppColors.onErrorContainerLight,
-      AppBannerTone.success => dark
-          ? AppColors.onSuccessContainerDark
-          : AppColors.onSuccessContainerLight,
+      AppBannerTone.info =>
+        dark ? AppColors.onInfoContainerDark : AppColors.onInfoContainerLight,
+      AppBannerTone.warning =>
+        dark
+            ? AppColors.onWarningContainerDark
+            : AppColors.onWarningContainerLight,
+      AppBannerTone.error =>
+        dark ? AppColors.onErrorContainerDark : AppColors.onErrorContainerLight,
+      AppBannerTone.success =>
+        dark
+            ? AppColors.onSuccessContainerDark
+            : AppColors.onSuccessContainerLight,
     };
   }
 
   Color _background(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     return switch (tone) {
-      AppBannerTone.info => dark
-          ? AppColors.infoContainerDark
-          : AppColors.infoContainerLight,
-      AppBannerTone.warning => dark
-          ? AppColors.warningContainerDark
-          : AppColors.warningContainerLight,
-      AppBannerTone.error => dark
-          ? AppColors.errorContainerDark
-          : AppColors.errorContainerLight,
-      AppBannerTone.success => dark
-          ? AppColors.successContainerDark
-          : AppColors.successContainerLight,
+      AppBannerTone.info =>
+        dark ? AppColors.infoContainerDark : AppColors.infoContainerLight,
+      AppBannerTone.warning =>
+        dark ? AppColors.warningContainerDark : AppColors.warningContainerLight,
+      AppBannerTone.error =>
+        dark ? AppColors.errorContainerDark : AppColors.errorContainerLight,
+      AppBannerTone.success =>
+        dark ? AppColors.successContainerDark : AppColors.successContainerLight,
     };
   }
 
@@ -113,36 +109,32 @@ class AppBanner extends StatelessWidget {
   Color _foreground(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     return switch (tone) {
-      AppBannerTone.info => dark
-          ? AppColors.onInfoContainerDark
-          : AppColors.onInfoContainerLight,
-      AppBannerTone.warning => dark
-          ? AppColors.onWarningContainerDark
-          : AppColors.onWarningContainerLight,
-      AppBannerTone.error => dark
-          ? AppColors.onErrorContainerDark
-          : AppColors.onErrorContainerLight,
-      AppBannerTone.success => dark
-          ? AppColors.onSuccessContainerDark
-          : AppColors.onSuccessContainerLight,
+      AppBannerTone.info =>
+        dark ? AppColors.onInfoContainerDark : AppColors.onInfoContainerLight,
+      AppBannerTone.warning =>
+        dark
+            ? AppColors.onWarningContainerDark
+            : AppColors.onWarningContainerLight,
+      AppBannerTone.error =>
+        dark ? AppColors.onErrorContainerDark : AppColors.onErrorContainerLight,
+      AppBannerTone.success =>
+        dark
+            ? AppColors.onSuccessContainerDark
+            : AppColors.onSuccessContainerLight,
     };
   }
 
   Color _background(BuildContext context) {
     final bool dark = Theme.of(context).brightness == Brightness.dark;
     return switch (tone) {
-      AppBannerTone.info => dark
-          ? AppColors.infoContainerDark
-          : AppColors.infoContainerLight,
-      AppBannerTone.warning => dark
-          ? AppColors.warningContainerDark
-          : AppColors.warningContainerLight,
-      AppBannerTone.error => dark
-          ? AppColors.errorContainerDark
-          : AppColors.errorContainerLight,
-      AppBannerTone.success => dark
-          ? AppColors.successContainerDark
-          : AppColors.successContainerLight,
+      AppBannerTone.info =>
+        dark ? AppColors.infoContainerDark : AppColors.infoContainerLight,
+      AppBannerTone.warning =>
+        dark ? AppColors.warningContainerDark : AppColors.warningContainerLight,
+      AppBannerTone.error =>
+        dark ? AppColors.errorContainerDark : AppColors.errorContainerLight,
+      AppBannerTone.success =>
+        dark ? AppColors.successContainerDark : AppColors.successContainerLight,
     };
   }
 
@@ -171,15 +163,15 @@ class AppBanner extends StatelessWidget {
                 if (title != null)
                   Text(
                     title!,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: foreground,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelLarge?.copyWith(color: foreground),
                   ),
                 Text(
                   message,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: foreground,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: foreground),
                 ),
               ],
             ),

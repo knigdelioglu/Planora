@@ -67,8 +67,10 @@ final class SandboxFileStorageService implements FileStorageService {
   final Future<Directory> Function()? tempDirectoryProvider;
   final Uuid _uuid;
 
-  Future<Directory> Function()? get _rootDirectoryProvider => rootDirectoryProvider;
-  Future<Directory> Function()? get _tempDirectoryProvider => tempDirectoryProvider;
+  Future<Directory> Function()? get _rootDirectoryProvider =>
+      rootDirectoryProvider;
+  Future<Directory> Function()? get _tempDirectoryProvider =>
+      tempDirectoryProvider;
 
   Future<Directory> _supportRoot() async {
     final Directory base = _rootDirectoryProvider != null

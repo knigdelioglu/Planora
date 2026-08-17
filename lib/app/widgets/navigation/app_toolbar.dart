@@ -39,7 +39,10 @@ class AppToolbar extends StatelessWidget {
         ),
         child: Row(
           children: <Widget>[
-            if (leading != null) ...<Widget>[leading!, const SizedBox(width: 8)],
+            if (leading != null) ...<Widget>[
+              leading!,
+              const SizedBox(width: 8),
+            ],
             Expanded(
               child: Row(
                 mainAxisSize: MainAxisSize.min,

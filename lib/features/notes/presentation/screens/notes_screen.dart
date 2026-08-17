@@ -41,7 +41,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
   Future<void> _changeColor(NoteEntity note) async {
     final settings = ref.read(settingsRepositoryProvider);
-    final String? current = await settings.watchEntityColor('note', note.id).first;
+    final String? current = await settings
+        .watchEntityColor('note', note.id)
+        .first;
     if (!mounted) return;
     final ColorPickerValue? value = await showEntityColorDialog(
       context,
@@ -77,7 +79,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           title: 'Notlar',
           status: _filter == NoteFilter.all
               ? null
-              : Text(_label(_filter), style: Theme.of(context).textTheme.bodySmall),
+              : Text(
+                  _label(_filter),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
           actions: <Widget>[
             PopupMenuButton<NoteFilter>(
               tooltip: 'Not filtresi',
@@ -145,16 +150,25 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               }
               return LayoutBuilder(
                 builder: (context, constraints) {
-                  final double horizontal = constraints.maxWidth < 600 ? 12 : 24;
+                  final double horizontal = constraints.maxWidth < 600
+                      ? 12
+                      : 24;
                   return ListView.builder(
-                    padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 32),
+                    padding: EdgeInsets.fromLTRB(
+                      horizontal,
+                      12,
+                      horizontal,
+                      32,
+                    ),
                     itemCount: notes.length,
                     itemBuilder: (context, index) {
                       final NoteEntity note = notes[index];
                       return StreamBuilder<String?>(
                         stream: settings.watchEntityColor('note', note.id),
                         builder: (context, colorSnapshot) {
-                          final Color? accent = colorFromHex(colorSnapshot.data);
+                          final Color? accent = colorFromHex(
+                            colorSnapshot.data,
+                          );
                           final String preview = note.document.plainText.trim();
                           return AppListRow(
                             leading: Row(
@@ -203,25 +217,31 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                 ),
                                                 actions: <Widget>[
                                                   TextButton(
-                                                    onPressed: () => Navigator.pop(
-                                                      context,
-                                                      false,
-                                                    ),
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                          context,
+                                                          false,
+                                                        ),
                                                     child: const Text('Vazgeç'),
                                                   ),
                                                   FilledButton(
-                                                    onPressed: () => Navigator.pop(
-                                                      context,
-                                                      true,
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                          context,
+                                                          true,
+                                                        ),
+                                                    child: const Text(
+                                                      'Kalıcı sil',
                                                     ),
-                                                    child: const Text('Kalıcı sil'),
                                                   ),
                                                 ],
                                               ),
                                             ) ??
                                             false;
                                         if (confirmed) {
-                                          await repository.deletePermanently(note.id);
+                                          await repository.deletePermanently(
+                                            note.id,
+                                          );
                                         }
                                       }
                                     },
@@ -243,10 +263,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                       if (note.isFavorite)
                                         IconButton(
                                           tooltip: 'Favoriden çıkar',
-                                          onPressed: () => repository.setFavorite(
-                                            note.id,
-                                            false,
-                                          ),
+                                          onPressed: () => repository
+                                              .setFavorite(note.id, false),
                                           icon: const Icon(
                                             Icons.star_rounded,
                                             size: 19,

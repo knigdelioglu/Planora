@@ -223,7 +223,10 @@ class SlashCommandPalette extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surfaceContainerHighest.withValues(
                     alpha: 0.45,
@@ -283,7 +286,8 @@ class SlashCommandPalette extends StatelessWidget {
                       children: List<Widget>.generate(filtered.length, (index) {
                         final item = filtered[index];
                         final isSelected =
-                            index == selectedIndex.clamp(0, filtered.length - 1);
+                            index ==
+                            selectedIndex.clamp(0, filtered.length - 1);
 
                         return InkWell(
                           key: ValueKey('slash_item_${item.id.name}'),
@@ -299,16 +303,14 @@ class SlashCommandPalette extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? theme.colorScheme.primaryContainer.withValues(
-                                      alpha: 0.45,
-                                    )
+                                  ? theme.colorScheme.primaryContainer
+                                        .withValues(alpha: 0.45)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(8),
                               border: isSelected
                                   ? Border.all(
-                                      color: theme.colorScheme.primary.withValues(
-                                        alpha: 0.3,
-                                      ),
+                                      color: theme.colorScheme.primary
+                                          .withValues(alpha: 0.3),
                                     )
                                   : null,
                             ),
@@ -339,7 +341,8 @@ class SlashCommandPalette extends StatelessWidget {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: <Widget>[
                                       Text(
@@ -349,7 +352,8 @@ class SlashCommandPalette extends StatelessWidget {
                                               fontWeight: isSelected
                                                   ? FontWeight.w600
                                                   : FontWeight.w500,
-                                              color: theme.colorScheme.onSurface,
+                                              color:
+                                                  theme.colorScheme.onSurface,
                                             ),
                                       ),
                                       Text(

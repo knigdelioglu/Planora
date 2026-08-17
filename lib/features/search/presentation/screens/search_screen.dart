@@ -96,8 +96,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final List<SearchResultEntity> source = _type == 'all'
         ? _results
         : _results
-            .where((item) => item.entityType == _type)
-            .toList(growable: false);
+              .where((item) => item.entityType == _type)
+              .toList(growable: false);
     if (_type != 'all') return source;
     return <SearchResultEntity>[
       ...source.where((item) => item.entityType == 'note'),
@@ -172,8 +172,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final String value = _query.text.trim();
     if (value.isEmpty) return;
     setState(() => _busy = true);
-    final List<SearchResultEntity> data =
-        await ref.read(searchRepositoryProvider).search(value);
+    final List<SearchResultEntity> data = await ref
+        .read(searchRepositoryProvider)
+        .search(value);
     if (!mounted || value != _query.text.trim()) return;
     setState(() {
       _results = data;
@@ -248,18 +249,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   String _typeLabel(String type) => switch (type) {
-        'note' => 'Not',
-        'card' => 'Kart',
-        'board' => 'Pano',
-        _ => 'Sonuç',
-      };
+    'note' => 'Not',
+    'card' => 'Kart',
+    'board' => 'Pano',
+    _ => 'Sonuç',
+  };
 
   IconData _typeIcon(String type) => switch (type) {
-        'note' => Icons.description_outlined,
-        'card' => Icons.view_agenda_outlined,
-        'board' => Icons.view_kanban_outlined,
-        _ => Icons.search_rounded,
-      };
+    'note' => Icons.description_outlined,
+    'card' => Icons.view_agenda_outlined,
+    'board' => Icons.view_kanban_outlined,
+    _ => Icons.search_rounded,
+  };
 
   void _selectType(String type) {
     setState(() {
@@ -299,7 +300,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 return Column(
                   children: <Widget>[
                     Padding(
-                      padding: EdgeInsets.fromLTRB(horizontal, 18, horizontal, 0),
+                      padding: EdgeInsets.fromLTRB(
+                        horizontal,
+                        18,
+                        horizontal,
+                        0,
+                      ),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 760),
                         child: KeyedSubtree(
@@ -318,8 +324,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             onSubmitted: (_) {
                               if (visible.isNotEmpty) {
                                 _open(
-                                  visible[
-                                      _selectedIndex < 0 ? 0 : _selectedIndex],
+                                  visible[_selectedIndex < 0
+                                      ? 0
+                                      : _selectedIndex],
                                 );
                               }
                             },
@@ -328,7 +335,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       ),
                     ),
                     Padding(
-                      padding: EdgeInsets.fromLTRB(horizontal, 10, horizontal, 0),
+                      padding: EdgeInsets.fromLTRB(
+                        horizontal,
+                        10,
+                        horizontal,
+                        0,
+                      ),
                       child: Align(
                         alignment: Alignment.center,
                         child: ConstrainedBox(
@@ -372,112 +384,107 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   'Notlar, kartlar ve panolar cihazınızda aranır.',
                             )
                           : visible.isEmpty && !_busy
-                              ? const EmptyState(
-                                  icon: Icons.search_off_rounded,
-                                  title: 'Sonuç bulunamadı',
-                                  message: 'Farklı bir kelime deneyin.',
-                                )
-                              : Center(
-                                  child: ConstrainedBox(
-                                    constraints:
-                                        const BoxConstraints(maxWidth: 800),
-                                    child: ListView.builder(
-                                      padding: EdgeInsets.fromLTRB(
-                                        horizontal,
-                                        4,
-                                        horizontal,
-                                        32,
-                                      ),
-                                      itemCount: display.length,
-                                      itemBuilder: (context, index) {
-                                        final _DisplayItem item = display[index];
-                                        if (item is _SectionItem) {
-                                          return Padding(
-                                            padding: const EdgeInsets.fromLTRB(
-                                              4,
-                                              14,
-                                              4,
-                                              5,
-                                            ),
-                                            child: Text(
-                                              '${item.label} (${item.count})',
-                                              key: ValueKey(
-                                                'search_section_${item.type}',
-                                              ),
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .labelLarge,
-                                            ),
-                                          );
-                                        }
-                                        final _ResultItem resultItem =
-                                            item as _ResultItem;
-                                        final SearchResultEntity result =
-                                            resultItem.result;
-                                        final bool selected =
-                                            resultItem.flatIndex ==
-                                                _selectedIndex;
-                                        return AppListRow(
-                                          key: ValueKey(
-                                            'search_result_${result.entityType}_${result.entityId}',
-                                          ),
-                                          selected: selected,
-                                          leading: Icon(
-                                            _typeIcon(result.entityType),
-                                            size: 19,
-                                          ),
-                                          title: _HighlightedText(
-                                            text: result.title.trim().isEmpty
-                                                ? 'Başlıksız'
-                                                : result.title,
-                                            query: _query.text.trim(),
-                                            maxLines: 1,
-                                            selected: selected,
-                                          ),
-                                          subtitle: result.preview.trim().isEmpty ||
-                                                  result.preview.trim() ==
-                                                      result.title.trim()
-                                              ? Text(
-                                                  _typeLabel(
-                                                    result.entityType,
-                                                  ),
-                                                )
-                                              : Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: <Widget>[
-                                                    Text(
-                                                      _typeLabel(
-                                                        result.entityType,
-                                                      ),
-                                                    ),
-                                                    _HighlightedText(
-                                                      text: result.preview
-                                                          .replaceAll('\n', ' '),
-                                                      query: _query.text.trim(),
-                                                      maxLines: 2,
-                                                      small: true,
-                                                    ),
-                                                  ],
-                                                ),
-                                          trailing: selected
-                                              ? const Icon(
-                                                  Icons.keyboard_return_rounded,
-                                                  size: 16,
-                                                )
-                                              : null,
-                                          onTap: () {
-                                            setState(
-                                              () => _selectedIndex =
-                                                  resultItem.flatIndex,
-                                            );
-                                            _open(result);
-                                          },
-                                        );
-                                      },
-                                    ),
-                                  ),
+                          ? const EmptyState(
+                              icon: Icons.search_off_rounded,
+                              title: 'Sonuç bulunamadı',
+                              message: 'Farklı bir kelime deneyin.',
+                            )
+                          : Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 800,
                                 ),
+                                child: ListView.builder(
+                                  padding: EdgeInsets.fromLTRB(
+                                    horizontal,
+                                    4,
+                                    horizontal,
+                                    32,
+                                  ),
+                                  itemCount: display.length,
+                                  itemBuilder: (context, index) {
+                                    final _DisplayItem item = display[index];
+                                    if (item is _SectionItem) {
+                                      return Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          4,
+                                          14,
+                                          4,
+                                          5,
+                                        ),
+                                        child: Text(
+                                          '${item.label} (${item.count})',
+                                          key: ValueKey(
+                                            'search_section_${item.type}',
+                                          ),
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.labelLarge,
+                                        ),
+                                      );
+                                    }
+                                    final _ResultItem resultItem =
+                                        item as _ResultItem;
+                                    final SearchResultEntity result =
+                                        resultItem.result;
+                                    final bool selected =
+                                        resultItem.flatIndex == _selectedIndex;
+                                    return AppListRow(
+                                      key: ValueKey(
+                                        'search_result_${result.entityType}_${result.entityId}',
+                                      ),
+                                      selected: selected,
+                                      leading: Icon(
+                                        _typeIcon(result.entityType),
+                                        size: 19,
+                                      ),
+                                      title: _HighlightedText(
+                                        text: result.title.trim().isEmpty
+                                            ? 'Başlıksız'
+                                            : result.title,
+                                        query: _query.text.trim(),
+                                        maxLines: 1,
+                                        selected: selected,
+                                      ),
+                                      subtitle:
+                                          result.preview.trim().isEmpty ||
+                                              result.preview.trim() ==
+                                                  result.title.trim()
+                                          ? Text(_typeLabel(result.entityType))
+                                          : Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: <Widget>[
+                                                Text(
+                                                  _typeLabel(result.entityType),
+                                                ),
+                                                _HighlightedText(
+                                                  text: result.preview
+                                                      .replaceAll('\n', ' '),
+                                                  query: _query.text.trim(),
+                                                  maxLines: 2,
+                                                  small: true,
+                                                ),
+                                              ],
+                                            ),
+                                      trailing: selected
+                                          ? const Icon(
+                                              Icons.keyboard_return_rounded,
+                                              size: 16,
+                                            )
+                                          : null,
+                                      onTap: () {
+                                        setState(
+                                          () => _selectedIndex =
+                                              resultItem.flatIndex,
+                                        );
+                                        _open(result);
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
                     ),
                   ],
                 );
@@ -503,11 +510,11 @@ class _TypeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        showCheckmark: false,
-        onSelected: (_) => onSelected(),
-      );
+    label: Text(label),
+    selected: selected,
+    showCheckmark: false,
+    onSelected: (_) => onSelected(),
+  );
 }
 
 class _HighlightedText extends StatelessWidget {
@@ -530,8 +537,8 @@ class _HighlightedText extends StatelessWidget {
     final TextStyle? base = small
         ? Theme.of(context).textTheme.bodySmall
         : Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-            );
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          );
     if (query.isEmpty) {
       return Text(
         text,
@@ -559,10 +566,9 @@ class _HighlightedText extends StatelessWidget {
           TextSpan(
             text: text.substring(index, index + query.length),
             style: base?.copyWith(
-              backgroundColor: Theme.of(context)
-                  .colorScheme
-                  .primary
-                  .withValues(alpha: 0.14),
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.14),
               fontWeight: FontWeight.w700,
             ),
           ),

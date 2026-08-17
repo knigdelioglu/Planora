@@ -29,10 +29,10 @@ Future<void> openLocalAttachment(
   bool opened = false;
   if (Platform.isAndroid) {
     opened =
-        await _androidFileOpener.invokeMethod<bool>('openFile', <String, Object?>{
-          'path': file.path,
-          'mimeType': mimeType,
-        }) ??
+        await _androidFileOpener.invokeMethod<bool>(
+          'openFile',
+          <String, Object?>{'path': file.path, 'mimeType': mimeType},
+        ) ??
         false;
   } else {
     opened = await launchUrl(Uri.file(file.path));

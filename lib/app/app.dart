@@ -68,9 +68,8 @@ class _NotAppState extends ConsumerState<NotApp> with WidgetsBindingObserver {
           theme: AppTheme.light(),
           darkTheme: pureBlackDarkTheme,
           themeMode: mode,
-          builder: (context, child) => _AppTextFocusBehavior(
-            child: child ?? const SizedBox.shrink(),
-          ),
+          builder: (context, child) =>
+              _AppTextFocusBehavior(child: child ?? const SizedBox.shrink()),
           home: const AppShell(),
         );
       },

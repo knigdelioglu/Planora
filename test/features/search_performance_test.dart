@@ -210,114 +210,116 @@ void main() {
   });
 
   group('FTS performansı', () {
-    test(
-      '1250+ kayıt <50ms hedefiyle aranır',
-      () async {
-        const int noteCount = 600;
-        const int cardCount = 600;
-        const int boardCount = 50;
+    test('1250+ kayıt <50ms hedefiyle aranır', () async {
+      const int noteCount = 600;
+      const int cardCount = 600;
+      const int boardCount = 50;
 
-        final insertStopwatch = Stopwatch()..start();
-        await db.inTransaction(() async {
-          for (int i = 0; i < noteCount; i++) {
-            await db.upsertSearchEntry(
-              entityType: 'note',
-              entityId: 'note_$i',
-              title: 'Not Başlığı $i - Flutter Performans Raporu',
-              body:
-                  'Bu not içerisinde veri senkronizasyonu, sqlite fts indexleme, mimari optimizasyon $i ve derin içerik bulunmaktadır.',
-            );
-          }
-          for (int i = 0; i < cardCount; i++) {
-            await db.upsertSearchEntry(
-              entityType: 'card',
-              entityId: 'card_$i',
-              title: 'Kart Görevi #$i: Kanban kartı taşıma ve ranking',
-              body:
-                  'Kart detay açıklaması #$i. Supabase kuyruk optimizasyonu ve UI tepkisellik testleri.',
-            );
-          }
-          for (int i = 0; i < boardCount; i++) {
-            await db.upsertSearchEntry(
-              entityType: 'board',
-              entityId: 'board_$i',
-              title: 'Pano $i: Sprint Planlama & Yol Haritası',
-              body: '',
-            );
-          }
-        });
-        insertStopwatch.stop();
-        expect(insertStopwatch.elapsedMilliseconds, lessThan(3000));
-
-        final queries = <String>[
-          'Flutter',
-          'Kanban',
-          'Sprint',
-          'optimizasyon',
-          'senkronizasyon',
-          'mimari Performans',
-          'raporu',
-          'detay',
-          'bulunmayan_kelime_xyz',
-        ];
-
-        for (final query in queries) {
-          final stopwatch = Stopwatch()..start();
-          final results = await searchRepository.search(query, limit: 100);
-          stopwatch.stop();
-          expect(
-            stopwatch.elapsedMilliseconds,
-            lessThan(50),
-            reason:
-                '1000+ kayıtta "$query" araması <50ms hedefini korumalıdır.',
+      final insertStopwatch = Stopwatch()..start();
+      await db.inTransaction(() async {
+        for (int i = 0; i < noteCount; i++) {
+          await db.upsertSearchEntry(
+            entityType: 'note',
+            entityId: 'note_$i',
+            title: 'Not Başlığı $i - Flutter Performans Raporu',
+            body:
+                'Bu not içerisinde veri senkronizasyonu, sqlite fts indexleme, mimari optimizasyon $i ve derin içerik bulunmaktadır.',
           );
-          if (query == 'Flutter') {
-            expect(results.every((result) => result.entityType == 'note'), isTrue);
-          } else if (query == 'Kanban') {
-            expect(results.every((result) => result.entityType == 'card'), isTrue);
-          } else if (query == 'Sprint') {
-            expect(results.every((result) => result.entityType == 'board'), isTrue);
-          } else if (query == 'bulunmayan_kelime_xyz') {
-            expect(results, isEmpty);
-          }
         }
-      },
-    );
-
-    test(
-      '50 ardışık sorgunun ortalama yanıtı <15ms kalır',
-      () async {
-        await db.inTransaction(() async {
-          for (int i = 0; i < 600; i++) {
-            await db.upsertSearchEntry(
-              entityType: 'note',
-              entityId: 'n_$i',
-              title: 'Not $i Test Dokümanı',
-              body: 'İçerik detayı kelime_$i veri analizi rapor',
-            );
-            await db.upsertSearchEntry(
-              entityType: 'card',
-              entityId: 'c_$i',
-              title: 'Kart $i Görev Özeti',
-              body: 'Görev açıklaması madde_$i süreç takip',
-            );
-          }
-        });
-
-        final benchmark = Stopwatch()..start();
-        const int iterations = 50;
-        for (int i = 0; i < iterations; i++) {
-          final query = i.isEven ? 'Dokümanı' : 'Özeti';
-          final single = Stopwatch()..start();
-          final results = await searchRepository.search(query, limit: 50);
-          single.stop();
-          expect(single.elapsedMilliseconds, lessThan(50));
-          expect(results.length, 50);
+        for (int i = 0; i < cardCount; i++) {
+          await db.upsertSearchEntry(
+            entityType: 'card',
+            entityId: 'card_$i',
+            title: 'Kart Görevi #$i: Kanban kartı taşıma ve ranking',
+            body:
+                'Kart detay açıklaması #$i. Supabase kuyruk optimizasyonu ve UI tepkisellik testleri.',
+          );
         }
-        benchmark.stop();
-        expect(benchmark.elapsedMilliseconds / iterations, lessThan(15.0));
-      },
-    );
+        for (int i = 0; i < boardCount; i++) {
+          await db.upsertSearchEntry(
+            entityType: 'board',
+            entityId: 'board_$i',
+            title: 'Pano $i: Sprint Planlama & Yol Haritası',
+            body: '',
+          );
+        }
+      });
+      insertStopwatch.stop();
+      expect(insertStopwatch.elapsedMilliseconds, lessThan(3000));
+
+      final queries = <String>[
+        'Flutter',
+        'Kanban',
+        'Sprint',
+        'optimizasyon',
+        'senkronizasyon',
+        'mimari Performans',
+        'raporu',
+        'detay',
+        'bulunmayan_kelime_xyz',
+      ];
+
+      for (final query in queries) {
+        final stopwatch = Stopwatch()..start();
+        final results = await searchRepository.search(query, limit: 100);
+        stopwatch.stop();
+        expect(
+          stopwatch.elapsedMilliseconds,
+          lessThan(50),
+          reason: '1000+ kayıtta "$query" araması <50ms hedefini korumalıdır.',
+        );
+        if (query == 'Flutter') {
+          expect(
+            results.every((result) => result.entityType == 'note'),
+            isTrue,
+          );
+        } else if (query == 'Kanban') {
+          expect(
+            results.every((result) => result.entityType == 'card'),
+            isTrue,
+          );
+        } else if (query == 'Sprint') {
+          expect(
+            results.every((result) => result.entityType == 'board'),
+            isTrue,
+          );
+        } else if (query == 'bulunmayan_kelime_xyz') {
+          expect(results, isEmpty);
+        }
+      }
+    });
+
+    test('50 ardışık sorgunun ortalama yanıtı <15ms kalır', () async {
+      await db.inTransaction(() async {
+        for (int i = 0; i < 600; i++) {
+          await db.upsertSearchEntry(
+            entityType: 'note',
+            entityId: 'n_$i',
+            title: 'Not $i Test Dokümanı',
+            body: 'İçerik detayı kelime_$i veri analizi rapor',
+          );
+          await db.upsertSearchEntry(
+            entityType: 'card',
+            entityId: 'c_$i',
+            title: 'Kart $i Görev Özeti',
+            body: 'Görev açıklaması madde_$i süreç takip',
+          );
+        }
+      });
+
+      final benchmark = Stopwatch()..start();
+      const int iterations = 50;
+      for (int i = 0; i < iterations; i++) {
+        final query = i.isEven ? 'Dokümanı' : 'Özeti';
+        final single = Stopwatch()..start();
+        final results = await searchRepository.search(query, limit: 50);
+        single.stop();
+        expect(single.elapsedMilliseconds, lessThan(50));
+        expect(results.length, 50);
+      }
+      benchmark.stop();
+      expect(benchmark.elapsedMilliseconds / iterations, lessThan(15.0));
+    });
   });
 
   group('Tam sayfa arama UX sözleşmesi', () {
@@ -425,7 +427,10 @@ void main() {
       expect(find.text('Panolar (1)'), findsOneWidget);
       expect(find.byKey(const ValueKey('search_section_note')), findsOneWidget);
       expect(find.byKey(const ValueKey('search_section_card')), findsOneWidget);
-      expect(find.byKey(const ValueKey('search_section_board')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('search_section_board')),
+        findsOneWidget,
+      );
 
       await tester.enterText(fullSearchField(), 'Algoritma Notu');
       await tester.pump(const Duration(milliseconds: 250));
@@ -580,7 +585,10 @@ void main() {
       expect(find.text('Escape Notu'), findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pump();
-      expect(tester.widget<TextField>(fullSearchField()).controller?.text, isEmpty);
+      expect(
+        tester.widget<TextField>(fullSearchField()).controller?.text,
+        isEmpty,
+      );
       expect(find.text('Ne arıyorsunuz?'), findsOneWidget);
 
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -639,7 +647,9 @@ void main() {
       await unmountScreen(tester);
     }
 
-    testWidgets('AppShell ⌘K ile floating command palette açar', (tester) async {
+    testWidgets('AppShell ⌘K ile floating command palette açar', (
+      tester,
+    ) async {
       await assertShellShortcut(tester, LogicalKeyboardKey.metaLeft);
     });
 

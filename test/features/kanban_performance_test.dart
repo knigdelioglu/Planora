@@ -216,8 +216,9 @@ void main() {
       final DateTime now = clock.nowUtc();
       await db.batch((batch) {
         for (int c = 0; c < columnCount; c++) {
-          final List<String> rankKeys =
-              FractionalIndexing.rebalance(cardsPerColumn);
+          final List<String> rankKeys = FractionalIndexing.rebalance(
+            cardsPerColumn,
+          );
           for (int k = 0; k < cardsPerColumn; k++) {
             batch.insert(
               db.cards,
@@ -238,22 +239,24 @@ void main() {
       stopwatch.stop();
 
       expect(stopwatch.elapsedMilliseconds, lessThan(2000));
-      final allCards = await (db.select(db.cards)
-            ..where(
-              (table) =>
-                  table.boardId.equals(boardId) & table.deletedAt.isNull(),
-            ))
-          .get();
+      final allCards =
+          await (db.select(db.cards)..where(
+                (table) =>
+                    table.boardId.equals(boardId) & table.deletedAt.isNull(),
+              ))
+              .get();
       expect(allCards.length, 525);
 
       for (final String columnId in columnIds) {
-        final cards = await (db.select(db.cards)
-              ..where(
-                (table) =>
-                    table.columnId.equals(columnId) & table.deletedAt.isNull(),
-              )
-              ..orderBy([(table) => OrderingTerm.asc(table.rankKey)]))
-            .get();
+        final cards =
+            await (db.select(db.cards)
+                  ..where(
+                    (table) =>
+                        table.columnId.equals(columnId) &
+                        table.deletedAt.isNull(),
+                  )
+                  ..orderBy([(table) => OrderingTerm.asc(table.rankKey)]))
+                .get();
         expect(cards.length, cardsPerColumn);
         for (int i = 0; i < cards.length - 1; i++) {
           expect(cards[i].rankKey.compareTo(cards[i + 1].rankKey), lessThan(0));
@@ -266,8 +269,9 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      final String boardId =
-          await repository.createBoard(title: 'Performans Panosu');
+      final String boardId = await repository.createBoard(
+        title: 'Performans Panosu',
+      );
       final List<String> columnIds = <String>[];
       for (int i = 0; i < 5; i++) {
         columnIds.add(
@@ -310,12 +314,17 @@ void main() {
     });
 
     test('yoğun kolonlar arası taşıma rankKey sırasını korur', () async {
-      final String boardId =
-          await repository.createBoard(title: 'Ranking Benchmark');
-      final String col1 =
-          await repository.createColumn(boardId: boardId, title: 'C1');
-      final String col2 =
-          await repository.createColumn(boardId: boardId, title: 'C2');
+      final String boardId = await repository.createBoard(
+        title: 'Ranking Benchmark',
+      );
+      final String col1 = await repository.createColumn(
+        boardId: boardId,
+        title: 'C1',
+      );
+      final String col2 = await repository.createColumn(
+        boardId: boardId,
+        title: 'C2',
+      );
       const int initialCards = 250;
       final DateTime now = clock.nowUtc();
       final List<String> rankKeys1 = FractionalIndexing.rebalance(initialCards);
@@ -367,13 +376,15 @@ void main() {
       expect(watch.elapsedMilliseconds / 50.0, lessThan(10.0));
 
       for (final String columnId in <String>[col1, col2]) {
-        final cards = await (db.select(db.cards)
-              ..where(
-                (table) =>
-                    table.columnId.equals(columnId) & table.deletedAt.isNull(),
-              )
-              ..orderBy([(table) => OrderingTerm.asc(table.rankKey)]))
-            .get();
+        final cards =
+            await (db.select(db.cards)
+                  ..where(
+                    (table) =>
+                        table.columnId.equals(columnId) &
+                        table.deletedAt.isNull(),
+                  )
+                  ..orderBy([(table) => OrderingTerm.asc(table.rankKey)]))
+                .get();
         for (int i = 0; i < cards.length - 1; i++) {
           expect(cards[i].rankKey.compareTo(cards[i + 1].rankKey), lessThan(0));
         }
@@ -387,8 +398,9 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      final String boardId =
-          await repository.createBoard(title: 'Auto Scroll Board');
+      final String boardId = await repository.createBoard(
+        title: 'Auto Scroll Board',
+      );
       final List<String> columns = <String>[];
       for (int i = 0; i < 5; i++) {
         columns.add(
@@ -410,8 +422,9 @@ void main() {
       expect(scrollable.position.pixels, 0.0);
 
       final cardFinder = find.text('Sürüklenecek Kart');
-      final TestGesture gesture =
-          await tester.startGesture(tester.getCenter(cardFinder));
+      final TestGesture gesture = await tester.startGesture(
+        tester.getCenter(cardFinder),
+      );
       await tester.pump(const Duration(milliseconds: 600));
       await gesture.moveTo(const Offset(580, 300));
       await tester.pump(const Duration(milliseconds: 150));
@@ -425,15 +438,20 @@ void main() {
       await unmountScreen(tester);
     });
 
-    testWidgets('kart menüsü drag dışı taşıma alternatifi sağlar', (tester) async {
+    testWidgets('kart menüsü drag dışı taşıma alternatifi sağlar', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(1000, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      final String boardId =
-          await repository.createBoard(title: 'Erişilebilirlik Panosu');
-      final String col1 =
-          await repository.createColumn(boardId: boardId, title: 'Yapılacak');
+      final String boardId = await repository.createBoard(
+        title: 'Erişilebilirlik Panosu',
+      );
+      final String col1 = await repository.createColumn(
+        boardId: boardId,
+        title: 'Yapılacak',
+      );
       final String col2 = await repository.createColumn(
         boardId: boardId,
         title: 'Devam Eden',
@@ -458,9 +476,9 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('menu_move_next')));
       await settleRepositoryWrite(tester);
-      final card = await (db.select(db.cards)
-            ..where((table) => table.id.equals(cardId)))
-          .getSingle();
+      final card = await (db.select(
+        db.cards,
+      )..where((table) => table.id.equals(cardId))).getSingle();
       expect(card.columnId, col2);
       await unmountScreen(tester);
     });
@@ -474,12 +492,17 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      final String boardId =
-          await repository.createBoard(title: 'Detay Test Panosu');
-      final String colA =
-          await repository.createColumn(boardId: boardId, title: 'A Kolonu');
-      final String colB =
-          await repository.createColumn(boardId: boardId, title: 'B Kolonu');
+      final String boardId = await repository.createBoard(
+        title: 'Detay Test Panosu',
+      );
+      final String colA = await repository.createColumn(
+        boardId: boardId,
+        title: 'A Kolonu',
+      );
+      final String colB = await repository.createColumn(
+        boardId: boardId,
+        title: 'B Kolonu',
+      );
       final String cardId = await repository.createCard(
         boardId: boardId,
         columnId: colA,
@@ -501,9 +524,9 @@ void main() {
       await tester.tap(find.text('B Kolonu').last);
       await settleRepositoryWrite(tester);
 
-      var card = await (db.select(db.cards)
-            ..where((table) => table.id.equals(cardId)))
-          .getSingle();
+      var card = await (db.select(
+        db.cards,
+      )..where((table) => table.id.equals(cardId))).getSingle();
       expect(card.columnId, colB);
 
       final fields = find.byType(TextField);
@@ -513,23 +536,28 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
       await settleRepositoryWrite(tester);
 
-      card = await (db.select(db.cards)
-            ..where((table) => table.id.equals(cardId)))
-          .getSingle();
+      card = await (db.select(
+        db.cards,
+      )..where((table) => table.id.equals(cardId))).getSingle();
       expect(card.title, 'Yeni Kart Başlığı');
       expect(card.description, 'Autosave açıklaması');
       await unmountScreen(tester);
     });
 
-    testWidgets('expanded panoda kart detayı sağ panelde açılır', (tester) async {
+    testWidgets('expanded panoda kart detayı sağ panelde açılır', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      final String boardId =
-          await repository.createBoard(title: 'Side Pane Panosu');
-      final String columnId =
-          await repository.createColumn(boardId: boardId, title: 'Kolon');
+      final String boardId = await repository.createBoard(
+        title: 'Side Pane Panosu',
+      );
+      final String columnId = await repository.createColumn(
+        boardId: boardId,
+        title: 'Kolon',
+      );
       await repository.createCard(
         boardId: boardId,
         columnId: columnId,

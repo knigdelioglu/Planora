@@ -41,7 +41,8 @@ class AppEntityColorIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color effective = color ?? Theme.of(context).colorScheme.outlineVariant;
+    final Color effective =
+        color ?? Theme.of(context).colorScheme.outlineVariant;
     return Container(
       width: vertical ? 3 : size,
       height: vertical ? 28 : size,

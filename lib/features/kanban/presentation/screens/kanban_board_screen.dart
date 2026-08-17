@@ -50,7 +50,9 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
   }
 
   void _initStream() {
-    _boardStream = ref.read(kanbanRepositoryProvider).watchBoard(widget.boardId);
+    _boardStream = ref
+        .read(kanbanRepositoryProvider)
+        .watchBoard(widget.boardId);
   }
 
   @override
@@ -122,7 +124,9 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
       confirmLabel: 'Ekle',
     );
     if (value == null) return;
-    await ref.read(kanbanRepositoryProvider).createColumn(
+    await ref
+        .read(kanbanRepositoryProvider)
+        .createColumn(
           boardId: widget.boardId,
           title: value.title,
           colorHex: value.colorHex,
@@ -131,8 +135,9 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
 
   Future<void> _renameBoard(BuildContext context, KanbanSnapshot data) async {
     final settings = ref.read(settingsRepositoryProvider);
-    final String? colorOverride =
-        await settings.watchEntityColor('board', data.board.id).first;
+    final String? colorOverride = await settings
+        .watchEntityColor('board', data.board.id)
+        .first;
     if (!context.mounted) return;
     final TitleColorValue? value = await showTitleColorDialog(
       context,
@@ -148,13 +153,10 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
           .read(kanbanRepositoryProvider)
           .renameBoard(data.board.id, value.title);
     }
-    final String? nextColorOverride =
-        value.colorHex == data.board.colorHex ? null : value.colorHex;
-    await settings.setEntityColor(
-      'board',
-      data.board.id,
-      nextColorOverride,
-    );
+    final String? nextColorOverride = value.colorHex == data.board.colorHex
+        ? null
+        : value.colorHex;
+    await settings.setEntityColor('board', data.board.id, nextColorOverride);
   }
 
   Future<void> _newCardOnBoard(
@@ -170,7 +172,9 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
       builder: (_) => _NewCardSheet(columns: data.columns),
     );
     if (value == null) return;
-    await ref.read(kanbanRepositoryProvider).createCard(
+    await ref
+        .read(kanbanRepositoryProvider)
+        .createCard(
           boardId: data.board.id,
           columnId: value.$2,
           title: value.$1,
@@ -254,7 +258,8 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
                         key: _boardAreaKey,
                         child: Scrollbar(
                           controller: _horizontalScrollController,
-                          thumbVisibility: MediaQuery.sizeOf(context).width >=
+                          thumbVisibility:
+                              MediaQuery.sizeOf(context).width >=
                               AppBreakpoints.expanded,
                           child: ListView.separated(
                             controller: _horizontalScrollController,
@@ -278,7 +283,8 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
                                   snapshot: data,
                                   column: column,
                                   columnIndex: columnIndex,
-                                  cards: data.cardsByColumn[column.id] ??
+                                  cards:
+                                      data.cardsByColumn[column.id] ??
                                       const <KanbanCard>[],
                                   onDragUpdate: _onDragUpdate,
                                   onDragEnd: _stopAutoScroll,
@@ -331,25 +337,25 @@ class _EmptyBoard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(
-              Icons.view_column_outlined,
-              size: 42,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 12),
-            Text('Bu pano boş', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: onAddColumn,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('İlk kolonu oluştur'),
-            ),
-          ],
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Icon(
+          Icons.view_column_outlined,
+          size: 42,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
-      );
+        const SizedBox(height: 12),
+        Text('Bu pano boş', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: onAddColumn,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('İlk kolonu oluştur'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _AddColumnSurface extends StatelessWidget {
@@ -360,32 +366,31 @@ class _AddColumnSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        width: width,
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: Material(
-            color: Theme.of(context)
-                .colorScheme
-                .surfaceContainer
-                .withValues(alpha: 0.55),
-            borderRadius: BorderRadius.circular(AppRadius.surface),
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(AppRadius.surface),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                child: Row(
-                  children: <Widget>[
-                    Icon(Icons.add_rounded, size: 18),
-                    SizedBox(width: 8),
-                    Text('Kolon ekle'),
-                  ],
-                ),
-              ),
+    width: width,
+    child: Align(
+      alignment: Alignment.topCenter,
+      child: Material(
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainer.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(AppRadius.surface),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.surface),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            child: Row(
+              children: <Widget>[
+                Icon(Icons.add_rounded, size: 18),
+                SizedBox(width: 8),
+                Text('Kolon ekle'),
+              ],
             ),
           ),
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _CardDragData {
@@ -426,7 +431,9 @@ class _KanbanColumn extends ConsumerWidget {
     );
     controller.dispose();
     if (title == null || title.trim().isEmpty) return;
-    await ref.read(kanbanRepositoryProvider).createCard(
+    await ref
+        .read(kanbanRepositoryProvider)
+        .createCard(
           boardId: column.boardId,
           columnId: column.id,
           title: title.trim(),
@@ -439,8 +446,9 @@ class _KanbanColumn extends ConsumerWidget {
     KanbanCard card,
   ) async {
     final settings = ref.read(settingsRepositoryProvider);
-    final String? current =
-        await settings.watchEntityColor('card', card.id).first;
+    final String? current = await settings
+        .watchEntityColor('card', card.id)
+        .first;
     if (!context.mounted) return;
     final ColorPickerValue? value = await showEntityColorDialog(
       context,
@@ -467,7 +475,9 @@ class _KanbanColumn extends ConsumerWidget {
         final Color columnSurface = tintedSurface(
           context,
           columnColor,
-          opacity: Theme.of(context).brightness == Brightness.dark ? 0.22 : 0.14,
+          opacity: Theme.of(context).brightness == Brightness.dark
+              ? 0.22
+              : 0.14,
         );
         final Color columnBorder = columnColor == null
             ? Theme.of(context).dividerColor.withValues(alpha: 0.65)
@@ -520,7 +530,9 @@ class _KanbanColumn extends ConsumerWidget {
                       details.data.card.columnId != column.id,
                   onAcceptWithDetails: (details) {
                     unawaited(
-                      ref.read(kanbanRepositoryProvider).moveCard(
+                      ref
+                          .read(kanbanRepositoryProvider)
+                          .moveCard(
                             cardId: details.data.card.id,
                             destinationColumnId: column.id,
                             destinationIndex: cards.length,
@@ -537,8 +549,9 @@ class _KanbanColumn extends ConsumerWidget {
                           : const Duration(milliseconds: 120),
                       decoration: BoxDecoration(
                         color: crossColumnHover
-                            ? (columnColor ?? Theme.of(context).colorScheme.primary)
-                                .withValues(alpha: 0.10)
+                            ? (columnColor ??
+                                      Theme.of(context).colorScheme.primary)
+                                  .withValues(alpha: 0.10)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(AppRadius.control),
                       ),
@@ -569,11 +582,12 @@ class _KanbanColumn extends ConsumerWidget {
                             builder: (context, cardColorSnapshot) {
                               final Color? cardColor =
                                   colorFromHex(cardColorSnapshot.data) ??
-                                      columnColor;
+                                  columnColor;
                               final Widget cardWidget = KanbanCardWidget(
                                 card: card,
-                                backgroundColor:
-                                    Theme.of(context).colorScheme.surface,
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.surface,
                                 accentColor: cardColor,
                                 hasPreviousColumn: hasPrev,
                                 hasNextColumn: hasNext,
@@ -584,55 +598,57 @@ class _KanbanColumn extends ConsumerWidget {
                                     _changeCardColor(context, ref, card),
                                 onMovePrev: hasPrev
                                     ? () => ref
-                                        .read(kanbanRepositoryProvider)
-                                        .moveCard(
-                                          cardId: card.id,
-                                          destinationColumnId: snapshot
-                                              .columns[columnIndex - 1].id,
-                                          destinationIndex: snapshot
-                                                  .cardsByColumn[
-                                                      snapshot
-                                                          .columns[
-                                                              columnIndex - 1]
-                                                          .id]
-                                                  ?.length ??
-                                              0,
-                                        )
+                                          .read(kanbanRepositoryProvider)
+                                          .moveCard(
+                                            cardId: card.id,
+                                            destinationColumnId: snapshot
+                                                .columns[columnIndex - 1]
+                                                .id,
+                                            destinationIndex:
+                                                snapshot
+                                                    .cardsByColumn[snapshot
+                                                        .columns[columnIndex -
+                                                            1]
+                                                        .id]
+                                                    ?.length ??
+                                                0,
+                                          )
                                     : null,
                                 onMoveNext: hasNext
                                     ? () => ref
-                                        .read(kanbanRepositoryProvider)
-                                        .moveCard(
-                                          cardId: card.id,
-                                          destinationColumnId: snapshot
-                                              .columns[columnIndex + 1].id,
-                                          destinationIndex: snapshot
-                                                  .cardsByColumn[
-                                                      snapshot
-                                                          .columns[
-                                                              columnIndex + 1]
-                                                          .id]
-                                                  ?.length ??
-                                              0,
-                                        )
+                                          .read(kanbanRepositoryProvider)
+                                          .moveCard(
+                                            cardId: card.id,
+                                            destinationColumnId: snapshot
+                                                .columns[columnIndex + 1]
+                                                .id,
+                                            destinationIndex:
+                                                snapshot
+                                                    .cardsByColumn[snapshot
+                                                        .columns[columnIndex +
+                                                            1]
+                                                        .id]
+                                                    ?.length ??
+                                                0,
+                                          )
                                     : null,
                                 onMoveTop: canTop
                                     ? () => ref
-                                        .read(kanbanRepositoryProvider)
-                                        .moveCard(
-                                          cardId: card.id,
-                                          destinationColumnId: column.id,
-                                          destinationIndex: 0,
-                                        )
+                                          .read(kanbanRepositoryProvider)
+                                          .moveCard(
+                                            cardId: card.id,
+                                            destinationColumnId: column.id,
+                                            destinationIndex: 0,
+                                          )
                                     : null,
                                 onMoveBottom: canBottom
                                     ? () => ref
-                                        .read(kanbanRepositoryProvider)
-                                        .moveCard(
-                                          cardId: card.id,
-                                          destinationColumnId: column.id,
-                                          destinationIndex: cards.length - 1,
-                                        )
+                                          .read(kanbanRepositoryProvider)
+                                          .moveCard(
+                                            cardId: card.id,
+                                            destinationColumnId: column.id,
+                                            destinationIndex: cards.length - 1,
+                                          )
                                     : null,
                                 onDelete: () => ref
                                     .read(kanbanRepositoryProvider)
@@ -647,8 +663,9 @@ class _KanbanColumn extends ConsumerWidget {
                                   child: KanbanCardWidget(
                                     card: card,
                                     feedback: true,
-                                    backgroundColor:
-                                        Theme.of(context).colorScheme.surface,
+                                    backgroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.surface,
                                     accentColor: cardColor,
                                   ),
                                 ),
@@ -682,36 +699,33 @@ class _KanbanColumn extends ConsumerWidget {
 }
 
 class _InsertionDropZone extends StatelessWidget {
-  const _InsertionDropZone({
-    required this.columnId,
-    required this.onDrop,
-  });
+  const _InsertionDropZone({required this.columnId, required this.onDrop});
 
   final String columnId;
   final ValueChanged<_CardDragData> onDrop;
 
   @override
   Widget build(BuildContext context) => DragTarget<_CardDragData>(
-        onWillAcceptWithDetails: (details) =>
-            details.data.card.columnId == columnId,
-        onAcceptWithDetails: (details) => onDrop(details.data),
-        builder: (context, candidates, rejects) => AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          height: candidates.isEmpty ? 6 : 18,
-          margin: const EdgeInsets.symmetric(vertical: 1),
-          alignment: Alignment.center,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            height: candidates.isEmpty ? 0 : 3,
-            decoration: BoxDecoration(
-              color: candidates.isEmpty
-                  ? Colors.transparent
-                  : Theme.of(context).colorScheme.primary,
-              borderRadius: BorderRadius.circular(99),
-            ),
-          ),
+    onWillAcceptWithDetails: (details) =>
+        details.data.card.columnId == columnId,
+    onAcceptWithDetails: (details) => onDrop(details.data),
+    builder: (context, candidates, rejects) => AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      height: candidates.isEmpty ? 6 : 18,
+      margin: const EdgeInsets.symmetric(vertical: 1),
+      alignment: Alignment.center,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        height: candidates.isEmpty ? 0 : 3,
+        decoration: BoxDecoration(
+          color: candidates.isEmpty
+              ? Colors.transparent
+              : Theme.of(context).colorScheme.primary,
+          borderRadius: BorderRadius.circular(99),
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _AdaptiveDraggableCard extends StatelessWidget {
@@ -770,8 +784,9 @@ class _ColumnMenu extends ConsumerWidget {
 
   Future<void> _editColumn(BuildContext context, WidgetRef ref) async {
     final settings = ref.read(settingsRepositoryProvider);
-    final String? override =
-        await settings.watchEntityColor('column', column.id).first;
+    final String? override = await settings
+        .watchEntityColor('column', column.id)
+        .first;
     if (!context.mounted) return;
     final TitleColorValue? value = await showTitleColorDialog(
       context,
@@ -787,8 +802,9 @@ class _ColumnMenu extends ConsumerWidget {
     if (value.title != column.title) {
       await repo.renameColumn(column.id, value.title);
     }
-    final String? colorOverride =
-        value.colorHex == column.colorHex ? null : value.colorHex;
+    final String? colorOverride = value.colorHex == column.colorHex
+        ? null
+        : value.colorHex;
     await settings.setEntityColor('column', column.id, colorOverride);
   }
 
@@ -826,51 +842,50 @@ class _ColumnMenu extends ConsumerWidget {
       );
       if (destination == null) return;
     }
-    await ref.read(kanbanRepositoryProvider).deleteColumn(
-          column.id,
-          moveCardsToColumnId: destination,
-        );
+    await ref
+        .read(kanbanRepositoryProvider)
+        .deleteColumn(column.id, moveCardsToColumnId: destination);
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => PopupMenuButton<String>(
-        tooltip: 'Kolon işlemleri',
-        onSelected: (value) async {
-          final repo = ref.read(kanbanRepositoryProvider);
-          if (value == 'left' && columnIndex > 0) {
-            await repo.reorderColumn(
-              columnId: column.id,
-              destinationIndex: columnIndex - 1,
-            );
-          } else if (value == 'right' &&
-              columnIndex < snapshot.columns.length - 1) {
-            await repo.reorderColumn(
-              columnId: column.id,
-              destinationIndex: columnIndex + 1,
-            );
-          } else if (value == 'edit') {
-            await _editColumn(context, ref);
-          } else if (value == 'delete') {
-            await _deleteColumn(context, ref);
-          }
-        },
-        itemBuilder: (_) => <PopupMenuEntry<String>>[
-          const PopupMenuItem(value: 'edit', child: Text('Adı / rengi düzenle')),
-          PopupMenuItem(
-            value: 'left',
-            enabled: columnIndex > 0,
-            child: const Text('Sola taşı'),
-          ),
-          PopupMenuItem(
-            value: 'right',
-            enabled: columnIndex < snapshot.columns.length - 1,
-            child: const Text('Sağa taşı'),
-          ),
-          const PopupMenuDivider(),
-          const PopupMenuItem(value: 'delete', child: Text('Kolonu sil')),
-        ],
-        icon: const Icon(Icons.more_horiz_rounded, size: 18),
-      );
+    tooltip: 'Kolon işlemleri',
+    onSelected: (value) async {
+      final repo = ref.read(kanbanRepositoryProvider);
+      if (value == 'left' && columnIndex > 0) {
+        await repo.reorderColumn(
+          columnId: column.id,
+          destinationIndex: columnIndex - 1,
+        );
+      } else if (value == 'right' &&
+          columnIndex < snapshot.columns.length - 1) {
+        await repo.reorderColumn(
+          columnId: column.id,
+          destinationIndex: columnIndex + 1,
+        );
+      } else if (value == 'edit') {
+        await _editColumn(context, ref);
+      } else if (value == 'delete') {
+        await _deleteColumn(context, ref);
+      }
+    },
+    itemBuilder: (_) => <PopupMenuEntry<String>>[
+      const PopupMenuItem(value: 'edit', child: Text('Adı / rengi düzenle')),
+      PopupMenuItem(
+        value: 'left',
+        enabled: columnIndex > 0,
+        child: const Text('Sola taşı'),
+      ),
+      PopupMenuItem(
+        value: 'right',
+        enabled: columnIndex < snapshot.columns.length - 1,
+        child: const Text('Sağa taşı'),
+      ),
+      const PopupMenuDivider(),
+      const PopupMenuItem(value: 'delete', child: Text('Kolonu sil')),
+    ],
+    icon: const Icon(Icons.more_horiz_rounded, size: 18),
+  );
 }
 
 class _SimpleTitleSheet extends StatelessWidget {
@@ -893,34 +908,34 @@ class _SimpleTitleSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          AppSheetHeader(title: title),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: <Widget>[
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _submit(context),
-                  decoration: InputDecoration(labelText: fieldLabel),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () => _submit(context),
-                    child: Text(confirmLabel),
-                  ),
-                ),
-              ],
+    mainAxisSize: MainAxisSize.min,
+    children: <Widget>[
+      AppSheetHeader(title: title),
+      const Divider(height: 1),
+      Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: <Widget>[
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(context),
+              decoration: InputDecoration(labelText: fieldLabel),
             ),
-          ),
-        ],
-      );
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => _submit(context),
+                child: Text(confirmLabel),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 }
 
 class _NewCardSheet extends StatefulWidget {
@@ -956,48 +971,48 @@ class _NewCardSheetState extends State<_NewCardSheet> {
 
   @override
   Widget build(BuildContext context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const AppSheetHeader(title: 'Yeni kart'),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: <Widget>[
-                TextField(
-                  controller: _controller,
-                  autofocus: true,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _submit(),
-                  decoration: const InputDecoration(labelText: 'Kart başlığı'),
-                ),
-                const SizedBox(height: 14),
-                DropdownButtonFormField<String>(
-                  value: _columnId,
-                  decoration: const InputDecoration(labelText: 'Kolon'),
-                  items: widget.columns
-                      .map(
-                        (column) => DropdownMenuItem<String>(
-                          value: column.id,
-                          child: Text(column.title),
-                        ),
-                      )
-                      .toList(growable: false),
-                  onChanged: (value) {
-                    if (value != null) setState(() => _columnId = value);
-                  },
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _submit,
-                    child: const Text('Ekle'),
-                  ),
-                ),
-              ],
+    mainAxisSize: MainAxisSize.min,
+    children: <Widget>[
+      const AppSheetHeader(title: 'Yeni kart'),
+      const Divider(height: 1),
+      Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: <Widget>[
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+              decoration: const InputDecoration(labelText: 'Kart başlığı'),
             ),
-          ),
-        ],
-      );
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              value: _columnId,
+              decoration: const InputDecoration(labelText: 'Kolon'),
+              items: widget.columns
+                  .map(
+                    (column) => DropdownMenuItem<String>(
+                      value: column.id,
+                      child: Text(column.title),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (value) {
+                if (value != null) setState(() => _columnId = value);
+              },
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _submit,
+                child: const Text('Ekle'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 }

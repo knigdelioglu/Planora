@@ -47,8 +47,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   Future<void> _loadPermissions() async {
     if (mounted) setState(() => _loadingPermissions = true);
     try {
-      final NotificationPermissionState state =
-          await ref.read(notificationServiceProvider).permissionState();
+      final NotificationPermissionState state = await ref
+          .read(notificationServiceProvider)
+          .permissionState();
       if (mounted) {
         setState(() {
           _permissionState = state;
@@ -61,29 +62,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   }
 
   Future<void> _requestPermissions() async {
-    final NotificationPermissionState state =
-        await ref.read(notificationServiceProvider).requestPermissions();
+    final NotificationPermissionState state = await ref
+        .read(notificationServiceProvider)
+        .requestPermissions();
     if (!mounted) return;
     setState(() => _permissionState = state);
     await ref.read(remindersRepositoryProvider).reconcile();
     if (!mounted) return;
     final String message = state.notificationsAllowed
         ? state.exactAlarmsAllowed
-            ? 'Bildirimler hazır.'
-            : 'Bildirimler açık; bazı hatırlatıcılar yaklaşık zamanda gelebilir.'
+              ? 'Bildirimler hazır.'
+              : 'Bildirimler açık; bazı hatırlatıcılar yaklaşık zamanda gelebilir.'
         : 'Bildirimler kapalı.';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _openAppSettings() async {
-    final bool opened =
-        await ref.read(notificationServiceProvider).openAppSettings();
+    final bool opened = await ref
+        .read(notificationServiceProvider)
+        .openAppSettings();
     if (!mounted || opened) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sistem ayarları açılamadı.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Sistem ayarları açılamadı.')));
   }
 
   Future<void> _signIn({required bool create}) async {
@@ -108,9 +111,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               obscureText: true,
               autofillHints: const <String>[AutofillHints.password],
               decoration: const InputDecoration(labelText: 'Parola'),
-              onSubmitted: (_) => Navigator.of(dialogContext).pop(
-                (email.text.trim(), password.text),
-              ),
+              onSubmitted: (_) => Navigator.of(
+                dialogContext,
+              ).pop((email.text.trim(), password.text)),
             ),
           ],
         ),
@@ -120,9 +123,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             child: const Text('Vazgeç'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(
-              (email.text.trim(), password.text),
-            ),
+            onPressed: () => Navigator.of(
+              dialogContext,
+            ).pop((email.text.trim(), password.text)),
             child: Text(create ? 'Oluştur' : 'Bağlan'),
           ),
         ],
@@ -143,35 +146,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
   String _title(_SettingsSection section) => switch (section) {
-        _SettingsSection.appearance => 'Görünüm',
-        _SettingsSection.notifications => 'Bildirimler',
-        _SettingsSection.sync => 'Senkronizasyon',
-        _SettingsSection.storage => 'Depolama',
-        _SettingsSection.about => 'Hakkında',
-      };
+    _SettingsSection.appearance => 'Görünüm',
+    _SettingsSection.notifications => 'Bildirimler',
+    _SettingsSection.sync => 'Senkronizasyon',
+    _SettingsSection.storage => 'Depolama',
+    _SettingsSection.about => 'Hakkında',
+  };
 
   String _subtitle(_SettingsSection section) => switch (section) {
-        _SettingsSection.appearance => 'Tema ve görünüm',
-        _SettingsSection.notifications => 'Hatırlatıcı izinleri',
-        _SettingsSection.sync => 'Cihazlar arası eşitleme',
-        _SettingsSection.storage => 'Yerel dosya önbelleği',
-        _SettingsSection.about => 'Uygulama bilgileri',
-      };
+    _SettingsSection.appearance => 'Tema ve görünüm',
+    _SettingsSection.notifications => 'Hatırlatıcı izinleri',
+    _SettingsSection.sync => 'Cihazlar arası eşitleme',
+    _SettingsSection.storage => 'Yerel dosya önbelleği',
+    _SettingsSection.about => 'Uygulama bilgileri',
+  };
 
   IconData _icon(_SettingsSection section) => switch (section) {
-        _SettingsSection.appearance => Icons.palette_outlined,
-        _SettingsSection.notifications => Icons.notifications_none_rounded,
-        _SettingsSection.sync => Icons.cloud_outlined,
-        _SettingsSection.storage => Icons.storage_outlined,
-        _SettingsSection.about => Icons.info_outline_rounded,
-      };
+    _SettingsSection.appearance => Icons.palette_outlined,
+    _SettingsSection.notifications => Icons.notifications_none_rounded,
+    _SettingsSection.sync => Icons.cloud_outlined,
+    _SettingsSection.storage => Icons.storage_outlined,
+    _SettingsSection.about => Icons.info_outline_rounded,
+  };
 
   void _select(_SettingsSection section, bool compact) {
     setState(() {
@@ -217,10 +220,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             Expanded(
               child: Row(
                 children: <Widget>[
-                  SizedBox(
-                    width: 240,
-                    child: _categoryList(compact: false),
-                  ),
+                  SizedBox(width: 240, child: _categoryList(compact: false)),
                   VerticalDivider(
                     width: 1,
                     color: Theme.of(context).dividerColor,
@@ -241,8 +241,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   }
 
   Widget _categoryList({required bool compact}) => ListView(
-        padding: EdgeInsets.fromLTRB(compact ? 12 : 10, 14, compact ? 12 : 10, 28),
-        children: _SettingsSection.values.map((section) {
+    padding: EdgeInsets.fromLTRB(compact ? 12 : 10, 14, compact ? 12 : 10, 28),
+    children: _SettingsSection.values
+        .map((section) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 2),
             child: AppListRow(
@@ -256,16 +257,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               onTap: () => _select(section, compact),
             ),
           );
-        }).toList(growable: false),
-      );
+        })
+        .toList(growable: false),
+  );
 
   Widget _sectionContent(_SettingsSection section) => switch (section) {
-        _SettingsSection.appearance => _appearance(),
-        _SettingsSection.notifications => _notifications(),
-        _SettingsSection.sync => _sync(),
-        _SettingsSection.storage => _storage(),
-        _SettingsSection.about => _about(),
-      };
+    _SettingsSection.appearance => _appearance(),
+    _SettingsSection.notifications => _notifications(),
+    _SettingsSection.sync => _sync(),
+    _SettingsSection.storage => _storage(),
+    _SettingsSection.about => _about(),
+  };
 
   Widget _appearance() {
     final settings = ref.watch(settingsRepositoryProvider);
@@ -291,8 +293,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               ],
               selected: <String>{current},
               showSelectedIcon: false,
-              onSelectionChanged: (value) =>
-                  settings.setThemeMode(value.first),
+              onSelectionChanged: (value) => settings.setThemeMode(value.first),
             ),
           ],
         );
@@ -349,9 +350,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             size: 20,
           ),
           title: const Text('Bildirimler'),
-          subtitle: Text(
-            permission.notificationsAllowed ? 'Açık' : 'Kapalı',
-          ),
+          subtitle: Text(permission.notificationsAllowed ? 'Açık' : 'Kapalı'),
         ),
         AppListRow(
           leading: Icon(
@@ -416,8 +415,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               !state.isConfigured
                   ? 'Bulut bağlantısı bu sürümde yapılandırılmamış. Veriler bu cihazda çalışmaya devam eder.'
                   : state.isSignedIn
-                      ? '${state.email ?? 'Hesap'} bağlı.'
-                      : 'İsterseniz cihazlar arasında eşitlemek için bir hesap bağlayabilirsiniz.',
+                  ? '${state.email ?? 'Hesap'} bağlı.'
+                  : 'İsterseniz cihazlar arasında eşitlemek için bir hesap bağlayabilirsiniz.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 14),
@@ -433,8 +432,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   message: pending > 0
                       ? '$pending değişiklik eşitleme bekliyor.'
                       : state.isSignedIn
-                          ? 'Değişiklikler güncel.'
-                          : 'Yerel çalışma hazır.',
+                      ? 'Değişiklikler güncel.'
+                      : 'Yerel çalışma hazır.',
                 );
               },
             ),
@@ -461,11 +460,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       final health = services.syncCoordinator.currentHealth;
                       final String message =
                           health.lastError?.trim().isNotEmpty == true
-                              ? 'Eşitleme tamamlanamadı: ${health.lastError}'
-                              : 'Eşitleme tamamlandı · ${result.pushed} gönderildi · ${result.pulled} alındı';
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(message)),
-                      );
+                          ? 'Eşitleme tamamlanamadı: ${health.lastError}'
+                          : 'Eşitleme tamamlandı · ${result.pushed} gönderildi · ${result.pulled} alındı';
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(message)));
                     },
                     icon: const Icon(Icons.sync_rounded, size: 18),
                     label: const Text('Şimdi eşitle'),
@@ -487,22 +486,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             AppListRow(
               leading: const Icon(Icons.rule_folder_outlined, size: 20),
               title: const Text('Çakışmalar'),
-              subtitle: const Text('Aynı içeriğin farklı sürümlerini inceleyin.'),
-              trailing: const Icon(Icons.chevron_right_rounded, size: 18),
-              onTap: () => AppRouter.push<void>(
-                context,
-                const ConflictsScreen(),
+              subtitle: const Text(
+                'Aynı içeriğin farklı sürümlerini inceleyin.',
               ),
+              trailing: const Icon(Icons.chevron_right_rounded, size: 18),
+              onTap: () =>
+                  AppRouter.push<void>(context, const ConflictsScreen()),
             ),
             AppListRow(
               leading: const Icon(Icons.queue_outlined, size: 20),
               title: const Text('Eşitleme kuyruğu'),
               subtitle: const Text('Bekleyen teknik işlemleri görüntüleyin.'),
               trailing: const Icon(Icons.chevron_right_rounded, size: 18),
-              onTap: () => AppRouter.push<void>(
-                context,
-                const SyncQueueScreen(),
-              ),
+              onTap: () =>
+                  AppRouter.push<void>(context, const SyncQueueScreen()),
             ),
           ],
         );
@@ -550,20 +547,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   }
 
   Widget _about() => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const AppSectionHeader(title: 'Not'),
-          Text(
-            'Sürüm 1.0.0',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Tek kullanıcılı, çevrimdışı öncelikli kişisel not ve çalışma alanı.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      );
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: <Widget>[
+      const AppSectionHeader(title: 'Not'),
+      Text('Sürüm 1.0.0', style: Theme.of(context).textTheme.bodyMedium),
+      const SizedBox(height: 6),
+      Text(
+        'Tek kullanıcılı, çevrimdışı öncelikli kişisel not ve çalışma alanı.',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    ],
+  );
 }
 
 class _SettingsDetail extends StatelessWidget {
@@ -574,13 +568,13 @@ class _SettingsDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 44),
-            children: <Widget>[child],
-          ),
-        ),
-      );
+    alignment: Alignment.topCenter,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 760),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 44),
+        children: <Widget>[child],
+      ),
+    ),
+  );
 }

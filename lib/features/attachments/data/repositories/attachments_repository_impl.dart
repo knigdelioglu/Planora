@@ -43,7 +43,8 @@ final class DriftAttachmentsRepository implements AttachmentsRepository {
   SyncQueueRepository get _syncQueue => syncQueue;
   AppClock get _clock => clock;
   RemoteGateway get _remote => remote;
-  Future<Directory> Function()? get _tempDirectoryProvider => tempDirectoryProvider;
+  Future<Directory> Function()? get _tempDirectoryProvider =>
+      tempDirectoryProvider;
   final StreamController<AttachmentTransferProgress> _progressController =
       StreamController<AttachmentTransferProgress>.broadcast();
   final Map<String, double> _activeProgress = <String, double>{};

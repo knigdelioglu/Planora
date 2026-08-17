@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
-import 'package:not_app/app/widgets/common_widgets.dart' show EmptyState, ErrorState;
+import 'package:not_app/app/widgets/common_widgets.dart'
+    show EmptyState, ErrorState;
 import 'package:not_app/app/widgets/content/app_content.dart';
 import 'package:not_app/app/widgets/feedback/app_feedback.dart';
 import 'package:not_app/app/widgets/navigation/app_toolbar.dart';
@@ -43,34 +44,37 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen>
 
   Future<void> _loadPermissions() async {
     try {
-      final NotificationPermissionState state =
-          await ref.read(notificationServiceProvider).permissionState();
+      final NotificationPermissionState state = await ref
+          .read(notificationServiceProvider)
+          .permissionState();
       if (mounted) setState(() => _permissionState = state);
     } catch (_) {}
   }
 
   Future<void> _requestPermissions() async {
-    final NotificationPermissionState state =
-        await ref.read(notificationServiceProvider).requestPermissions();
+    final NotificationPermissionState state = await ref
+        .read(notificationServiceProvider)
+        .requestPermissions();
     if (!mounted) return;
     setState(() => _permissionState = state);
     await ref.read(remindersRepositoryProvider).reconcile();
   }
 
   Future<void> _openAppSettings() async {
-    final bool opened =
-        await ref.read(notificationServiceProvider).openAppSettings();
+    final bool opened = await ref
+        .read(notificationServiceProvider)
+        .openAppSettings();
     if (!mounted || opened) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sistem ayarları açılamadı.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Sistem ayarları açılamadı.')));
   }
 
   String _viewLabel(_ReminderView value) => switch (value) {
-        _ReminderView.upcoming => 'Yaklaşan',
-        _ReminderView.past => 'Geçmiş',
-        _ReminderView.disabled => 'Devre dışı',
-      };
+    _ReminderView.upcoming => 'Yaklaşan',
+    _ReminderView.past => 'Geçmiş',
+    _ReminderView.disabled => 'Devre dışı',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -179,8 +183,8 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen>
                   message: _view == _ReminderView.upcoming
                       ? 'Notlara veya kartlara tarih eklediğinizde burada görünür.'
                       : _view == _ReminderView.past
-                          ? 'Geçmiş hatırlatıcılar burada görünür.'
-                          : 'Kapattığınız hatırlatıcılar burada saklanır.',
+                      ? 'Geçmiş hatırlatıcılar burada görünür.'
+                      : 'Kapattığınız hatırlatıcılar burada saklanır.',
                 );
               }
               if (_view == _ReminderView.upcoming) {
@@ -218,19 +222,21 @@ class _GroupedReminderList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final DateTime now = DateTime.now();
-    final Map<String, List<ReminderEntity>> groups = <String, List<ReminderEntity>>{
-      'Bugün': <ReminderEntity>[],
-      'Yarın': <ReminderEntity>[],
-      'Bu hafta': <ReminderEntity>[],
-      'Daha sonra': <ReminderEntity>[],
-    };
+    final Map<String, List<ReminderEntity>> groups =
+        <String, List<ReminderEntity>>{
+          'Bugün': <ReminderEntity>[],
+          'Yarın': <ReminderEntity>[],
+          'Bu hafta': <ReminderEntity>[],
+          'Daha sonra': <ReminderEntity>[],
+        };
     for (final ReminderEntity item in data) {
       groups[_group(item.scheduledAtUtc.toLocal(), now)]!.add(item);
     }
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       children: <Widget>[
-        for (final MapEntry<String, List<ReminderEntity>> entry in groups.entries)
+        for (final MapEntry<String, List<ReminderEntity>> entry
+            in groups.entries)
           if (entry.value.isNotEmpty) ...<Widget>[
             AppSectionHeader(
               title: entry.key,
@@ -249,26 +255,29 @@ class _ReminderRow extends ConsumerWidget {
   final ReminderEntity item;
 
   String _statusText() => switch (item.schedulingStatus) {
-        'failed' => 'Bildirim planlanamadı',
-        'inexact' => 'Yaklaşık zamanda bildirilecek',
-        'scheduled' => 'Bildirim hazır',
-        _ => item.enabled ? 'Etkin' : 'Kapalı',
-      };
+    'failed' => 'Bildirim planlanamadı',
+    'inexact' => 'Yaklaşık zamanda bildirilecek',
+    'scheduled' => 'Bildirim hazır',
+    _ => item.enabled ? 'Etkin' : 'Kapalı',
+  };
 
   IconData _statusIcon() => switch (item.schedulingStatus) {
-        'failed' => Icons.error_outline_rounded,
-        'inexact' => Icons.schedule_rounded,
-        'scheduled' => Icons.notifications_active_outlined,
-        _ => item.enabled
-            ? Icons.notifications_none_rounded
-            : Icons.notifications_off_outlined,
-      };
+    'failed' => Icons.error_outline_rounded,
+    'inexact' => Icons.schedule_rounded,
+    'scheduled' => Icons.notifications_active_outlined,
+    _ =>
+      item.enabled
+          ? Icons.notifications_none_rounded
+          : Icons.notifications_off_outlined,
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final DateTime local = item.scheduledAtUtc.toLocal();
     final String time = TimeOfDay.fromDateTime(local).format(context);
-    final String date = MaterialLocalizations.of(context).formatShortDate(local);
+    final String date = MaterialLocalizations.of(
+      context,
+    ).formatShortDate(local);
     return AppListRow(
       leading: SizedBox(
         width: 52,
@@ -291,8 +300,7 @@ class _ReminderRow extends ConsumerWidget {
           const SizedBox(width: 4),
           Switch.adaptive(
             value: item.enabled,
-            onChanged: (value) =>
-                setReminderEnabled(context, ref, item, value),
+            onChanged: (value) => setReminderEnabled(context, ref, item, value),
           ),
           PopupMenuButton<String>(
             tooltip: 'Hatırlatıcı işlemleri',

@@ -12,7 +12,8 @@ class GlobalSearchPalette extends ConsumerStatefulWidget {
   const GlobalSearchPalette({super.key});
 
   @override
-  ConsumerState<GlobalSearchPalette> createState() => _GlobalSearchPaletteState();
+  ConsumerState<GlobalSearchPalette> createState() =>
+      _GlobalSearchPaletteState();
 }
 
 class _GlobalSearchPaletteState extends ConsumerState<GlobalSearchPalette> {
@@ -110,18 +111,18 @@ class _GlobalSearchPaletteState extends ConsumerState<GlobalSearchPalette> {
   }
 
   IconData _icon(String type) => switch (type) {
-        'note' => Icons.description_outlined,
-        'card' => Icons.view_agenda_outlined,
-        'board' => Icons.view_kanban_outlined,
-        _ => Icons.search_rounded,
-      };
+    'note' => Icons.description_outlined,
+    'card' => Icons.view_agenda_outlined,
+    'board' => Icons.view_kanban_outlined,
+    _ => Icons.search_rounded,
+  };
 
   String _typeLabel(String type) => switch (type) {
-        'note' => 'Not',
-        'card' => 'Kart',
-        'board' => 'Pano',
-        _ => 'Sonuç',
-      };
+    'note' => 'Not',
+    'card' => 'Kart',
+    'board' => 'Pano',
+    _ => 'Sonuç',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -148,9 +149,9 @@ class _GlobalSearchPaletteState extends ConsumerState<GlobalSearchPalette> {
                 onClear: () => _query.clear(),
                 onSubmitted: (_) {
                   if (_results.isNotEmpty) {
-                    Navigator.of(context).pop(
-                      _results[_selectedIndex < 0 ? 0 : _selectedIndex],
-                    );
+                    Navigator.of(
+                      context,
+                    ).pop(_results[_selectedIndex < 0 ? 0 : _selectedIndex]);
                   }
                 },
               ),
@@ -195,11 +196,17 @@ class _GlobalSearchPaletteState extends ConsumerState<GlobalSearchPalette> {
                         padding: const EdgeInsets.symmetric(vertical: 2),
                         child: Material(
                           color: selected
-                              ? theme.colorScheme.primary.withValues(alpha: 0.08)
+                              ? theme.colorScheme.primary.withValues(
+                                  alpha: 0.08,
+                                )
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(AppRadius.control),
+                          borderRadius: BorderRadius.circular(
+                            AppRadius.control,
+                          ),
                           child: InkWell(
-                            borderRadius: BorderRadius.circular(AppRadius.control),
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.control,
+                            ),
                             onTap: () => Navigator.of(context).pop(result),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
@@ -223,16 +230,19 @@ class _GlobalSearchPaletteState extends ConsumerState<GlobalSearchPalette> {
                                           overflow: TextOverflow.ellipsis,
                                           style: theme.textTheme.bodyMedium
                                               ?.copyWith(
-                                            fontWeight: selected
-                                                ? FontWeight.w600
-                                                : FontWeight.w500,
-                                          ),
+                                                fontWeight: selected
+                                                    ? FontWeight.w600
+                                                    : FontWeight.w500,
+                                              ),
                                         ),
                                         if (result.preview.trim().isNotEmpty &&
                                             result.preview.trim() !=
                                                 result.title.trim())
                                           Text(
-                                            result.preview.replaceAll('\n', ' '),
+                                            result.preview.replaceAll(
+                                              '\n',
+                                              ' ',
+                                            ),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: theme.textTheme.bodySmall,

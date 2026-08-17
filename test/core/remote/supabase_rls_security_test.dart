@@ -301,10 +301,7 @@ void main() {
             expect(userARows.first['user_id'], equals(userAId));
             final Map<String, dynamic> payloadA =
                 userARows.first['payload'] as Map<String, dynamic>;
-            expect(
-              payloadA['title'],
-              equals('User A Cloned ID Note'),
-            );
+            expect(payloadA['title'], equals('User A Cloned ID Note'));
           });
 
           // Verify User B's original record is unchanged
@@ -316,10 +313,7 @@ void main() {
             expect(userBRows.first['version'], equals(1));
             final Map<String, dynamic> payloadB =
                 userBRows.first['payload'] as Map<String, dynamic>;
-            expect(
-              payloadB['title'],
-              equals('User B Official Note'),
-            );
+            expect(payloadB['title'], equals('User B Official Note'));
           });
         },
       );

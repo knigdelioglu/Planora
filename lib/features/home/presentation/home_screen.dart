@@ -58,10 +58,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           content: const Text('Not oluşturuldu.'),
           action: SnackBarAction(
             label: 'Aç',
-            onPressed: () => AppRouter.push<void>(
-              context,
-              NoteEditorScreen(noteId: id),
-            ),
+            onPressed: () =>
+                AppRouter.push<void>(context, NoteEditorScreen(noteId: id)),
           ),
         ),
       );
@@ -219,32 +217,37 @@ class _RecentNotes extends ConsumerWidget {
             );
           }
           return Column(
-            children: data.take(5).map((note) {
-              final String preview = note.document.plainText.trim();
-              return AppListRow(
-                leading: const Icon(Icons.description_outlined, size: 19),
-                title: Text(
-                  note.title.trim().isEmpty ? 'Başlıksız not' : note.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: preview.isEmpty
-                    ? null
-                    : Text(
-                        preview.replaceAll('\n', ' '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                onTap: () async {
-                  await ref.read(notesRepositoryProvider).markOpened(note.id);
-                  if (!context.mounted) return;
-                  await AppRouter.push<void>(
-                    context,
-                    NoteEditorScreen(noteId: note.id),
+            children: data
+                .take(5)
+                .map((note) {
+                  final String preview = note.document.plainText.trim();
+                  return AppListRow(
+                    leading: const Icon(Icons.description_outlined, size: 19),
+                    title: Text(
+                      note.title.trim().isEmpty ? 'Başlıksız not' : note.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: preview.isEmpty
+                        ? null
+                        : Text(
+                            preview.replaceAll('\n', ' '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                    onTap: () async {
+                      await ref
+                          .read(notesRepositoryProvider)
+                          .markOpened(note.id);
+                      if (!context.mounted) return;
+                      await AppRouter.push<void>(
+                        context,
+                        NoteEditorScreen(noteId: note.id),
+                      );
+                    },
                   );
-                },
-              );
-            }).toList(growable: false),
+                })
+                .toList(growable: false),
           );
         },
       ),
@@ -269,10 +272,11 @@ class _TodayReminders extends StatelessWidget {
         stream: stream,
         builder: (context, snapshot) {
           final DateTime now = DateTime.now();
-          final List<ReminderEntity> today = (snapshot.data ?? const <ReminderEntity>[])
-              .where((item) => _sameDay(item.scheduledAtUtc.toLocal(), now))
-              .take(5)
-              .toList(growable: false);
+          final List<ReminderEntity> today =
+              (snapshot.data ?? const <ReminderEntity>[])
+                  .where((item) => _sameDay(item.scheduledAtUtc.toLocal(), now))
+                  .take(5)
+                  .toList(growable: false);
           if (today.isEmpty) {
             return Text(
               'Bugün için yaklaşan hatırlatıcı yok.',
@@ -280,24 +284,28 @@ class _TodayReminders extends StatelessWidget {
             );
           }
           return Column(
-            children: today.map((item) {
-              final DateTime local = item.scheduledAtUtc.toLocal();
-              final String time = TimeOfDay.fromDateTime(local).format(context);
-              return AppListRow(
-                leading: SizedBox(
-                  width: 46,
-                  child: Text(
-                    time,
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                ),
-                title: Text(
-                  item.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              );
-            }).toList(growable: false),
+            children: today
+                .map((item) {
+                  final DateTime local = item.scheduledAtUtc.toLocal();
+                  final String time = TimeOfDay.fromDateTime(
+                    local,
+                  ).format(context);
+                  return AppListRow(
+                    leading: SizedBox(
+                      width: 46,
+                      child: Text(
+                        time,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    ),
+                    title: Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                })
+                .toList(growable: false),
           );
         },
       ),
@@ -333,50 +341,65 @@ class _RecentBoards extends StatelessWidget {
               return Wrap(
                 spacing: 10,
                 runSpacing: 10,
-                children: data.take(6).map((board) {
-                  final Color? accent = colorFromHex(board.colorHex);
-                  return SizedBox(
-                    width: cardWidth,
-                    child: Material(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(AppRadius.surface),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(AppRadius.surface),
-                        onTap: () => AppRouter.push<void>(
-                          context,
-                          KanbanBoardScreen(boardId: board.id),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Row(
-                            children: <Widget>[
-                              AppEntityColorIndicator(color: accent, vertical: true),
-                              const SizedBox(width: 11),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    Text(
-                                      board.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context).textTheme.titleMedium,
+                children: data
+                    .take(6)
+                    .map((board) {
+                      final Color? accent = colorFromHex(board.colorHex);
+                      return SizedBox(
+                        width: cardWidth,
+                        child: Material(
+                          color: Theme.of(context).colorScheme.surface,
+                          borderRadius: BorderRadius.circular(
+                            AppRadius.surface,
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.surface,
+                            ),
+                            onTap: () => AppRouter.push<void>(
+                              context,
+                              KanbanBoardScreen(boardId: board.id),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Row(
+                                children: <Widget>[
+                                  AppEntityColorIndicator(
+                                    color: accent,
+                                    vertical: true,
+                                  ),
+                                  const SizedBox(width: 11),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        Text(
+                                          board.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium,
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          'Son değişiklik ${MaterialLocalizations.of(context).formatShortDate(board.updatedAt.toLocal())}',
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      'Son değişiklik ${MaterialLocalizations.of(context).formatShortDate(board.updatedAt.toLocal())}',
-                                      style: Theme.of(context).textTheme.bodySmall,
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  );
-                }).toList(growable: false),
+                      );
+                    })
+                    .toList(growable: false),
               );
             },
           );
