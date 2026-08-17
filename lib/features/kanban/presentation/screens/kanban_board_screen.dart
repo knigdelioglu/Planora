@@ -311,15 +311,17 @@ class _KanbanBoardScreenState extends ConsumerState<KanbanBoardScreen> {
               Container(
                 width: 420,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
                   border: Border(
                     left: BorderSide(color: Theme.of(context).dividerColor),
                   ),
                 ),
-                child: CardDetailPane(
-                  cardId: _selectedCardId!,
-                  embedded: true,
-                  onClose: () => setState(() => _selectedCardId = null),
+                child: Material(
+                  color: Theme.of(context).colorScheme.surface,
+                  child: CardDetailPane(
+                    cardId: _selectedCardId!,
+                    embedded: true,
+                    onClose: () => setState(() => _selectedCardId = null),
+                  ),
                 ),
               ),
             ],

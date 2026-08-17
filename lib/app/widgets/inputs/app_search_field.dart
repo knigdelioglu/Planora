@@ -34,11 +34,17 @@ class AppSearchField extends StatelessWidget {
       textInputAction: TextInputAction.search,
       onSubmitted: onSubmitted,
       decoration: InputDecoration(
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 44,
+          minHeight: 44,
+          maxHeight: 48,
+        ),
         prefixIcon: const Icon(Icons.search_rounded, size: 20),
         hintText: hintText,
         suffixIconConstraints: const BoxConstraints(
           minWidth: 44,
           minHeight: 44,
+          maxHeight: 48,
         ),
         suffixIcon: busy
             ? const Padding(
@@ -60,6 +66,7 @@ class AppSearchField extends StatelessWidget {
                 padding: const EdgeInsets.only(right: 10),
                 child: Center(
                   widthFactor: 1,
+                  heightFactor: 1,
                   child: Text(
                     shortcutLabel!,
                     style: Theme.of(context).textTheme.labelSmall,

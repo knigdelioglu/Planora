@@ -10,6 +10,7 @@ import 'package:not_app/app/widgets/navigation/app_toolbar.dart';
 import 'package:not_app/core/settings/app_settings_repository.dart';
 import 'package:not_app/features/kanban/presentation/widgets/kanban_color.dart';
 import 'package:not_app/features/notes/domain/entities/note.dart';
+import 'package:not_app/features/notes/domain/repositories/notes_repository.dart';
 import 'package:not_app/features/notes/presentation/screens/note_editor_screen.dart';
 import 'package:not_app/features/notes/presentation/widgets/note_grid_card.dart';
 import 'package:not_app/features/notes/presentation/widgets/note_move_to_kanban_dialog.dart';
@@ -92,7 +93,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   Widget _listView(
     List<NoteEntity> notes,
     double horizontal,
-    dynamic repository,
+    NotesRepository repository,
     AppSettingsRepository settings,
   ) {
     return ListView.builder(
@@ -215,7 +216,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   Widget _gridView(
     List<NoteEntity> notes,
     double horizontal,
-    dynamic repository,
+    NotesRepository repository,
     AppSettingsRepository settings,
   ) {
     return LayoutBuilder(

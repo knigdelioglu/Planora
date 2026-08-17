@@ -26,6 +26,7 @@ import 'package:not_app/core/utils/clock.dart';
 import 'package:not_app/features/attachments/data/repositories/attachments_repository_impl.dart';
 import 'package:not_app/features/conflicts/data/repositories/conflict_repository_impl.dart';
 import 'package:not_app/features/kanban/data/repositories/kanban_repository_impl.dart';
+import 'package:not_app/features/notes/data/repositories/note_kanban_repository_impl.dart';
 import 'package:not_app/features/notes/data/repositories/notes_repository_impl.dart';
 import 'package:not_app/features/reminders/data/repositories/reminders_repository_impl.dart';
 import 'package:not_app/features/search/data/repositories/search_repository_impl.dart';
@@ -350,6 +351,16 @@ void main() {
           ),
           kanban: DriftKanbanRepository(
             database: database,
+            syncQueue: queue,
+            clock: clock,
+          ),
+          noteKanban: DriftNoteKanbanRepository(
+            database: database,
+            kanban: DriftKanbanRepository(
+              database: database,
+              syncQueue: queue,
+              clock: clock,
+            ),
             syncQueue: queue,
             clock: clock,
           ),
@@ -773,13 +784,17 @@ void main() {
           );
           await tester.pumpAndSettle();
 
-          expect(find.text('Senkronizasyon'), findsOneWidget);
+          final syncCategory = find.text('Senkronizasyon');
+          expect(syncCategory, findsOneWidget);
+          await tester.tap(syncCategory);
+          await tester.pumpAndSettle();
+
           expect(
-            find.textContaining('Kuyrukta 1 işlem bekliyor'),
+            find.textContaining('1 değişiklik eşitleme bekliyor'),
             findsOneWidget,
           );
 
-          final queueBtn = find.text('Senkronizasyon Kuyruğu');
+          final queueBtn = find.text('Eşitleme kuyruğu');
           expect(queueBtn, findsOneWidget);
 
           await tester.ensureVisible(queueBtn);

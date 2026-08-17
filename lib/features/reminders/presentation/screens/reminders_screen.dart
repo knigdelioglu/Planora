@@ -145,6 +145,7 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen>
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
           child: Align(
             alignment: Alignment.centerLeft,
+            heightFactor: 1,
             child: Wrap(
               spacing: 7,
               runSpacing: 7,

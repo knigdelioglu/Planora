@@ -25,6 +25,7 @@ import 'package:not_app/core/utils/clock.dart';
 import 'package:not_app/features/attachments/data/repositories/attachments_repository_impl.dart';
 import 'package:not_app/features/conflicts/data/repositories/conflict_repository_impl.dart';
 import 'package:not_app/features/kanban/data/repositories/kanban_repository_impl.dart';
+import 'package:not_app/features/notes/data/repositories/note_kanban_repository_impl.dart';
 import 'package:not_app/features/notes/data/repositories/notes_repository_impl.dart';
 import 'package:not_app/features/reminders/data/repositories/reminders_repository_impl.dart';
 import 'package:not_app/features/reminders/domain/entities/reminder.dart';
@@ -380,6 +381,16 @@ void main() {
           syncQueue: queue,
           clock: clock,
         ),
+        noteKanban: DriftNoteKanbanRepository(
+          database: database,
+          kanban: DriftKanbanRepository(
+            database: database,
+            syncQueue: queue,
+            clock: clock,
+          ),
+          syncQueue: queue,
+          clock: clock,
+        ),
         attachments: DriftAttachmentsRepository(
           database: database,
           storage: SandboxFileStorageService(),
@@ -414,11 +425,16 @@ void main() {
         await tester.pumpWidget(createTestApp(const SettingsScreen()));
         await tester.pumpAndSettle();
 
-        expect(find.text('Bildirimler ve İzinler'), findsOneWidget);
-        expect(find.text('Bildirim İzni'), findsOneWidget);
-        expect(find.text('Kesin Alarm İzni (Exact Alarm)'), findsOneWidget);
+        final notifCategory = find.text('Bildirimler');
+        expect(notifCategory, findsOneWidget);
+        await tester.tap(notifCategory);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Bildirim izinleri'), findsOneWidget);
+        expect(find.text('Bildirimler'), findsWidgets);
+        expect(find.text('Tam zamanlı bildirim'), findsOneWidget);
         expect(
-          find.textContaining('Kapalı — yaklaşık zaman garantisi'),
+          find.textContaining('Yaklaşık zamanda bildirim kullanılacak'),
           findsOneWidget,
         );
 
@@ -454,9 +470,14 @@ void main() {
         await tester.pumpWidget(createTestApp(const SettingsScreen()));
         await tester.pumpAndSettle();
 
+        final notifCategory = find.text('Bildirimler');
+        expect(notifCategory, findsOneWidget);
+        await tester.tap(notifCategory);
+        await tester.pumpAndSettle();
+
         expect(
           find.textContaining(
-            'Bildirim izni kalıcı olarak reddedilmiş olabilir',
+            'Bildirimler kapalı. Hatırlatıcılar kaydedilir ancak cihaz bildirimi gösterilemez.',
           ),
           findsOneWidget,
         );
@@ -485,10 +506,14 @@ void main() {
         await tester.pumpWidget(createTestApp(const RemindersScreen()));
         await tester.pumpAndSettle();
 
-        expect(find.textContaining('Bildirim izni kapalı'), findsOneWidget);
-        final openBtn = find.text('Ayarları Aç');
+        expect(
+          find.textContaining(
+            'Bildirimler kapalı. Hatırlatıcılar kaydedilir ancak cihaz bildirimi gösterilemez.',
+          ),
+          findsOneWidget,
+        );
+        final openBtn = find.text('Ayarları aç');
         expect(openBtn, findsOneWidget);
-        expect(find.text('İzin İste'), findsOneWidget);
 
         await tester.ensureVisible(openBtn);
         await tester.pumpAndSettle();

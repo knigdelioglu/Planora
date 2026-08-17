@@ -6,16 +6,14 @@ import 'package:not_app/features/attachments/domain/attachment_backup_policy.dar
 
 final class PolicySyncQueueRepository implements SyncQueueRepository {
   PolicySyncQueueRepository({
-    required SyncQueueRepository delegate,
-    required AppDatabase database,
-    AttachmentBackupPolicy backupPolicy = const AttachmentBackupPolicy(),
-  }) : _delegate = delegate,
-       _database = database,
-       _backupPolicy = backupPolicy;
+    required this.delegate,
+    required this.database,
+    this.backupPolicy = const AttachmentBackupPolicy(),
+  });
 
-  final SyncQueueRepository _delegate;
-  final AppDatabase _database;
-  final AttachmentBackupPolicy _backupPolicy;
+  final SyncQueueRepository delegate;
+  final AppDatabase database;
+  final AttachmentBackupPolicy backupPolicy;
 
   @override
   Future<void> enqueue({
@@ -26,7 +24,7 @@ final class PolicySyncQueueRepository implements SyncQueueRepository {
     int? baseVersion,
   }) async {
     if (entityType == 'attachment') {
-      final Attachment? row = await (_database.select(_database.attachments)
+      final Attachment? row = await (database.select(database.attachments)
             ..where((tbl) => tbl.id.equals(entityId)))
           .getSingleOrNull();
       if (row != null && row.remotePath == null) {
@@ -35,8 +33,8 @@ final class PolicySyncQueueRepository implements SyncQueueRepository {
           return;
         }
         if (operationType != SyncOperationType.delete &&
-            !_backupPolicy.allowsSize(row.sizeBytes)) {
-          await (_database.update(_database.attachments)
+            !backupPolicy.allowsSize(row.sizeBytes)) {
+          await (database.update(database.attachments)
                 ..where((tbl) => tbl.id.equals(entityId)))
               .write(
             const AttachmentsCompanion(
@@ -47,7 +45,7 @@ final class PolicySyncQueueRepository implements SyncQueueRepository {
         }
       }
     }
-    await _delegate.enqueue(
+    await delegate.enqueue(
       entityType: entityType,
       entityId: entityId,
       operationType: operationType,
@@ -58,7 +56,7 @@ final class PolicySyncQueueRepository implements SyncQueueRepository {
 
   @override
   Future<List<SyncOperation>> dueOperations({int limit = 50}) async {
-    final List<SyncOperation> due = await _delegate.dueOperations(limit: limit);
+    final List<SyncOperation> due = await delegate.dueOperations(limit: limit);
     final List<SyncOperation> allowed = <SyncOperation>[];
     for (final SyncOperation operation in due) {
       if (operation.entityType != 'attachment' ||
@@ -66,24 +64,24 @@ final class PolicySyncQueueRepository implements SyncQueueRepository {
         allowed.add(operation);
         continue;
       }
-      final Attachment? row = await (_database.select(_database.attachments)
+      final Attachment? row = await (database.select(database.attachments)
             ..where((tbl) => tbl.id.equals(operation.entityId)))
           .getSingleOrNull();
       if (row == null ||
           row.deletedAt != null ||
           row.remotePath != null ||
-          _backupPolicy.allowsSize(row.sizeBytes)) {
+          backupPolicy.allowsSize(row.sizeBytes)) {
         allowed.add(operation);
         continue;
       }
-      await (_database.update(_database.attachments)
+      await (database.update(database.attachments)
             ..where((tbl) => tbl.id.equals(operation.entityId)))
           .write(
         const AttachmentsCompanion(
           transferState: Value<String>('localOnly'),
         ),
       );
-      await _delegate.markCompleted(operation.id);
+      await delegate.markCompleted(operation.id);
     }
     return allowed;
   }
@@ -92,7 +90,7 @@ final class PolicySyncQueueRepository implements SyncQueueRepository {
   Future<List<SyncOperation>> allOperations({
     SyncOperationStatus? status,
     bool includeCompleted = false,
-  }) => _delegate.allOperations(
+  }) => delegate.allOperations(
     status: status,
     includeCompleted: includeCompleted,
   );
@@ -101,71 +99,71 @@ final class PolicySyncQueueRepository implements SyncQueueRepository {
   Stream<List<SyncOperation>> watchOperations({
     SyncOperationStatus? status,
     bool includeCompleted = false,
-  }) => _delegate.watchOperations(
+  }) => delegate.watchOperations(
     status: status,
     includeCompleted: includeCompleted,
   );
 
   @override
   Future<Map<SyncOperationStatus, int>> statusCounts() =>
-      _delegate.statusCounts();
+      delegate.statusCounts();
 
   @override
   Stream<Map<SyncOperationStatus, int>> watchStatusCounts() =>
-      _delegate.watchStatusCounts();
+      delegate.watchStatusCounts();
 
   @override
   Future<void> retryOperation(String operationId) =>
-      _delegate.retryOperation(operationId);
+      delegate.retryOperation(operationId);
 
   @override
   Future<void> retryAll({SyncOperationStatus? status}) =>
-      _delegate.retryAll(status: status);
+      delegate.retryAll(status: status);
 
   @override
   Future<void> deleteOperation(String operationId) =>
-      _delegate.deleteOperation(operationId);
+      delegate.deleteOperation(operationId);
 
   @override
   Future<void> clearQueue({
     SyncOperationStatus? status,
     bool onlyUncompleted = true,
-  }) => _delegate.clearQueue(
+  }) => delegate.clearQueue(
     status: status,
     onlyUncompleted: onlyUncompleted,
   );
 
   @override
   Future<void> markProcessing(String operationId) =>
-      _delegate.markProcessing(operationId);
+      delegate.markProcessing(operationId);
 
   @override
   Future<void> markCompleted(String operationId) =>
-      _delegate.markCompleted(operationId);
+      delegate.markCompleted(operationId);
 
   @override
   Future<void> markRetry(String operationId, {required String error}) =>
-      _delegate.markRetry(operationId, error: error);
+      delegate.markRetry(operationId, error: error);
 
   @override
   Future<void> markFailedRecoverable(
     String operationId, {
     required String error,
-  }) => _delegate.markFailedRecoverable(operationId, error: error);
+  }) => delegate.markFailedRecoverable(operationId, error: error);
 
   @override
   Future<void> markConflict(String operationId, {required String error}) =>
-      _delegate.markConflict(operationId, error: error);
+      delegate.markConflict(operationId, error: error);
 
   @override
   Future<void> resolveBlockedConflicts({
     required String entityType,
     required String entityId,
-  }) => _delegate.resolveBlockedConflicts(
+  }) => delegate.resolveBlockedConflicts(
     entityType: entityType,
     entityId: entityId,
   );
 
   @override
-  Stream<int> watchPendingCount() => _delegate.watchPendingCount();
+  Stream<int> watchPendingCount() => delegate.watchPendingCount();
 }

@@ -204,8 +204,8 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
           link: block.layerLink,
           showWhenUnlinked: false,
           targetAnchor: Alignment.topLeft,
-          followerAnchor: Alignment.bottomLeft,
-          offset: const Offset(34, -6),
+          followerAnchor: Alignment.topLeft,
+          offset: const Offset(34, -46),
           child: Align(
             alignment: Alignment.topLeft,
             child: FormattingToolbar(
@@ -242,18 +242,20 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
     if (_loading) return;
     _saveTimer?.cancel();
     if (showState && mounted) setState(() => _saving = true);
+    final String currentTitle = _title.text;
+    final NoteDocument currentDoc = _document();
     try {
       final repo = ref.read(notesRepositoryProvider);
-      await repo.updateTitle(widget.noteId, _title.text);
-      await repo.saveDocument(widget.noteId, _document());
-      if (mounted) {
+      await repo.updateTitle(widget.noteId, currentTitle);
+      await repo.saveDocument(widget.noteId, currentDoc);
+      if (showState && mounted) {
         setState(() {
           _saving = false;
           _error = null;
         });
       }
     } catch (error) {
-      if (mounted) {
+      if (showState && mounted) {
         setState(() {
           _saving = false;
           _error = error.toString();
@@ -687,7 +689,14 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
               children: <Widget>[
                 Icon(_saveIcon, size: 14),
                 const SizedBox(width: 5),
-                Text(_saveLabel, style: Theme.of(context).textTheme.bodySmall),
+                Flexible(
+                  child: Text(
+                    _saveLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
               ],
             ),
             actions: <Widget>[

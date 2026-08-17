@@ -29,6 +29,7 @@ import 'package:not_app/features/attachments/data/repositories/attachments_repos
 import 'package:not_app/features/conflicts/data/repositories/conflict_repository_impl.dart';
 import 'package:not_app/features/kanban/data/repositories/kanban_repository_impl.dart';
 import 'package:not_app/features/kanban/presentation/screens/card_detail_screen.dart';
+import 'package:not_app/features/notes/data/repositories/note_kanban_repository_impl.dart';
 import 'package:not_app/features/notes/data/repositories/notes_repository_impl.dart';
 import 'package:not_app/features/reminders/data/repositories/reminders_repository_impl.dart';
 import 'package:not_app/features/search/data/repositories/search_repository_impl.dart';
@@ -195,6 +196,12 @@ void main() {
       settings: settings,
       notes: notes,
       kanban: kanban,
+      noteKanban: DriftNoteKanbanRepository(
+        database: db,
+        kanban: kanban,
+        syncQueue: syncQueue,
+        clock: clock,
+      ),
       attachments: attachments,
       reminders: reminders,
       search: searchRepository,

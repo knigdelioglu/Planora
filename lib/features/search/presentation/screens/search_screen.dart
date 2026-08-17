@@ -290,208 +290,217 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           );
         },
       },
-      child: Column(
-        children: <Widget>[
-          const AppToolbar(title: 'Arama'),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final double horizontal = constraints.maxWidth < 600 ? 16 : 24;
-                return Column(
-                  children: <Widget>[
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        horizontal,
-                        18,
-                        horizontal,
-                        0,
-                      ),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 760),
-                        child: KeyedSubtree(
-                          key: const ValueKey('search_text_field'),
-                          child: AppSearchField(
-                            controller: _query,
-                            focusNode: _focusNode,
-                            autofocus: widget.autofocus,
-                            busy: _busy,
-                            hintText: 'Not, kart veya pano ara…',
-                            shortcutLabel: '⌘K',
-                            onClear: () {
-                              _query.clear();
-                              setState(() {});
-                            },
-                            onSubmitted: (_) {
-                              if (visible.isNotEmpty) {
-                                _open(
-                                  visible[_selectedIndex < 0
-                                      ? 0
-                                      : _selectedIndex],
-                                );
-                              }
-                            },
-                          ),
+      child: Scaffold(
+        body: Column(
+          children: <Widget>[
+            const AppToolbar(title: 'Arama'),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final double horizontal =
+                      constraints.maxWidth < 600 ? 16 : 24;
+                  return Column(
+                    children: <Widget>[
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          horizontal,
+                          18,
+                          horizontal,
+                          0,
                         ),
-                      ),
-                    ),
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        horizontal,
-                        10,
-                        horizontal,
-                        0,
-                      ),
-                      child: Align(
-                        alignment: Alignment.center,
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 760),
-                          child: Wrap(
-                            spacing: 7,
-                            runSpacing: 7,
-                            children: <Widget>[
-                              _TypeChip(
-                                label: 'Tümü',
-                                selected: _type == 'all',
-                                onSelected: () => _selectType('all'),
-                              ),
-                              _TypeChip(
-                                label: 'Notlar',
-                                selected: _type == 'note',
-                                onSelected: () => _selectType('note'),
-                              ),
-                              _TypeChip(
-                                label: 'Kartlar',
-                                selected: _type == 'card',
-                                onSelected: () => _selectType('card'),
-                              ),
-                              _TypeChip(
-                                label: 'Panolar',
-                                selected: _type == 'board',
-                                onSelected: () => _selectType('board'),
-                              ),
-                            ],
+                          child: KeyedSubtree(
+                            key: const ValueKey('search_text_field'),
+                            child: AppSearchField(
+                              controller: _query,
+                              focusNode: _focusNode,
+                              autofocus: widget.autofocus,
+                              busy: _busy,
+                              hintText: 'Not, kart veya pano ara…',
+                              shortcutLabel: '⌘K',
+                              onClear: () {
+                                _query.clear();
+                                setState(() {});
+                              },
+                              onSubmitted: (_) {
+                                if (visible.isNotEmpty) {
+                                  _open(
+                                    visible[_selectedIndex < 0
+                                        ? 0
+                                        : _selectedIndex],
+                                  );
+                                }
+                              },
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    Expanded(
-                      child: _query.text.trim().isEmpty
-                          ? const EmptyState(
-                              icon: Icons.search_rounded,
-                              title: 'Ne arıyorsunuz?',
-                              message:
-                                  'Notlar, kartlar ve panolar cihazınızda aranır.',
-                            )
-                          : visible.isEmpty && !_busy
-                          ? const EmptyState(
-                              icon: Icons.search_off_rounded,
-                              title: 'Sonuç bulunamadı',
-                              message: 'Farklı bir kelime deneyin.',
-                            )
-                          : Center(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 800,
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          horizontal,
+                          10,
+                          horizontal,
+                          0,
+                        ),
+                        child: Align(
+                          alignment: Alignment.center,
+                          heightFactor: 1,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 760),
+                            child: Wrap(
+                              spacing: 7,
+                              runSpacing: 7,
+                              children: <Widget>[
+                                _TypeChip(
+                                  label: 'Tümü',
+                                  selected: _type == 'all',
+                                  onSelected: () => _selectType('all'),
                                 ),
-                                child: ListView.builder(
-                                  padding: EdgeInsets.fromLTRB(
-                                    horizontal,
-                                    4,
-                                    horizontal,
-                                    32,
+                                _TypeChip(
+                                  label: 'Notlar',
+                                  selected: _type == 'note',
+                                  onSelected: () => _selectType('note'),
+                                ),
+                                _TypeChip(
+                                  label: 'Kartlar',
+                                  selected: _type == 'card',
+                                  onSelected: () => _selectType('card'),
+                                ),
+                                _TypeChip(
+                                  label: 'Panolar',
+                                  selected: _type == 'board',
+                                  onSelected: () => _selectType('board'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: _query.text.trim().isEmpty
+                            ? const EmptyState(
+                                icon: Icons.search_rounded,
+                                title: 'Ne arıyorsunuz?',
+                                message:
+                                    'Notlar, kartlar ve panolar cihazınızda aranır.',
+                              )
+                            : visible.isEmpty && !_busy
+                            ? const EmptyState(
+                                icon: Icons.search_off_rounded,
+                                title: 'Sonuç bulunamadı',
+                                message: 'Farklı bir kelime deneyin.',
+                              )
+                            : Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 800,
                                   ),
-                                  itemCount: display.length,
-                                  itemBuilder: (context, index) {
-                                    final _DisplayItem item = display[index];
-                                    if (item is _SectionItem) {
-                                      return Padding(
-                                        padding: const EdgeInsets.fromLTRB(
-                                          4,
-                                          14,
-                                          4,
-                                          5,
-                                        ),
-                                        child: Text(
-                                          '${item.label} (${item.count})',
-                                          key: ValueKey(
-                                            'search_section_${item.type}',
+                                  child: ListView.builder(
+                                    padding: EdgeInsets.fromLTRB(
+                                      horizontal,
+                                      4,
+                                      horizontal,
+                                      32,
+                                    ),
+                                    itemCount: display.length,
+                                    itemBuilder: (context, index) {
+                                      final _DisplayItem item = display[index];
+                                      if (item is _SectionItem) {
+                                        return Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                            4,
+                                            14,
+                                            4,
+                                            5,
                                           ),
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.labelLarge,
-                                        ),
-                                      );
-                                    }
-                                    final _ResultItem resultItem =
-                                        item as _ResultItem;
-                                    final SearchResultEntity result =
-                                        resultItem.result;
-                                    final bool selected =
-                                        resultItem.flatIndex == _selectedIndex;
-                                    return AppListRow(
-                                      key: ValueKey(
-                                        'search_result_${result.entityType}_${result.entityId}',
-                                      ),
-                                      selected: selected,
-                                      leading: Icon(
-                                        _typeIcon(result.entityType),
-                                        size: 19,
-                                      ),
-                                      title: _HighlightedText(
-                                        text: result.title.trim().isEmpty
-                                            ? 'Başlıksız'
-                                            : result.title,
-                                        query: _query.text.trim(),
-                                        maxLines: 1,
-                                        selected: selected,
-                                      ),
-                                      subtitle:
-                                          result.preview.trim().isEmpty ||
-                                              result.preview.trim() ==
-                                                  result.title.trim()
-                                          ? Text(_typeLabel(result.entityType))
-                                          : Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: <Widget>[
-                                                Text(
-                                                  _typeLabel(result.entityType),
-                                                ),
-                                                _HighlightedText(
-                                                  text: result.preview
-                                                      .replaceAll('\n', ' '),
-                                                  query: _query.text.trim(),
-                                                  maxLines: 2,
-                                                  small: true,
-                                                ),
-                                              ],
+                                          child: Text(
+                                            '${item.label} (${item.count})',
+                                            key: ValueKey(
+                                              'search_section_${item.type}',
                                             ),
-                                      trailing: selected
-                                          ? const Icon(
-                                              Icons.keyboard_return_rounded,
-                                              size: 16,
-                                            )
-                                          : null,
-                                      onTap: () {
-                                        setState(
-                                          () => _selectedIndex =
-                                              resultItem.flatIndex,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.labelLarge,
+                                          ),
                                         );
-                                        _open(result);
-                                      },
-                                    );
-                                  },
+                                      }
+                                      final _ResultItem resultItem =
+                                          item as _ResultItem;
+                                      final SearchResultEntity result =
+                                          resultItem.result;
+                                      final bool selected =
+                                          resultItem.flatIndex ==
+                                          _selectedIndex;
+                                      return AppListRow(
+                                        key: ValueKey(
+                                          'search_result_${result.entityType}_${result.entityId}',
+                                        ),
+                                        selected: selected,
+                                        leading: Icon(
+                                          _typeIcon(result.entityType),
+                                          size: 19,
+                                        ),
+                                        title: _HighlightedText(
+                                          text: result.title.trim().isEmpty
+                                              ? 'Başlıksız'
+                                              : result.title,
+                                          query: _query.text.trim(),
+                                          maxLines: 1,
+                                          selected: selected,
+                                        ),
+                                        subtitle:
+                                            result.preview.trim().isEmpty ||
+                                                result.preview.trim() ==
+                                                    result.title.trim()
+                                            ? Text(
+                                                _typeLabel(result.entityType),
+                                              )
+                                            : Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: <Widget>[
+                                                  Text(
+                                                    _typeLabel(
+                                                      result.entityType,
+                                                    ),
+                                                  ),
+                                                  _HighlightedText(
+                                                    text: result.preview
+                                                        .replaceAll('\n', ' '),
+                                                    query: _query.text.trim(),
+                                                    maxLines: 2,
+                                                    small: true,
+                                                  ),
+                                                ],
+                                              ),
+                                        trailing: selected
+                                            ? const Icon(
+                                                Icons.keyboard_return_rounded,
+                                                size: 16,
+                                              )
+                                            : null,
+                                        onTap: () {
+                                          setState(
+                                            () => _selectedIndex =
+                                                resultItem.flatIndex,
+                                          );
+                                          _open(result);
+                                        },
+                                      );
+                                    },
+                                  ),
                                 ),
                               ),
-                            ),
-                    ),
-                  ],
-                );
-              },
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

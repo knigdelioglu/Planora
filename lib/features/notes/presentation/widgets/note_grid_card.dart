@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:not_app/app/widgets/common_widgets.dart';
+import 'package:not_app/app/widgets/content/app_content.dart';
 
 class NoteGridCard extends StatelessWidget {
   const NoteGridCard({

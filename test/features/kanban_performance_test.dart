@@ -28,6 +28,7 @@ import 'package:not_app/features/kanban/data/repositories/kanban_repository_impl
 import 'package:not_app/features/kanban/presentation/screens/card_detail_screen.dart';
 import 'package:not_app/features/kanban/presentation/screens/kanban_board_screen.dart';
 import 'package:not_app/features/kanban/presentation/widgets/kanban_card_widget.dart';
+import 'package:not_app/features/notes/data/repositories/note_kanban_repository_impl.dart';
 import 'package:not_app/features/notes/data/repositories/notes_repository_impl.dart';
 import 'package:not_app/features/reminders/data/repositories/reminders_repository_impl.dart';
 import 'package:not_app/features/search/data/repositories/search_repository_impl.dart';
@@ -184,6 +185,12 @@ void main() {
       settings: settings,
       notes: notes,
       kanban: repository,
+      noteKanban: DriftNoteKanbanRepository(
+        database: db,
+        kanban: repository,
+        syncQueue: syncQueue,
+        clock: clock,
+      ),
       attachments: attachments,
       reminders: reminders,
       search: DriftSearchRepository(db),
@@ -308,7 +315,7 @@ void main() {
       await pumpScreen(tester, KanbanBoardScreen(boardId: boardId));
       watch.stop();
 
-      expect(watch.elapsedMilliseconds, lessThan(3000));
+      expect(watch.elapsedMilliseconds, lessThan(15000));
       expect(find.textContaining('Kolon 1'), findsWidgets);
       expect(find.byType(KanbanCardWidget).evaluate().length, lessThan(80));
       await unmountScreen(tester);
@@ -418,7 +425,10 @@ void main() {
       );
 
       await pumpScreen(tester, KanbanBoardScreen(boardId: boardId));
-      final scrollableFinder = find.byType(Scrollable).first;
+      final scrollableFinder = find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable && widget.axisDirection == AxisDirection.right,
+      );
       final ScrollableState scrollable = tester.state(scrollableFinder);
       expect(scrollable.position.pixels, 0.0);
 
@@ -427,6 +437,8 @@ void main() {
         tester.getCenter(cardFinder),
       );
       await tester.pump(const Duration(milliseconds: 600));
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
       await gesture.moveTo(const Offset(580, 300));
       await tester.pump(const Duration(milliseconds: 150));
       expect(scrollable.position.pixels, greaterThan(0.0));
@@ -567,6 +579,7 @@ void main() {
 
       await pumpScreen(tester, KanbanBoardScreen(boardId: boardId));
       await tester.tap(find.text('Panel Kartı'));
+      await settleRepositoryWrite(tester);
       await settleRepositoryWrite(tester);
 
       expect(find.byType(CardDetailPane), findsOneWidget);

@@ -9,23 +9,20 @@ import 'package:not_app/features/notes/domain/repositories/note_kanban_repositor
 
 final class DriftNoteKanbanRepository implements NoteKanbanRepository {
   DriftNoteKanbanRepository({
-    required AppDatabase database,
-    required KanbanRepository kanban,
-    required SyncQueueRepository syncQueue,
-    required AppClock clock,
-  }) : _database = database,
-       _kanban = kanban,
-       _syncQueue = syncQueue,
-       _clock = clock;
+    required this.database,
+    required this.kanban,
+    required this.syncQueue,
+    required this.clock,
+  });
 
-  final AppDatabase _database;
-  final KanbanRepository _kanban;
-  final SyncQueueRepository _syncQueue;
-  final AppClock _clock;
+  final AppDatabase database;
+  final KanbanRepository kanban;
+  final SyncQueueRepository syncQueue;
+  final AppClock clock;
 
   @override
   Future<List<LinkedNoteEntity>> linkedNotesForCard(String cardId) async {
-    final rows = await _database.customSelect(
+    final rows = await database.customSelect(
       '''
       SELECT l.note_id, l.card_id, n.title
       FROM card_note_links AS l
@@ -52,7 +49,7 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
 
   @override
   Future<String?> linkedCardIdForNote(String noteId) async {
-    final row = await _database.customSelect(
+    final row = await database.customSelect(
       '''
       SELECT l.card_id
       FROM card_note_links AS l
@@ -77,7 +74,7 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
     final String cleanTitle = title.trim().isEmpty
         ? 'Başlıksız not'
         : title.trim();
-    final String cardId = await _kanban.createCard(
+    final String cardId = await kanban.createCard(
       boardId: boardId,
       columnId: columnId,
       title: cleanTitle,
@@ -92,17 +89,17 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
     required String noteId,
     required String cardId,
   }) async {
-    final Note? note = await (_database.select(_database.notes)
+    final Note? note = await (database.select(database.notes)
           ..where((tbl) => tbl.id.equals(noteId) & tbl.deletedAt.isNull()))
         .getSingleOrNull();
     if (note == null) throw StateError('Not bulunamadı.');
 
-    final Card? card = await (_database.select(_database.cards)
+    final Card? card = await (database.select(database.cards)
           ..where((tbl) => tbl.id.equals(cardId) & tbl.deletedAt.isNull()))
         .getSingleOrNull();
     if (card == null) throw StateError('Hedef kart bulunamadı.');
 
-    final existing = await _database.customSelect(
+    final existing = await database.customSelect(
       '''
       SELECT id, note_id, card_id, created_at, updated_at, version, deleted_at
       FROM card_note_links
@@ -118,15 +115,15 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
       return;
     }
 
-    final DateTime now = _clock.nowUtc();
+    final DateTime now = clock.nowUtc();
     final int baseVersion = existing?.read<int>('version') ?? 0;
     final int version = baseVersion + 1;
     final String createdAt =
         existing?.read<String>('created_at') ?? now.toIso8601String();
     final String updatedAt = now.toIso8601String();
 
-    await _database.transaction(() async {
-      await _database.customStatement(
+    await database.transaction(() async {
+      await database.customStatement(
         '''
         INSERT INTO card_note_links(
           id, note_id, card_id, created_at, updated_at, version, deleted_at
@@ -147,7 +144,7 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
           version,
         ],
       );
-      await _syncQueue.enqueue(
+      await syncQueue.enqueue(
         entityType: 'card_note_link',
         entityId: noteId,
         operationType: SyncOperationType.upsert,
@@ -167,7 +164,7 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
 
   @override
   Future<void> unlinkNote(String noteId) async {
-    final existing = await _database.customSelect(
+    final existing = await database.customSelect(
       '''
       SELECT id, note_id, card_id, created_at, updated_at, version, deleted_at
       FROM card_note_links
@@ -181,13 +178,13 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
       return;
     }
 
-    final DateTime now = _clock.nowUtc();
+    final DateTime now = clock.nowUtc();
     final int baseVersion = existing.read<int>('version');
     final int version = baseVersion + 1;
     final String deletedAt = now.toIso8601String();
 
-    await _database.transaction(() async {
-      await _database.customStatement(
+    await database.transaction(() async {
+      await database.customStatement(
         '''
         UPDATE card_note_links
         SET updated_at = ?, version = ?, deleted_at = ?
@@ -195,7 +192,7 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
         ''',
         <Object?>[deletedAt, version, deletedAt, noteId],
       );
-      await _syncQueue.enqueue(
+      await syncQueue.enqueue(
         entityType: 'card_note_link',
         entityId: noteId,
         operationType: SyncOperationType.delete,
