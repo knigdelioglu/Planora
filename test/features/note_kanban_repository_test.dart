@@ -71,10 +71,11 @@ void main() {
     expect(await links.linkedNotesForCard(secondCard), hasLength(1));
 
     final rows = await db.customSelect(
-      'SELECT id, note_id, card_id FROM card_note_links WHERE note_id = ?',
-      variables: <dynamic>[],
+      'SELECT id, note_id, card_id FROM card_note_links',
     ).get();
     expect(rows, hasLength(1));
+    expect(rows.single.read<String>('note_id'), noteId);
+    expect(rows.single.read<String>('card_id'), secondCard);
 
     final operations = await queue.allOperations(includeCompleted: true);
     expect(
