@@ -92,7 +92,7 @@ final class AttachmentEntity {
     if (isFailed) return 'Başarısız';
     if (isRetryPending) return 'Tekrar denenecek';
     if (isSynced) return 'Tamamlandı';
-    if (isLocalOnly) return 'Cihazda';
+    if (isLocalOnly) return 'Cihazda · Buluta yedeklenmiyor';
     if (isRemoteOnly) return 'Bulutta';
     return transferState;
   }
