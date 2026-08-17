@@ -6,11 +6,7 @@ import 'package:not_app/core/services/encrypted_file_storage_service.dart';
 import 'package:path/path.dart' as p;
 
 final class SecureRemoteGateway implements RemoteGateway {
-  SecureRemoteGateway({
-    required RemoteGateway delegate,
-    required EncryptedFileStorageService storage,
-  }) : _delegate = delegate,
-       _storage = storage;
+  SecureRemoteGateway(this._delegate, this._storage);
 
   static final RegExp _entityIdPattern = RegExp(r'^[A-Za-z0-9_-]{1,128}$');
   static final RegExp _remoteFilePattern = RegExp(r'^[A-Za-z0-9._-]{1,255}$');
