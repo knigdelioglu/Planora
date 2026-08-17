@@ -42,15 +42,5 @@ Analyzing not...
    info • Unnecessary use of multiple underscores. Try using '_' • lib/features/notes/presentation/screens/note_editor_screen.dart:1199:37 • unnecessary_underscores
    info • Unnecessary use of multiple underscores. Try using '_' • lib/features/notes/presentation/screens/note_editor_screen.dart:1199:41 • unnecessary_underscores
    info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check. Guard a 'State.context' use with a 'mounted' check on the State, and other BuildContext use with a 'mounted' check on the BuildContext • lib/features/settings/presentation/settings_screen.dart:466:25 • use_build_context_synchronously
-  error • The named parameter 'queue' is required, but there's no corresponding argument. Try adding the required argument • test/core/sync/sync_queue_screen_test.dart:314:29 • missing_required_argument
-  error • The named parameter 'queue' is required, but there's no corresponding argument. Try adding the required argument • test/features/kanban_performance_test.dart:141:25 • missing_required_argument
-  error • The named parameter 'queue' is required, but there's no corresponding argument. Try adding the required argument • test/features/reminders_reconciliation_test.dart:341:27 • missing_required_argument
-warning • Unused import: 'package:not_app/features/kanban/presentation/screens/kanban_board_screen.dart'. Try removing the import directive • test/features/search_performance_test.dart:32:8 • unused_import
-warning • Unused import: 'package:not_app/features/notes/presentation/screens/note_editor_screen.dart'. Try removing the import directive • test/features/search_performance_test.dart:34:8 • unused_import
-  error • The name 'Override' isn't a type, so it can't be used as a type argument. Try correcting the name to an existing type, or defining a type named 'Override' • test/features/search_performance_test.dart:68:19 • non_type_as_type_argument
-  error • The named parameter 'queue' is required, but there's no corresponding argument. Try adding the required argument • test/features/search_performance_test.dart:149:25 • missing_required_argument
-  error • The named parameter 'queue' is required, but there's no corresponding argument. Try adding the required argument • test/integration/process_death_recovery_test.dart:562:32 • missing_required_argument
-  error • The named parameter 'queue' is required, but there's no corresponding argument. Try adding the required argument • test/integration/process_death_recovery_test.dart:1248:33 • missing_required_argument
-  error • The named parameter 'queue' is required, but there's no corresponding argument. Try adding the required argument • test/integration/supabase_two_client_sync_e2e_test.dart:248:41 • missing_required_argument
 
-24 issues found. (ran in 14.9s)
+14 issues found. (ran in 17.1s)
