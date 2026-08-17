@@ -16,6 +16,7 @@ import 'package:not_app/core/utils/clock.dart';
 import 'package:not_app/features/attachments/domain/repositories/attachments_repository.dart';
 import 'package:not_app/features/conflicts/domain/repositories/conflict_repository.dart';
 import 'package:not_app/features/kanban/domain/repositories/kanban_repository.dart';
+import 'package:not_app/features/notes/domain/repositories/note_kanban_repository.dart';
 import 'package:not_app/features/notes/domain/repositories/notes_repository.dart';
 import 'package:not_app/features/reminders/domain/repositories/reminders_repository.dart';
 import 'package:not_app/features/search/domain/repositories/search_repository.dart';
@@ -40,6 +41,7 @@ final class AppServices {
     required this.settings,
     required this.notes,
     required this.kanban,
+    required this.noteKanban,
     required this.attachments,
     required this.reminders,
     required this.search,
@@ -63,6 +65,7 @@ final class AppServices {
   final AppSettingsRepository settings;
   final NotesRepository notes;
   final KanbanRepository kanban;
+  final NoteKanbanRepository noteKanban;
   final AttachmentsRepository attachments;
   final RemindersRepository reminders;
   final SearchRepository search;
