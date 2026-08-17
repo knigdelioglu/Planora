@@ -315,6 +315,7 @@ void main() {
           networkInfo: const DisabledNetworkInfo(),
           authService: const DisabledAuthService(),
           engine: engine,
+          queue: queue,
           database: database,
           clock: clock,
           reconcileReminders: reminders.reconcile,

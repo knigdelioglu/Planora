@@ -249,6 +249,7 @@ final class _E2EClientDevice {
       networkInfo: network,
       authService: auth,
       engine: engine,
+      queue: queue,
       database: database,
       clock: clock,
       reconcileReminders: () async {},

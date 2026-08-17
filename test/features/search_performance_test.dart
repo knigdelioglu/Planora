@@ -29,9 +29,7 @@ import 'package:not_app/features/attachments/data/repositories/attachments_repos
 import 'package:not_app/features/conflicts/data/repositories/conflict_repository_impl.dart';
 import 'package:not_app/features/kanban/data/repositories/kanban_repository_impl.dart';
 import 'package:not_app/features/kanban/presentation/screens/card_detail_screen.dart';
-import 'package:not_app/features/kanban/presentation/screens/kanban_board_screen.dart';
 import 'package:not_app/features/notes/data/repositories/notes_repository_impl.dart';
-import 'package:not_app/features/notes/presentation/screens/note_editor_screen.dart';
 import 'package:not_app/features/reminders/data/repositories/reminders_repository_impl.dart';
 import 'package:not_app/features/search/data/repositories/search_repository_impl.dart';
 import 'package:not_app/features/search/domain/repositories/search_repository.dart';
@@ -65,7 +63,7 @@ void main() {
 
   Widget createTestApp(Widget child, {SearchRepository? searchRepoOverride}) {
     return ProviderScope(
-      overrides: <Override>[
+      overrides: [
         appServicesProvider.overrideWithValue(appServices),
         searchRepositoryProvider.overrideWithValue(
           searchRepoOverride ?? searchRepository,
@@ -150,6 +148,7 @@ void main() {
       networkInfo: const _DisabledNetworkInfo(),
       authService: const DisabledAuthService(),
       engine: engine,
+      queue: syncQueue,
       database: db,
       clock: clock,
       reconcileReminders: reminders.reconcile,
