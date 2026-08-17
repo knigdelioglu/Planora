@@ -56,12 +56,16 @@ class NoteGridCard extends StatelessWidget {
                       switch (value) {
                         case 'favorite':
                           onToggleFavorite();
+                          return;
                         case 'color':
                           onChangeColor();
+                          return;
                         case 'move':
                           onMoveToKanban();
+                          return;
                         case 'trash':
                           onTrash();
+                          return;
                       }
                     },
                     itemBuilder: (_) => <PopupMenuEntry<String>>[
