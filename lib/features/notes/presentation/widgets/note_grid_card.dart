@@ -102,12 +102,14 @@ class NoteGridCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Expanded(
-                child: Text(
-                  preview,
-                  maxLines: 5,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                child: SingleChildScrollView(
+                  primary: false,
+                  physics: const ClampingScrollPhysics(),
+                  child: Text(
+                    preview,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ),
