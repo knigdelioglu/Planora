@@ -27,12 +27,17 @@ Future<QueryExecutor> openNativeConnection({
     encryptedFile,
     isolateSetup: () async {
       sqlite3.tempDirectory = sqliteTempDirectory;
-      if (await legacyFile.exists() && !await encryptedFile.exists()) {
+      final bool legacyExists = await legacyFile.exists();
+      final bool encryptedExists = await encryptedFile.exists();
+      if (legacyExists && !encryptedExists) {
         await _migratePlaintextDatabase(
           legacyFile: legacyFile,
           encryptedFile: encryptedFile,
           escapedKey: escapedKey,
         );
+      } else if (legacyExists && encryptedExists) {
+        _verifyEncryptedDatabase(encryptedFile, escapedKey);
+        await _deleteLegacyDatabaseFiles(legacyFile);
       }
     },
     setup: (Database rawDb) {
@@ -59,7 +64,7 @@ Future<void> _migratePlaintextDatabase({
 
   final Database plaintext = sqlite3.open(legacyFile.path);
   try {
-    plaintext.execute("PRAGMA wal_checkpoint(TRUNCATE);");
+    plaintext.execute('PRAGMA wal_checkpoint(TRUNCATE);');
     plaintext.execute("VACUUM INTO '${_escapeSql(temporary.path)}';");
   } finally {
     plaintext.close();
@@ -75,18 +80,29 @@ Future<void> _migratePlaintextDatabase({
     encrypted.close();
   }
 
-  final Database verification = sqlite3.open(temporary.path);
+  _verifyEncryptedDatabase(temporary, escapedKey);
+  await temporary.rename(encryptedFile.path);
+  _verifyEncryptedDatabase(encryptedFile, escapedKey);
+  await _deleteLegacyDatabaseFiles(legacyFile);
+}
+
+void _verifyEncryptedDatabase(File file, String escapedKey) {
+  final Database verification = sqlite3.open(file.path);
   try {
+    if (verification.select('PRAGMA cipher;').isEmpty) {
+      throw StateError('SQLite encryption provider is not available.');
+    }
     verification.execute("PRAGMA key = '$escapedKey';");
     final ResultSet check = verification.select('PRAGMA quick_check;');
-    if (check.isEmpty || check.first.values.first.toString() != 'ok') {
-      throw StateError('Encrypted database migration integrity check failed.');
+    if (check.rows.isEmpty || check.rows.first.first.toString() != 'ok') {
+      throw StateError('Encrypted database integrity check failed.');
     }
   } finally {
     verification.close();
   }
+}
 
-  await temporary.rename(encryptedFile.path);
+Future<void> _deleteLegacyDatabaseFiles(File legacyFile) async {
   await _deleteIfExists(legacyFile);
   await _deleteIfExists(File('${legacyFile.path}-wal'));
   await _deleteIfExists(File('${legacyFile.path}-shm'));
