@@ -20,7 +20,9 @@ import 'package:not_app/features/conflicts/domain/repositories/conflict_reposito
 import 'package:not_app/features/kanban/data/repositories/kanban_repository_impl.dart';
 import 'package:not_app/features/kanban/data/repositories/lifecycle_kanban_repository.dart';
 import 'package:not_app/features/kanban/domain/repositories/kanban_repository.dart';
+import 'package:not_app/features/notes/data/repositories/note_kanban_repository_impl.dart';
 import 'package:not_app/features/notes/data/repositories/notes_repository_impl.dart';
+import 'package:not_app/features/notes/domain/repositories/note_kanban_repository.dart';
 import 'package:not_app/features/notes/domain/repositories/notes_repository.dart';
 import 'package:not_app/features/reminders/data/repositories/reminders_repository_impl.dart';
 import 'package:not_app/features/reminders/domain/repositories/reminders_repository.dart';
@@ -112,6 +114,12 @@ final class AppBootstrap {
         attachments: attachments,
         reminders: reminders,
       );
+      final NoteKanbanRepository noteKanban = DriftNoteKanbanRepository(
+        database: database,
+        kanban: kanban,
+        syncQueue: queue,
+        clock: clock,
+      );
       final SearchRepository search = DriftSearchRepository(database);
       final SyncCoordinator coordinator = SyncCoordinator(
         networkInfo: network,
@@ -146,6 +154,7 @@ final class AppBootstrap {
         settings: settings,
         notes: notes,
         kanban: kanban,
+        noteKanban: noteKanban,
         attachments: attachments,
         reminders: reminders,
         search: search,
