@@ -24,11 +24,11 @@ void main() {
     root = await Directory.systemTemp.createTemp('not-secure-storage-root-');
     temp = await Directory.systemTemp.createTemp('not-secure-storage-temp-');
     storage = EncryptedFileStorageService(
-      delegate: SandboxFileStorageService(
+      SandboxFileStorageService(
         rootDirectoryProvider: () async => root,
         tempDirectoryProvider: () async => temp,
       ),
-      keyService: _FixedKeys(),
+      _FixedKeys(),
       tempDirectoryProvider: () async => temp,
     );
   });
