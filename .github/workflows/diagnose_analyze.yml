@@ -6,13 +6,15 @@ on:
       - tools/analyze.trigger
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.44.8'
@@ -28,12 +30,16 @@ jobs:
           set +e
           flutter analyze 2>&1 | tee analyze.log
           status=${PIPESTATUS[0]}
-          echo "$status" > analyze.exitcode
+          echo "exit_code=$status" > tools/analyze_output.txt
+          cat analyze.log >> tools/analyze_output.txt
           exit 0
-      - uses: actions/upload-artifact@v4
-        with:
-          name: flutter-analyze-diagnostic
-          path: |
-            analyze.log
-            analyze.exitcode
-          if-no-files-found: error
+      - name: Commit analyzer diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/analyze_output.txt
+          git commit -m "diagnostic: capture flutter analyze output" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
