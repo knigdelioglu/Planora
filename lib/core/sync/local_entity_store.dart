@@ -91,6 +91,26 @@ final class LocalEntityStore {
           'version': row.version,
           'deletedAt': row.deletedAt?.toIso8601String(),
         };
+      case 'card_note_link':
+        final row = await _database.customSelect(
+          '''
+          SELECT id, note_id, card_id, created_at, updated_at, version, deleted_at
+          FROM card_note_links
+          WHERE id = ?
+          LIMIT 1
+          ''',
+          variables: <Variable<Object>>[Variable<String>(entityId)],
+        ).getSingleOrNull();
+        if (row == null) return null;
+        return <String, Object?>{
+          'id': row.read<String>('id'),
+          'noteId': row.read<String>('note_id'),
+          'cardId': row.read<String>('card_id'),
+          'createdAt': row.read<String>('created_at'),
+          'updatedAt': row.read<String>('updated_at'),
+          'version': row.read<int>('version'),
+          'deletedAt': row.readNullable<String>('deleted_at'),
+        };
       case 'attachment':
         final row = await (_database.select(
           _database.attachments,
@@ -245,6 +265,35 @@ final class LocalEntityStore {
           } else {
             await _database.deleteSearchEntry('card', remote.entityId);
           }
+        case 'card_note_link':
+          final String? noteId = p['noteId']?.toString();
+          final String? cardId = p['cardId']?.toString();
+          if (noteId == null || noteId.isEmpty || cardId == null || cardId.isEmpty) {
+            throw StateError('Card-note link payload is incomplete.');
+          }
+          await _database.customStatement(
+            '''
+            INSERT INTO card_note_links(
+              id, note_id, card_id, created_at, updated_at, version, deleted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              note_id = excluded.note_id,
+              card_id = excluded.card_id,
+              created_at = excluded.created_at,
+              updated_at = excluded.updated_at,
+              version = excluded.version,
+              deleted_at = excluded.deleted_at
+            ''',
+            <Object?>[
+              remote.entityId,
+              noteId,
+              cardId,
+              (p['createdAt'] ?? created.toIso8601String()).toString(),
+              updated.toIso8601String(),
+              remote.version,
+              deleted?.toIso8601String(),
+            ],
+          );
         case 'attachment':
           final Attachment? existing = await (_database.select(
             _database.attachments,
