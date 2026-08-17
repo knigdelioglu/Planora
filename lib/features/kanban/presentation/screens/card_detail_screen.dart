@@ -7,6 +7,7 @@ import 'package:not_app/app/widgets/navigation/app_toolbar.dart';
 import 'package:not_app/features/attachments/presentation/attachments_section.dart';
 import 'package:not_app/features/kanban/domain/entities/kanban_card.dart';
 import 'package:not_app/features/kanban/domain/entities/kanban_snapshot.dart';
+import 'package:not_app/features/notes/presentation/widgets/linked_notes_section.dart';
 import 'package:not_app/features/reminders/presentation/reminder_widgets.dart';
 
 class CardDetailScreen extends StatelessWidget {
@@ -335,6 +336,18 @@ class _CardDetailPaneState extends ConsumerState<CardDetailPane> {
                         ),
                       ),
                       const SizedBox(height: 18),
+                      ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        childrenPadding: const EdgeInsets.only(bottom: 12),
+                        title: const Text('Bağlı notlar'),
+                        leading: const Icon(
+                          Icons.description_outlined,
+                          size: 19,
+                        ),
+                        children: <Widget>[
+                          LinkedNotesSection(cardId: card.id),
+                        ],
+                      ),
                       ExpansionTile(
                         tilePadding: EdgeInsets.zero,
                         childrenPadding: const EdgeInsets.only(bottom: 12),
