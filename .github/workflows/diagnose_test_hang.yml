@@ -1,0 +1,66 @@
+name: Diagnose test hang
+
+on:
+  push:
+    branches:
+      - agent/test-hang-diagnostic
+    paths:
+      - tools/diagnose_test_hang.trigger
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: core-new
+            paths: >-
+              test/core/remote/supabase_rls_security_test.dart
+              test/core/services/notification_service_test.dart
+              test/core/sync/attachment_transfer_resilience_test.dart
+              test/core/sync/sync_queue_screen_test.dart
+              test/core/sync/two_client_sync_test.dart
+          - name: features-a
+            paths: >-
+              test/features/accessibility_test.dart
+              test/features/attachments_lru_cache_test.dart
+              test/features/attachments_reconciliation_test.dart
+              test/features/conflicts_diff_view_test.dart
+          - name: features-b
+            paths: >-
+              test/features/kanban_performance_test.dart
+              test/features/notes_editor_ux_test.dart
+              test/features/reminders_reconciliation_test.dart
+              test/features/search_performance_test.dart
+          - name: integration-new
+            paths: >-
+              test/integration/process_death_recovery_test.dart
+              test/integration/supabase_two_client_sync_e2e_test.dart
+          - name: performance-new
+            paths: test/performance/performance_regression_test.dart
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - name: Run isolated group with hard timeout
+        shell: bash
+        run: |
+          set +e
+          timeout --signal=TERM --kill-after=10s 180s flutter test ${{ matrix.paths }} --reporter expanded
+          code=$?
+          echo "diagnostic_exit_code=$code"
+          if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
+            echo "::error::TEST_GROUP_TIMEOUT:${{ matrix.name }}"
+          fi
+          exit "$code"
