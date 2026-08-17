@@ -38,7 +38,6 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
       ORDER BY l.updated_at DESC
       ''',
       variables: <Variable<Object>>[Variable<String>(cardId)],
-      readsFrom: <ResultSetImplementation>{_database.notes, _database.cards},
     ).get();
     return rows
         .map(
@@ -64,7 +63,6 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
       LIMIT 1
       ''',
       variables: <Variable<Object>>[Variable<String>(noteId)],
-      readsFrom: <ResultSetImplementation>{_database.cards},
     ).getSingleOrNull();
     return row?.read<String>('card_id');
   }
@@ -76,7 +74,9 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
     required String columnId,
     required String title,
   }) async {
-    final String cleanTitle = title.trim().isEmpty ? 'Başlıksız not' : title.trim();
+    final String cleanTitle = title.trim().isEmpty
+        ? 'Başlıksız not'
+        : title.trim();
     final String cardId = await _kanban.createCard(
       boardId: boardId,
       columnId: columnId,
@@ -176,7 +176,8 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
       ''',
       variables: <Variable<Object>>[Variable<String>(noteId)],
     ).getSingleOrNull();
-    if (existing == null || existing.readNullable<String>('deleted_at') != null) {
+    if (existing == null ||
+        existing.readNullable<String>('deleted_at') != null) {
       return;
     }
 
