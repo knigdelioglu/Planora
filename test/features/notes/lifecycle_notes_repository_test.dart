@@ -62,9 +62,9 @@ void main() {
       when(() => notes.deletePermanently('note_1')).thenAnswer((_) async {});
 
       final LifecycleNotesRepository repository = LifecycleNotesRepository(
-        delegate: notes,
-        attachments: attachments,
-        reminders: reminders,
+        notes,
+        attachments,
+        reminders,
       );
 
       await repository.deletePermanently('note_1');
