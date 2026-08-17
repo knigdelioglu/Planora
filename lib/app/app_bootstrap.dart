@@ -62,14 +62,11 @@ final class AppBootstrap {
 
       final NetworkInfo network = ConnectivityNetworkInfo();
       final EncryptedFileStorageService encryptedStorage =
-          EncryptedFileStorageService(
-            delegate: SandboxFileStorageService(),
-            keyService: dataKeys,
-          );
+          EncryptedFileStorageService(SandboxFileStorageService(), dataKeys);
       final FileStorageService storage = encryptedStorage;
       final RemoteGateway remote = rawRemote is DisabledRemoteGateway
           ? rawRemote
-          : SecureRemoteGateway(delegate: rawRemote, storage: encryptedStorage);
+          : SecureRemoteGateway(rawRemote, encryptedStorage);
       final FilePickerService picker = PlatformFilePickerService();
       final SyncQueueRepository queue = DriftSyncQueueRepository(
         database: database,
@@ -117,9 +114,9 @@ final class AppBootstrap {
         clock: clock,
       );
       final NotesRepository notes = LifecycleNotesRepository(
-        delegate: rawNotes,
-        attachments: attachments,
-        reminders: reminders,
+        rawNotes,
+        attachments,
+        reminders,
       );
       final KanbanRepository kanban = LifecycleKanbanRepository(
         delegate: DriftKanbanRepository(
