@@ -10,6 +10,7 @@ import 'package:not_app/core/services/file_storage_service.dart';
 import 'package:not_app/core/services/notification_service.dart';
 import 'package:not_app/core/settings/app_settings_repository.dart';
 import 'package:not_app/core/sync/local_entity_store.dart';
+import 'package:not_app/core/sync/policy_sync_queue_repository.dart';
 import 'package:not_app/core/sync/sync_coordinator.dart';
 import 'package:not_app/core/sync/sync_engine.dart';
 import 'package:not_app/core/sync/sync_queue_repository.dart';
@@ -60,9 +61,13 @@ final class AppBootstrap {
       final NetworkInfo network = ConnectivityNetworkInfo();
       final FileStorageService storage = SandboxFileStorageService();
       final FilePickerService picker = PlatformFilePickerService();
-      final SyncQueueRepository queue = DriftSyncQueueRepository(
+      final SyncQueueRepository baseQueue = DriftSyncQueueRepository(
         database: database,
         clock: clock,
+      );
+      final SyncQueueRepository queue = PolicySyncQueueRepository(
+        delegate: baseQueue,
+        database: database,
       );
       final LocalEntityStore localStore = LocalEntityStore(
         database: database,
