@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
 import 'package:not_app/features/attachments/data/repositories/attachments_repository_impl.dart';
+import 'package:not_app/features/attachments/domain/attachment_backup_policy.dart';
 import 'package:not_app/features/attachments/domain/entities/attachment.dart';
 import 'package:not_app/features/attachments/presentation/attachment_file_opener.dart';
 
@@ -36,22 +37,33 @@ class AttachmentsSection extends ConsumerWidget {
               children: data
                   .map((item) {
                     final double? progress = progressMap[item.id];
-                    final String sizeText =
-                        '${(item.sizeBytes / 1024).ceil()} KB';
-                    final String statusLabel = item.transferStatusLabel(
-                      progress,
+                    final String sizeText = AttachmentBackupPolicy.formatBytes(
+                      item.sizeBytes,
                     );
-                    final bool isTransferring = item.isTransferring;
-                    final bool canRetry = item.canRetry;
+                    final bool exceedsCloudLimit =
+                        !const AttachmentBackupPolicy().allowsSize(
+                          item.sizeBytes,
+                        ) &&
+                        item.remotePath == null;
+                    final bool localOnly = item.isLocalOnly || exceedsCloudLimit;
+                    final String statusLabel = localOnly
+                        ? 'Cihazda · Buluta yedeklenmiyor'
+                        : item.transferStatusLabel(progress);
+                    final bool isTransferring = item.isTransferring && !localOnly;
+                    final bool canRetry = item.canRetry && !localOnly;
 
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: Icon(
-                        item.mimeType?.startsWith('image/') == true
+                        localOnly
+                            ? Icons.cloud_off_outlined
+                            : item.mimeType?.startsWith('image/') == true
                             ? Icons.image_outlined
                             : Icons.insert_drive_file_outlined,
                         color: canRetry
                             ? Theme.of(context).colorScheme.error
+                            : localOnly
+                            ? Theme.of(context).colorScheme.tertiary
                             : null,
                       ),
                       title: Text(item.fileName),
@@ -60,6 +72,15 @@ class AttachmentsSection extends ConsumerWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
                           Text('$sizeText · $statusLabel'),
+                          if (localOnly) ...<Widget>[
+                            const SizedBox(height: 3),
+                            Text(
+                              'Bu ek yalnızca bu cihazda tutulur; diğer cihazlarda otomatik görünmez.',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.tertiary,
+                              ),
+                            ),
+                          ],
                           if (isTransferring) ...<Widget>[
                             const SizedBox(height: 4),
                             ClipRRect(
