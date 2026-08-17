@@ -1,0 +1,39 @@
+name: Diagnose Flutter analyze
+
+on:
+  push:
+    paths:
+      - tools/analyze.trigger
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Capture analyzer output
+        shell: bash
+        run: |
+          set +e
+          flutter analyze 2>&1 | tee analyze.log
+          status=${PIPESTATUS[0]}
+          echo "$status" > analyze.exitcode
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flutter-analyze-diagnostic
+          path: |
+            analyze.log
+            analyze.exitcode
+          if-no-files-found: error
