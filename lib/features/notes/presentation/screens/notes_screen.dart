@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
@@ -5,9 +7,12 @@ import 'package:not_app/app/router/app_router.dart';
 import 'package:not_app/app/widgets/common_widgets.dart';
 import 'package:not_app/app/widgets/content/app_content.dart';
 import 'package:not_app/app/widgets/navigation/app_toolbar.dart';
+import 'package:not_app/core/settings/app_settings_repository.dart';
 import 'package:not_app/features/kanban/presentation/widgets/kanban_color.dart';
 import 'package:not_app/features/notes/domain/entities/note.dart';
 import 'package:not_app/features/notes/presentation/screens/note_editor_screen.dart';
+import 'package:not_app/features/notes/presentation/widgets/note_grid_card.dart';
+import 'package:not_app/features/notes/presentation/widgets/note_move_to_kanban_dialog.dart';
 
 class NotesScreen extends ConsumerStatefulWidget {
   const NotesScreen({super.key});
@@ -39,6 +44,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     await AppRouter.push<void>(context, NoteEditorScreen(noteId: id));
   }
 
+  Future<void> _open(NoteEntity note) async {
+    final repository = ref.read(notesRepositoryProvider);
+    await repository.markOpened(note.id);
+    if (!mounted) return;
+    await AppRouter.push<void>(context, NoteEditorScreen(noteId: note.id));
+  }
+
   Future<void> _changeColor(NoteEntity note) async {
     final settings = ref.read(settingsRepositoryProvider);
     final String? current = await settings
@@ -52,6 +64,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     );
     if (value == null) return;
     await settings.setEntityColor('note', note.id, value.colorHex);
+  }
+
+  Future<void> _moveToKanban(NoteEntity note) async {
+    final bool moved = await showMoveNoteToKanbanDialog(context, note: note);
+    if (!mounted || !moved) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Not panoya taşındı.')),
+    );
   }
 
   Future<void> _trash(NoteEntity note) async {
@@ -69,265 +89,303 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     );
   }
 
+  Widget _listView(
+    List<NoteEntity> notes,
+    double horizontal,
+    dynamic repository,
+    AppSettingsRepository settings,
+  ) {
+    return ListView.builder(
+      padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 32),
+      itemCount: notes.length,
+      itemBuilder: (context, index) {
+        final NoteEntity note = notes[index];
+        return StreamBuilder<String?>(
+          stream: settings.watchEntityColor('note', note.id),
+          builder: (context, colorSnapshot) {
+            final Color? accent = colorFromHex(colorSnapshot.data);
+            final String preview = note.document.plainText.trim();
+            return AppListRow(
+              leading: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  AppEntityColorIndicator(color: accent),
+                  const SizedBox(width: 9),
+                  Icon(
+                    note.isDeleted
+                        ? Icons.delete_outline_rounded
+                        : Icons.description_outlined,
+                    size: 19,
+                  ),
+                ],
+              ),
+              title: Text(
+                note.title.trim().isEmpty ? 'Başlıksız not' : note.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                preview.isEmpty ? 'İçerik yok' : preview.replaceAll('\n', ' '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: note.isDeleted
+                  ? PopupMenuButton<String>(
+                      tooltip: 'Çöp kutusu işlemleri',
+                      onSelected: (value) async {
+                        if (value == 'restore') {
+                          await repository.restore(note.id);
+                        } else if (value == 'delete') {
+                          final bool confirmed =
+                              await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Kalıcı olarak silinsin mi?'),
+                                  content: const Text(
+                                    'Bu not geri alınamayacak şekilde silinecek.',
+                                  ),
+                                  actions: <Widget>[
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context, false),
+                                      child: const Text('Vazgeç'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () => Navigator.pop(context, true),
+                                      child: const Text('Kalıcı sil'),
+                                    ),
+                                  ],
+                                ),
+                              ) ??
+                              false;
+                          if (confirmed) {
+                            await repository.deletePermanently(note.id);
+                          }
+                        }
+                      },
+                      itemBuilder: (_) => const <PopupMenuEntry<String>>[
+                        PopupMenuItem(value: 'restore', child: Text('Geri yükle')),
+                        PopupMenuItem(value: 'delete', child: Text('Kalıcı sil')),
+                      ],
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        if (note.isFavorite)
+                          IconButton(
+                            tooltip: 'Favoriden çıkar',
+                            onPressed: () => repository.setFavorite(note.id, false),
+                            icon: const Icon(Icons.star_rounded, size: 19),
+                          ),
+                        PopupMenuButton<String>(
+                          tooltip: 'Not işlemleri',
+                          onSelected: (value) async {
+                            if (value == 'favorite') {
+                              await repository.setFavorite(note.id, !note.isFavorite);
+                            } else if (value == 'color') {
+                              await _changeColor(note);
+                            } else if (value == 'move') {
+                              await _moveToKanban(note);
+                            } else if (value == 'trash') {
+                              await _trash(note);
+                            }
+                          },
+                          itemBuilder: (_) => <PopupMenuEntry<String>>[
+                            PopupMenuItem(
+                              value: 'favorite',
+                              child: Text(
+                                note.isFavorite ? 'Favoriden çıkar' : 'Favoriye ekle',
+                              ),
+                            ),
+                            const PopupMenuItem(value: 'color', child: Text('Rengi değiştir')),
+                            const PopupMenuItem(value: 'move', child: Text('Panoya taşı')),
+                            const PopupMenuDivider(),
+                            const PopupMenuItem(value: 'trash', child: Text('Çöpe taşı')),
+                          ],
+                        ),
+                      ],
+                    ),
+              onTap: note.isDeleted ? null : () => unawaited(_open(note)),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _gridView(
+    List<NoteEntity> notes,
+    double horizontal,
+    dynamic repository,
+    AppSettingsRepository settings,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double width = constraints.maxWidth;
+        final int crossAxisCount = switch (width) {
+          < 520 => 2,
+          < 820 => 3,
+          < 1200 => 4,
+          _ => 5,
+        };
+        return GridView.builder(
+          padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 32),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            mainAxisExtent: 226,
+          ),
+          itemCount: notes.length,
+          itemBuilder: (context, index) {
+            final NoteEntity note = notes[index];
+            return StreamBuilder<String?>(
+              stream: settings.watchEntityColor('note', note.id),
+              builder: (context, colorSnapshot) {
+                final Color? accent = colorFromHex(colorSnapshot.data);
+                final String plain = note.document.plainText.trim();
+                final String preview = plain.isEmpty
+                    ? 'İçerik yok'
+                    : plain.replaceAll('\n', ' ');
+                return NoteGridCard(
+                  title: note.title.trim().isEmpty ? 'Başlıksız not' : note.title,
+                  preview: preview,
+                  updatedAt: note.updatedAt,
+                  isFavorite: note.isFavorite,
+                  accent: accent,
+                  onTap: () => unawaited(_open(note)),
+                  onToggleFavorite: () => unawaited(
+                    repository.setFavorite(note.id, !note.isFavorite),
+                  ),
+                  onChangeColor: () => unawaited(_changeColor(note)),
+                  onMoveToKanban: () => unawaited(_moveToKanban(note)),
+                  onTrash: () => unawaited(_trash(note)),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final repository = ref.watch(notesRepositoryProvider);
     final settings = ref.watch(settingsRepositoryProvider);
-    return Column(
-      children: <Widget>[
-        AppToolbar(
-          title: 'Notlar',
-          status: _filter == NoteFilter.all
-              ? null
-              : Text(
-                  _label(_filter),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-          actions: <Widget>[
-            PopupMenuButton<NoteFilter>(
-              tooltip: 'Not filtresi',
-              initialValue: _filter,
-              onSelected: (value) => setState(() => _filter = value),
-              itemBuilder: (_) => NoteFilter.values
-                  .map(
-                    (value) => PopupMenuItem<NoteFilter>(
-                      value: value,
-                      child: Row(
-                        children: <Widget>[
-                          Icon(_filterIcon(value), size: 18),
-                          const SizedBox(width: 9),
-                          Text(_label(value)),
-                          if (_filter == value) ...<Widget>[
-                            const Spacer(),
-                            const Icon(Icons.check_rounded, size: 18),
-                          ],
-                        ],
+    return StreamBuilder<NoteViewMode>(
+      stream: settings.watchNotesViewMode(),
+      initialData: NoteViewMode.list,
+      builder: (context, viewSnapshot) {
+        final NoteViewMode viewMode = viewSnapshot.data ?? NoteViewMode.list;
+        return Column(
+          children: <Widget>[
+            AppToolbar(
+              title: 'Notlar',
+              status: _filter == NoteFilter.all
+                  ? null
+                  : Text(_label(_filter), style: Theme.of(context).textTheme.bodySmall),
+              actions: <Widget>[
+                if (_filter != NoteFilter.trash)
+                  SegmentedButton<NoteViewMode>(
+                    showSelectedIcon: false,
+                    segments: const <ButtonSegment<NoteViewMode>>[
+                      ButtonSegment(
+                        value: NoteViewMode.list,
+                        icon: Icon(Icons.view_list_rounded, size: 18),
+                        tooltip: 'Liste görünümü',
                       ),
-                    ),
-                  )
-                  .toList(growable: false),
-              icon: const Icon(Icons.filter_list_rounded),
-            ),
-            if (_filter != NoteFilter.trash)
-              FilledButton.icon(
-                onPressed: _create,
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Yeni not'),
-              ),
-          ],
-        ),
-        Expanded(
-          child: StreamBuilder<List<NoteEntity>>(
-            stream: repository.watchNotes(_filter),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return ErrorState(message: snapshot.error.toString());
-              }
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final List<NoteEntity> notes = snapshot.requireData;
-              if (notes.isEmpty) {
-                return EmptyState(
-                  icon: _filter == NoteFilter.trash
-                      ? Icons.delete_outline_rounded
-                      : Icons.note_add_outlined,
-                  title: _filter == NoteFilter.trash
-                      ? 'Çöp kutusu boş'
-                      : _filter == NoteFilter.favorites
-                      ? 'Favori not yok'
-                      : 'Henüz not yok',
-                  message: _filter == NoteFilter.trash
-                      ? 'Sildiğiniz notlar burada görünür.'
-                      : 'Fikirlerinizi, listelerinizi ve belgelerinizi burada tutabilirsiniz.',
-                  action: _filter == NoteFilter.trash
-                      ? null
-                      : FilledButton(
-                          onPressed: _create,
-                          child: const Text('Yeni not oluştur'),
-                        ),
-                );
-              }
-              return LayoutBuilder(
-                builder: (context, constraints) {
-                  final double horizontal = constraints.maxWidth < 600
-                      ? 12
-                      : 24;
-                  return ListView.builder(
-                    padding: EdgeInsets.fromLTRB(
-                      horizontal,
-                      12,
-                      horizontal,
-                      32,
-                    ),
-                    itemCount: notes.length,
-                    itemBuilder: (context, index) {
-                      final NoteEntity note = notes[index];
-                      return StreamBuilder<String?>(
-                        stream: settings.watchEntityColor('note', note.id),
-                        builder: (context, colorSnapshot) {
-                          final Color? accent = colorFromHex(
-                            colorSnapshot.data,
-                          );
-                          final String preview = note.document.plainText.trim();
-                          return AppListRow(
-                            leading: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                AppEntityColorIndicator(color: accent),
-                                const SizedBox(width: 9),
-                                Icon(
-                                  note.isDeleted
-                                      ? Icons.delete_outline_rounded
-                                      : Icons.description_outlined,
-                                  size: 19,
-                                ),
+                      ButtonSegment(
+                        value: NoteViewMode.grid,
+                        icon: Icon(Icons.grid_view_rounded, size: 18),
+                        tooltip: 'Kart görünümü',
+                      ),
+                    ],
+                    selected: <NoteViewMode>{viewMode},
+                    onSelectionChanged: (selection) {
+                      if (selection.isNotEmpty) {
+                        unawaited(settings.setNotesViewMode(selection.first));
+                      }
+                    },
+                  ),
+                PopupMenuButton<NoteFilter>(
+                  tooltip: 'Not filtresi',
+                  initialValue: _filter,
+                  onSelected: (value) => setState(() => _filter = value),
+                  itemBuilder: (_) => NoteFilter.values
+                      .map(
+                        (value) => PopupMenuItem<NoteFilter>(
+                          value: value,
+                          child: Row(
+                            children: <Widget>[
+                              Icon(_filterIcon(value), size: 18),
+                              const SizedBox(width: 9),
+                              Text(_label(value)),
+                              if (_filter == value) ...<Widget>[
+                                const Spacer(),
+                                const Icon(Icons.check_rounded, size: 18),
                               ],
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  icon: const Icon(Icons.filter_list_rounded),
+                ),
+                if (_filter != NoteFilter.trash)
+                  FilledButton.icon(
+                    onPressed: _create,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Yeni not'),
+                  ),
+              ],
+            ),
+            Expanded(
+              child: StreamBuilder<List<NoteEntity>>(
+                stream: repository.watchNotes(_filter),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return ErrorState(message: snapshot.error.toString());
+                  }
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final List<NoteEntity> notes = snapshot.requireData;
+                  if (notes.isEmpty) {
+                    return EmptyState(
+                      icon: _filter == NoteFilter.trash
+                          ? Icons.delete_outline_rounded
+                          : Icons.note_add_outlined,
+                      title: _filter == NoteFilter.trash
+                          ? 'Çöp kutusu boş'
+                          : _filter == NoteFilter.favorites
+                          ? 'Favori not yok'
+                          : 'Henüz not yok',
+                      message: _filter == NoteFilter.trash
+                          ? 'Sildiğiniz notlar burada görünür.'
+                          : 'Fikirlerinizi, listelerinizi ve belgelerinizi burada tutabilirsiniz.',
+                      action: _filter == NoteFilter.trash
+                          ? null
+                          : FilledButton(
+                              onPressed: _create,
+                              child: const Text('Yeni not oluştur'),
                             ),
-                            title: Text(
-                              note.title.trim().isEmpty
-                                  ? 'Başlıksız not'
-                                  : note.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              preview.isEmpty
-                                  ? 'İçerik yok'
-                                  : preview.replaceAll('\n', ' '),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: note.isDeleted
-                                ? PopupMenuButton<String>(
-                                    tooltip: 'Çöp kutusu işlemleri',
-                                    onSelected: (value) async {
-                                      if (value == 'restore') {
-                                        await repository.restore(note.id);
-                                      } else if (value == 'delete') {
-                                        final bool confirmed =
-                                            await showDialog<bool>(
-                                              context: context,
-                                              builder: (context) => AlertDialog(
-                                                title: const Text(
-                                                  'Kalıcı olarak silinsin mi?',
-                                                ),
-                                                content: const Text(
-                                                  'Bu not geri alınamayacak şekilde silinecek.',
-                                                ),
-                                                actions: <Widget>[
-                                                  TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(
-                                                          context,
-                                                          false,
-                                                        ),
-                                                    child: const Text('Vazgeç'),
-                                                  ),
-                                                  FilledButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(
-                                                          context,
-                                                          true,
-                                                        ),
-                                                    child: const Text(
-                                                      'Kalıcı sil',
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ) ??
-                                            false;
-                                        if (confirmed) {
-                                          await repository.deletePermanently(
-                                            note.id,
-                                          );
-                                        }
-                                      }
-                                    },
-                                    itemBuilder: (_) =>
-                                        const <PopupMenuEntry<String>>[
-                                          PopupMenuItem(
-                                            value: 'restore',
-                                            child: Text('Geri yükle'),
-                                          ),
-                                          PopupMenuItem(
-                                            value: 'delete',
-                                            child: Text('Kalıcı sil'),
-                                          ),
-                                        ],
-                                  )
-                                : Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: <Widget>[
-                                      if (note.isFavorite)
-                                        IconButton(
-                                          tooltip: 'Favoriden çıkar',
-                                          onPressed: () => repository
-                                              .setFavorite(note.id, false),
-                                          icon: const Icon(
-                                            Icons.star_rounded,
-                                            size: 19,
-                                          ),
-                                        ),
-                                      PopupMenuButton<String>(
-                                        tooltip: 'Not işlemleri',
-                                        onSelected: (value) async {
-                                          if (value == 'favorite') {
-                                            await repository.setFavorite(
-                                              note.id,
-                                              !note.isFavorite,
-                                            );
-                                          } else if (value == 'color') {
-                                            await _changeColor(note);
-                                          } else if (value == 'trash') {
-                                            await _trash(note);
-                                          }
-                                        },
-                                        itemBuilder: (_) =>
-                                            <PopupMenuEntry<String>>[
-                                              PopupMenuItem(
-                                                value: 'favorite',
-                                                child: Text(
-                                                  note.isFavorite
-                                                      ? 'Favoriden çıkar'
-                                                      : 'Favoriye ekle',
-                                                ),
-                                              ),
-                                              const PopupMenuItem(
-                                                value: 'color',
-                                                child: Text('Rengi değiştir'),
-                                              ),
-                                              const PopupMenuDivider(),
-                                              const PopupMenuItem(
-                                                value: 'trash',
-                                                child: Text('Çöpe taşı'),
-                                              ),
-                                            ],
-                                      ),
-                                    ],
-                                  ),
-                            onTap: note.isDeleted
-                                ? null
-                                : () async {
-                                    await repository.markOpened(note.id);
-                                    if (!context.mounted) return;
-                                    await AppRouter.push<void>(
-                                      context,
-                                      NoteEditorScreen(noteId: note.id),
-                                    );
-                                  },
-                          );
-                        },
-                      );
+                    );
+                  }
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final double horizontal = constraints.maxWidth < 600 ? 12 : 24;
+                      if (_filter == NoteFilter.trash || viewMode == NoteViewMode.list) {
+                        return _listView(notes, horizontal, repository, settings);
+                      }
+                      return _gridView(notes, horizontal, repository, settings);
                     },
                   );
                 },
-              );
-            },
-          ),
-        ),
-      ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
