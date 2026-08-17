@@ -5,6 +5,7 @@ import 'package:not_app/core/database/app_database.dart';
 import 'package:not_app/core/logging/app_logger.dart';
 import 'package:not_app/core/network/network_info.dart';
 import 'package:not_app/core/sync/sync_engine.dart';
+import 'package:not_app/core/sync/sync_queue_repository.dart';
 import 'package:not_app/core/utils/clock.dart';
 
 final class SyncHealthState {
@@ -26,6 +27,7 @@ final class SyncCoordinator {
     required this._networkInfo,
     required this._authService,
     required this._engine,
+    required this._queue,
     required this._database,
     required this._clock,
     required this._reconcileReminders,
@@ -34,10 +36,13 @@ final class SyncCoordinator {
 
   static const String _lastSuccessKey = 'last_successful_sync_at';
   static const String _lastErrorKey = 'last_sync_error';
+  static const String _localOwnerKey = 'local_owner_user_id';
+  static const Duration _mutationDebounce = Duration(seconds: 1);
 
   final NetworkInfo _networkInfo;
   final AuthService _authService;
   final SyncEngine _engine;
+  final SyncQueueRepository _queue;
   final AppDatabase _database;
   final AppClock _clock;
   final Future<void> Function() _reconcileReminders;
@@ -47,6 +52,8 @@ final class SyncCoordinator {
 
   StreamSubscription<bool>? _networkSubscription;
   StreamSubscription<AuthSessionState>? _authSubscription;
+  StreamSubscription<int>? _queueSubscription;
+  Timer? _queueDebounce;
   Timer? _periodic;
   Completer<SyncRunResult>? _inFlight;
   bool _pendingFollowUp = false;
@@ -78,6 +85,14 @@ final class SyncCoordinator {
     _authSubscription = _authService.watchState().listen((state) {
       if (state.isSignedIn) unawaited(syncNow());
     });
+    _queueSubscription = _queue.watchPendingCount().listen((pendingCount) {
+      if (pendingCount <= 0) return;
+      _queueDebounce?.cancel();
+      _queueDebounce = Timer(
+        _mutationDebounce,
+        () => unawaited(syncNow()),
+      );
+    });
     _periodic = Timer.periodic(
       const Duration(minutes: 5),
       (_) => unawaited(syncNow()),
@@ -96,7 +111,11 @@ final class SyncCoordinator {
   }
 
   Future<SyncRunResult> syncNow() async {
-    if (!_authService.currentState.isSignedIn) {
+    final AuthSessionState authState = _authService.currentState;
+    if (!authState.isSignedIn) {
+      return const SyncRunResult(pushed: 0, pulled: 0, conflicts: 0);
+    }
+    if (!await _bindOrValidateLocalOwner(authState)) {
       return const SyncRunResult(pushed: 0, pulled: 0, conflicts: 0);
     }
     if (_inFlight != null) {
@@ -174,12 +193,16 @@ final class SyncCoordinator {
   }
 
   Future<void> stop() async {
+    _queueDebounce?.cancel();
+    _queueDebounce = null;
     _periodic?.cancel();
     _periodic = null;
     await _networkSubscription?.cancel();
     await _authSubscription?.cancel();
+    await _queueSubscription?.cancel();
     _networkSubscription = null;
     _authSubscription = null;
+    _queueSubscription = null;
     if (_inFlight != null) {
       try {
         await _inFlight!.future;
@@ -199,6 +222,32 @@ final class SyncCoordinator {
         lastError: error,
       ),
     );
+  }
+
+  Future<bool> _bindOrValidateLocalOwner(AuthSessionState authState) async {
+    final String? userId = authState.userId?.trim();
+    if (userId == null || userId.isEmpty) return false;
+
+    final String? owner = await _readMeta(_localOwnerKey);
+    if (owner == null || owner.isEmpty) {
+      await _writeMeta(_localOwnerKey, userId);
+      return true;
+    }
+    if (owner == userId) return true;
+
+    const String error =
+        'This device database is already linked to another cloud account. '
+        'Sync was blocked to prevent cross-account data transfer.';
+    await _writeMeta(_lastErrorKey, error);
+    _setHealth(
+      SyncHealthState(
+        isOnline: _health.isOnline,
+        lastSuccessfulSyncAt: _health.lastSuccessfulSyncAt,
+        lastError: error,
+      ),
+    );
+    _logger.warning(error);
+    return false;
   }
 
   void _setHealth(SyncHealthState value) {
