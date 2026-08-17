@@ -1,11 +1,15 @@
 import 'package:not_app/core/database/app_database.dart';
 import 'package:not_app/core/utils/clock.dart';
 
+enum NoteViewMode { list, grid }
+
 abstract interface class AppSettingsRepository {
   Stream<String> watchThemeMode();
   Future<void> setThemeMode(String mode);
   Stream<int> watchCacheLimitBytes();
   Future<void> setCacheLimitBytes(int bytes);
+  Stream<NoteViewMode> watchNotesViewMode();
+  Future<void> setNotesViewMode(NoteViewMode mode);
   Stream<String?> watchEntityColor(String entityType, String entityId);
   Future<void> setEntityColor(
     String entityType,
@@ -44,6 +48,18 @@ final class DriftAppSettingsRepository implements AppSettingsRepository {
     }
     return _set('cache_limit_bytes', bytes.toString());
   }
+
+  @override
+  Stream<NoteViewMode> watchNotesViewMode() =>
+      _watch('notes_view_mode', NoteViewMode.list.name).map(
+        (value) => value == NoteViewMode.grid.name
+            ? NoteViewMode.grid
+            : NoteViewMode.list,
+      );
+
+  @override
+  Future<void> setNotesViewMode(NoteViewMode mode) =>
+      _set('notes_view_mode', mode.name);
 
   @override
   Stream<String?> watchEntityColor(String entityType, String entityId) {
