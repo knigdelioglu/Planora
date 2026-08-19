@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/ci-diagnostic-20260819
+      - merge/all-branches-20260819
     paths:
       - tools/quick_test.trigger
 
@@ -15,7 +16,7 @@ jobs:
   test:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:16
@@ -53,18 +54,21 @@ jobs:
           set +e
           report="$RUNNER_TEMP/quick-report.md"
           overall=0
-          echo '# Planora quick PostgreSQL test diagnostic' > "$report"
+          echo '# Planora all-branches validation' > "$report"
+          echo >> "$report"
+          echo "Commit: $GITHUB_SHA" >> "$report"
           echo >> "$report"
           for spec in \
             'Formatting|dart format --output=none --set-exit-if-changed lib test' \
             'Static analysis|flutter analyze' \
-            'All Flutter tests|flutter test --coverage' \
-            'Integration tests|flutter test test/integration'; do
+            'All Flutter tests|flutter test --coverage --concurrency=1' \
+            'Integration tests|flutter test test/integration --concurrency=1' \
+            'Android debug build|flutter build apk --debug'; do
             label="${spec%%|*}"
             cmd="${spec#*|}"
             log="$RUNNER_TEMP/$(echo "$label" | tr ' ' '_' | tr '[:upper:]' '[:lower:]').log"
             echo "## $label" >> "$report"
-            bash -lc "$cmd" > "$log" 2>&1
+            timeout 20m bash -lc "$cmd" > "$log" 2>&1
             code=$?
             if [ "$code" -eq 0 ]; then
               echo 'Status: PASS' >> "$report"
@@ -78,9 +82,9 @@ jobs:
             echo >> "$report"
           done
           if [ "$overall" -eq 0 ]; then
-            title='[CI quick] Planora tests PASS'
+            title='[CI quick] Planora all-branches PASS'
           else
-            title='[CI quick] Planora tests FAIL'
+            title='[CI quick] Planora all-branches FAIL'
           fi
           gh issue create --title "$title" --body-file "$report"
           exit "$overall"
