@@ -1,0 +1,60 @@
+name: Apply PostgreSQL harness fix
+
+on:
+  push:
+    branches:
+      - agent/ci-diagnostic-20260819
+      - merge/all-branches-20260819
+    paths:
+      - tools/apply_pg_harness_fix.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Enable RLS on local Storage mock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('test/helpers/postgres_rls_harness.dart')
+          text = path.read_text()
+          old = """  metadata jsonb DEFAULT '{}'::jsonb
+);
+
+CREATE OR REPLACE FUNCTION storage.foldername(name text)
+"""
+          new = """  metadata jsonb DEFAULT '{}'::jsonb
+);
+
+-- Supabase Storage ships storage.objects with RLS enabled. The local test
+-- double owns its mock table, so it must enable RLS explicitly before the
+-- production migration installs the application-specific policies.
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION storage.foldername(name text)
+"""
+          if 'ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;' in text:
+              raise SystemExit(0)
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one storage.objects anchor, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add test/helpers/postgres_rls_harness.dart
+          if git diff --cached --quiet; then
+            echo "PostgreSQL harness already fixed."
+            exit 0
+          fi
+          git diff --cached --check
+          git commit -m "test: mirror Supabase Storage RLS in PostgreSQL harness"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

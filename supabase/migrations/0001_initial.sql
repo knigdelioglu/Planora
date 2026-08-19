@@ -125,8 +125,26 @@ insert into storage.buckets(id, name, public)
 values ('attachments', 'attachments', false)
 on conflict(id) do update set public = false;
 
--- Supabase manages RLS on storage.objects. Do not ALTER the Storage-owned table;
--- define only the application-specific access policies below.
+-- Supabase owns storage.objects in hosted projects and already enables RLS there.
+-- The PostgreSQL test harness creates its own local mock table. Enable RLS only
+-- when the current migration role actually owns that mock, so hosted Storage is
+-- never altered by this migration.
+do $$
+begin
+  if exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'storage'
+      and c.relname = 'objects'
+      and pg_get_userbyid(c.relowner) = current_user
+  ) then
+    alter table storage.objects enable row level security;
+  end if;
+end;
+$$;
+
+-- Define only the application-specific access policies below.
 drop policy if exists "attachments_select_own" on storage.objects;
 create policy "attachments_select_own" on storage.objects
 for select to authenticated

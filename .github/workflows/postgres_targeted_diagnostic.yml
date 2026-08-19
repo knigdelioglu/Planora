@@ -1,0 +1,79 @@
+name: Targeted PostgreSQL regressions
+
+on:
+  push:
+    branches:
+      - agent/ci-diagnostic-20260819
+    paths:
+      - tools/postgres_targeted.trigger
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  targeted:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v5
+      - name: Open tracking issue
+        id: issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          url=$(gh issue create --title '[CI targeted] PostgreSQL regressions' --body "Started at commit \`$GITHUB_SHA\` with postgres:16 service.")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: RLS security test
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_URL: ${{ steps.issue.outputs.url }}
+        shell: bash
+        run: |
+          set +e
+          timeout 8m flutter test test/core/remote/supabase_rls_security_test.dart > "$RUNNER_TEMP/rls.log" 2>&1
+          code=$?
+          { echo '## RLS security test'; echo "Exit: $code"; echo '```text'; tail -n 180 "$RUNNER_TEMP/rls.log"; echo '```'; } > "$RUNNER_TEMP/rls.md"
+          gh issue comment "$ISSUE_URL" --body-file "$RUNNER_TEMP/rls.md"
+          exit "$code"
+      - name: Two-client sync E2E
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_URL: ${{ steps.issue.outputs.url }}
+        shell: bash
+        run: |
+          set +e
+          timeout 8m flutter test test/integration/supabase_two_client_sync_e2e_test.dart > "$RUNNER_TEMP/e2e.log" 2>&1
+          code=$?
+          { echo '## Two-client sync E2E'; echo "Exit: $code"; echo '```text'; tail -n 180 "$RUNNER_TEMP/e2e.log"; echo '```'; } > "$RUNNER_TEMP/e2e.md"
+          gh issue comment "$ISSUE_URL" --body-file "$RUNNER_TEMP/e2e.md"
+          exit "$code"
