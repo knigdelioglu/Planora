@@ -125,8 +125,8 @@ insert into storage.buckets(id, name, public)
 values ('attachments', 'attachments', false)
 on conflict(id) do update set public = false;
 
-alter table storage.objects enable row level security;
-
+-- Supabase manages RLS on storage.objects. Do not ALTER the Storage-owned table;
+-- define only the application-specific access policies below.
 drop policy if exists "attachments_select_own" on storage.objects;
 create policy "attachments_select_own" on storage.objects
 for select to authenticated
