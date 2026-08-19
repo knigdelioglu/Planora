@@ -392,7 +392,6 @@ void main() {
       entityId: columnId,
       operationType: SyncOperationType.upsert,
       payload: <String, Object?>{
-        'board_id': boardId,
         'title': 'Column',
         'colorHex': null,
         'rank_key': 'hzzzzzzzzzzz',

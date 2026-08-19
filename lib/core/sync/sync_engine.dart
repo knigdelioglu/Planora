@@ -88,7 +88,8 @@ final class SyncEngine {
           afterRevision: cursor,
         );
         if (batch.isEmpty) break;
-        for (final RemoteEntity remote in _dependencyOrdered(batch)) {
+        for (final RemoteEntity remote in
+            _dependencyOrdered(_repairRemoteDependencies(batch))) {
           final int localVersion = await _localStore.localVersion(
             remote.entityType,
             remote.entityId,
@@ -159,6 +160,60 @@ final class SyncEngine {
       return first.syncRevision.compareTo(second.syncRevision);
     });
     return ordered;
+  }
+
+  List<RemoteEntity> _repairRemoteDependencies(List<RemoteEntity> batch) {
+    final Map<String, String> boardByColumn = <String, String>{};
+    for (final RemoteEntity entity in batch) {
+      if (entity.entityType != 'card') continue;
+      final String? columnId = _payloadText(
+        entity.payload,
+        'columnId',
+        'column_id',
+      );
+      final String? boardId = _payloadText(
+        entity.payload,
+        'boardId',
+        'board_id',
+      );
+      if (columnId != null && boardId != null) {
+        boardByColumn[columnId] = boardId;
+      }
+    }
+
+    return batch.map((RemoteEntity entity) {
+      if (entity.entityType != 'column') return entity;
+      final String? boardId = _payloadText(
+        entity.payload,
+        'boardId',
+        'board_id',
+      );
+      if (boardId != null) return entity;
+      final String? inferredBoardId = boardByColumn[entity.entityId];
+      if (inferredBoardId == null) return entity;
+      return RemoteEntity(
+        entityType: entity.entityType,
+        entityId: entity.entityId,
+        version: entity.version,
+        updatedAt: entity.updatedAt,
+        deletedAt: entity.deletedAt,
+        syncRevision: entity.syncRevision,
+        payload: <String, Object?>{
+          ...entity.payload,
+          'boardId': inferredBoardId,
+        },
+      );
+    }).toList(growable: false);
+  }
+
+  String? _payloadText(
+    Map<String, Object?> payload,
+    String primaryKey,
+    String legacyKey,
+  ) {
+    final Object? value = payload[primaryKey] ?? payload[legacyKey];
+    final String text = value?.toString().trim() ?? '';
+    return text.isEmpty ? null : text;
   }
 
   Future<bool> _push(SyncOperation operation) async {

@@ -219,12 +219,18 @@ final class LocalEntityStore {
             await _database.deleteSearchEntry('board', remote.entityId);
           }
         case 'column':
+          final BoardColumn? existing = await (_database.select(
+            _database.boardColumns,
+          )..where((tbl) => tbl.id.equals(remote.entityId))).getSingleOrNull();
+          final String? boardId =
+              _optionalText(p, 'boardId') ?? existing?.boardId;
+          if (boardId == null && deleted != null && existing == null) return;
           await _database
               .into(_database.boardColumns)
               .insertOnConflictUpdate(
                 BoardColumnsCompanion.insert(
                   id: remote.entityId,
-                  boardId: _requiredText(p, 'boardId', remote),
+                  boardId: boardId ?? _requiredText(p, 'boardId', remote),
                   title: (p['title'] ?? '').toString(),
                   colorHex: Value<String?>(p['colorHex'] as String?),
                   rankKey: Value<String>(
@@ -237,13 +243,25 @@ final class LocalEntityStore {
                 ),
               );
         case 'card':
+          final Card? existing = await (_database.select(
+            _database.cards,
+          )..where((tbl) => tbl.id.equals(remote.entityId))).getSingleOrNull();
+          final String? boardId =
+              _optionalText(p, 'boardId') ?? existing?.boardId;
+          final String? columnId =
+              _optionalText(p, 'columnId') ?? existing?.columnId;
+          if ((boardId == null || columnId == null) &&
+              deleted != null &&
+              existing == null) {
+            return;
+          }
           await _database
               .into(_database.cards)
               .insertOnConflictUpdate(
                 CardsCompanion.insert(
                   id: remote.entityId,
-                  boardId: _requiredText(p, 'boardId', remote),
-                  columnId: _requiredText(p, 'columnId', remote),
+                  boardId: boardId ?? _requiredText(p, 'boardId', remote),
+                  columnId: columnId ?? _requiredText(p, 'columnId', remote),
                   title: (p['title'] ?? '').toString(),
                   description: Value<String?>(p['description'] as String?),
                   rankKey: Value<String>(
@@ -269,6 +287,13 @@ final class LocalEntityStore {
           final String? noteId = p['noteId']?.toString();
           final String? cardId = p['cardId']?.toString();
           if (noteId == null || noteId.isEmpty || cardId == null || cardId.isEmpty) {
+            if (deleted != null) {
+              await _database.customStatement(
+                'DELETE FROM card_note_links WHERE id = ?',
+                <Object?>[remote.entityId],
+              );
+              return;
+            }
             throw StateError('Card-note link payload is incomplete.');
           }
           await _database.customStatement(
@@ -298,13 +323,23 @@ final class LocalEntityStore {
           final Attachment? existing = await (_database.select(
             _database.attachments,
           )..where((tbl) => tbl.id.equals(remote.entityId))).getSingleOrNull();
+          final String? parentType =
+              _optionalText(p, 'parentType') ?? existing?.parentType;
+          final String? parentId =
+              _optionalText(p, 'parentId') ?? existing?.parentId;
+          if ((parentType == null || parentId == null) &&
+              deleted != null &&
+              existing == null) {
+            return;
+          }
           await _database
               .into(_database.attachments)
               .insertOnConflictUpdate(
                 AttachmentsCompanion.insert(
                   id: remote.entityId,
-                  parentType: _requiredText(p, 'parentType', remote),
-                  parentId: _requiredText(p, 'parentId', remote),
+                  parentType:
+                      parentType ?? _requiredText(p, 'parentType', remote),
+                  parentId: parentId ?? _requiredText(p, 'parentId', remote),
                   fileName: (p['fileName'] ?? 'attachment').toString(),
                   localPath: existing?.localPath ?? '',
                   remotePath: Value<String?>(p['remotePath'] as String?),
@@ -323,13 +358,23 @@ final class LocalEntityStore {
           final Reminder? existing = await (_database.select(
             _database.reminders,
           )..where((tbl) => tbl.id.equals(remote.entityId))).getSingleOrNull();
+          final String? parentType =
+              _optionalText(p, 'parentType') ?? existing?.parentType;
+          final String? parentId =
+              _optionalText(p, 'parentId') ?? existing?.parentId;
+          if ((parentType == null || parentId == null) &&
+              deleted != null &&
+              existing == null) {
+            return;
+          }
           await _database
               .into(_database.reminders)
               .insertOnConflictUpdate(
                 RemindersCompanion.insert(
                   id: remote.entityId,
-                  parentType: _requiredText(p, 'parentType', remote),
-                  parentId: _requiredText(p, 'parentId', remote),
+                  parentType:
+                      parentType ?? _requiredText(p, 'parentType', remote),
+                  parentId: parentId ?? _requiredText(p, 'parentId', remote),
                   title: (p['title'] ?? '').toString(),
                   body: Value<String?>(p['body'] as String?),
                   scheduledAtUtc: _date(p['scheduledAtUtc']) ?? updated,
@@ -398,6 +443,12 @@ final class LocalEntityStore {
       );
     }
     return text;
+  }
+
+  String? _optionalText(Map<String, Object?> payload, String field) {
+    final Object? value = payload[field];
+    final String text = value?.toString().trim() ?? '';
+    return text.isEmpty ? null : text;
   }
 
   int _notificationIdFor(String id) {
