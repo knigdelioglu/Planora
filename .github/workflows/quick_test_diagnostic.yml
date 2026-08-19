@@ -1,0 +1,86 @@
+name: Quick PostgreSQL test diagnostic
+
+on:
+  push:
+    branches:
+      - agent/ci-diagnostic-20260819
+    paths:
+      - tools/quick_test.trigger
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - name: Run focused gates and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set +e
+          report="$RUNNER_TEMP/quick-report.md"
+          overall=0
+          echo '# Planora quick PostgreSQL test diagnostic' > "$report"
+          echo >> "$report"
+          for spec in \
+            'Formatting|dart format --output=none --set-exit-if-changed lib test' \
+            'Static analysis|flutter analyze' \
+            'All Flutter tests|flutter test --coverage' \
+            'Integration tests|flutter test test/integration'; do
+            label="${spec%%|*}"
+            cmd="${spec#*|}"
+            log="$RUNNER_TEMP/$(echo "$label" | tr ' ' '_' | tr '[:upper:]' '[:lower:]').log"
+            echo "## $label" >> "$report"
+            bash -lc "$cmd" > "$log" 2>&1
+            code=$?
+            if [ "$code" -eq 0 ]; then
+              echo 'Status: PASS' >> "$report"
+            else
+              echo "Status: FAIL (exit $code)" >> "$report"
+              overall=1
+            fi
+            echo '```text' >> "$report"
+            tail -n 220 "$log" >> "$report"
+            echo '```' >> "$report"
+            echo >> "$report"
+          done
+          if [ "$overall" -eq 0 ]; then
+            title='[CI quick] Planora tests PASS'
+          else
+            title='[CI quick] Planora tests FAIL'
+          fi
+          gh issue create --title "$title" --body-file "$report"
+          exit "$overall"

@@ -1,0 +1,135 @@
+name: CI diagnostic report
+
+on:
+  push:
+    branches:
+      - agent/ci-diagnostic-20260819
+    paths:
+      - tools/ci_diagnostic.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      SUPABASE_URL: ${{ secrets.NOT_SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NOT_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+
+      - name: Run diagnostic suite
+        id: diag
+        shell: bash
+        run: |
+          set +e
+          mkdir -p tools/ci_diagnostic_logs
+          report="tools/CI_DIAGNOSTIC_RESULT.md"
+          : > "$report"
+          overall=0
+
+          {
+            echo "# Planora CI diagnostic"
+            echo
+            echo "Commit: $GITHUB_SHA"
+            echo "Runner: $RUNNER_OS"
+            echo "Flutter requested: 3.44.8 stable"
+            echo
+          } >> "$report"
+
+          run_check() {
+            label="$1"
+            logfile="$2"
+            shift 2
+            echo "## $label" >> "$report"
+            timeout 20m "$@" > "$logfile" 2>&1
+            code=$?
+            if [ "$code" -eq 0 ]; then
+              echo "Status: PASS" >> "$report"
+            else
+              echo "Status: FAIL (exit $code)" >> "$report"
+              overall=1
+            fi
+            echo >> "$report"
+            echo '```text' >> "$report"
+            tail -n 120 "$logfile" >> "$report"
+            echo '```' >> "$report"
+            echo >> "$report"
+          }
+
+          run_check "Flutter version" tools/ci_diagnostic_logs/flutter_version.log flutter --version
+          run_check "Resolve dependencies" tools/ci_diagnostic_logs/pub_get.log flutter pub get
+          run_check "Generate sources" tools/ci_diagnostic_logs/build_runner.log dart run build_runner build --delete-conflicting-outputs
+          run_check "Formatting" tools/ci_diagnostic_logs/format.log dart format --output=none --set-exit-if-changed lib test
+          run_check "Static analysis" tools/ci_diagnostic_logs/analyze.log flutter analyze
+          run_check "Flutter test --coverage" tools/ci_diagnostic_logs/flutter_test.log flutter test --coverage
+          run_check "Integration tests" tools/ci_diagnostic_logs/integration.log flutter test test/integration
+          run_check "Android debug build" tools/ci_diagnostic_logs/android_debug.log flutter build apk --debug
+
+          echo "## Supabase repository secrets" >> "$report"
+          secret_ok=1
+          if [ -z "${SUPABASE_URL:-}" ]; then
+            echo "NOT_SUPABASE_URL: MISSING" >> "$report"
+            secret_ok=0
+          elif [[ ! "$SUPABASE_URL" =~ ^https://[^/]+\.supabase\.co/?$ ]]; then
+            echo "NOT_SUPABASE_URL: PRESENT BUT INVALID FORMAT" >> "$report"
+            secret_ok=0
+          else
+            echo "NOT_SUPABASE_URL: PRESENT / FORMAT OK" >> "$report"
+          fi
+
+          if [ -z "${SUPABASE_PUBLISHABLE_KEY:-}" ]; then
+            echo "NOT_SUPABASE_PUBLISHABLE_KEY: MISSING" >> "$report"
+            secret_ok=0
+          elif [[ "$SUPABASE_PUBLISHABLE_KEY" != sb_publishable_* && "$SUPABASE_PUBLISHABLE_KEY" != eyJ* ]]; then
+            echo "NOT_SUPABASE_PUBLISHABLE_KEY: PRESENT BUT INVALID FORMAT" >> "$report"
+            secret_ok=0
+          else
+            echo "NOT_SUPABASE_PUBLISHABLE_KEY: PRESENT / FORMAT OK" >> "$report"
+          fi
+          echo >> "$report"
+
+          if [ "$secret_ok" -eq 1 ]; then
+            run_check "Android release build with Supabase" tools/ci_diagnostic_logs/android_release.log flutter build apk --release --dart-define=APP_ENV=production --dart-define=SUPABASE_URL="$SUPABASE_URL" --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+          else
+            echo "## Android release build with Supabase" >> "$report"
+            echo "Status: SKIPPED because required repository secrets are missing or invalid." >> "$report"
+            echo >> "$report"
+            overall=1
+          fi
+
+          if [ "$overall" -eq 0 ]; then
+            echo "## Overall" >> "$report"
+            echo "PASS" >> "$report"
+          else
+            echo "## Overall" >> "$report"
+            echo "FAIL" >> "$report"
+          fi
+
+          echo "overall=$overall" >> "$GITHUB_OUTPUT"
+
+      - name: Commit diagnostic report
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/CI_DIAGNOSTIC_RESULT.md
+          git commit -m "ci: record diagnostic results" || exit 0
+          git push origin HEAD:agent/ci-diagnostic-20260819
+
+      - name: Mark diagnostic failure
+        if: steps.diag.outputs.overall != '0'
+        run: exit 1
