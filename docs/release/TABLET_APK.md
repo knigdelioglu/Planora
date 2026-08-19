@@ -9,7 +9,7 @@ Use `.github/workflows/android_tablet_apk.yml` instead.
 - Every relevant push to `main` automatically builds an installable Android APK.
 - `NOT_SUPABASE_URL` and `NOT_SUPABASE_PUBLISHABLE_KEY` are injected with `--dart-define` during the build.
 - Android release-keystore secrets are not required for this tablet-test APK.
-- The workflow uploads the artifact as `not-android-tablet-apk` containing `not-tablet.apk` and its SHA-256 checksum.
+- The workflow uploads the artifact as `planora-android-tablet-apk` containing `planora-tablet.apk` and its SHA-256 checksum.
 
 ## One-command installation
 

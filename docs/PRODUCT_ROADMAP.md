@@ -1,4 +1,4 @@
-# Not — Ürünleşme Yol Haritası
+# Planora — Ürünleşme Yol Haritası
 
 > **Durum:** Ürün geliştirme için bağlayıcı yürütme planı (Faz 0 - Faz 14 TAMAMLANDI; Faz 15-17 Sırada)  
 > **Başlangıç noktası:** Mimari ve kaynak kod iskeleti (Faz 0)  
@@ -6,7 +6,7 @@
 > **Hedef:** İmzalı paketler ve mağaza dağıtımına hazır son ürün sürümü  
 > **İlişkili belgeler:** `README.md`, `docs/SCOPE.md`, `docs/UX_DESIGN.md`, `docs/test_plans/DEVICE_REMINDER_TEST_PLAN.md`, `supabase/README.md`
 
-Bu belge `Not` uygulamasının başlangıç iskeletinden nihai ürün seviyesine ulaşmasına kadar gereken geliştirme, doğrulama ve yayın süreçlerini sıralı fazlara böler.
+Bu belge `Planora` uygulamasının başlangıç iskeletinden nihai ürün seviyesine ulaşmasına kadar gereken geliştirme, doğrulama ve yayın süreçlerini sıralı fazlara böler.
 
 Bu yol haritası bir özellik istek listesi değildir. Her fazın:
 
@@ -754,7 +754,7 @@ Bir feature tamamlandı denebilmesi için:
 
 # 9. Definition of Done — Product
 
-`Not` ancak aşağıdaki şartların tümü sağlandığında ürün seviyesinde kabul edilir:
+`Planora` ancak aşağıdaki şartların tümü sağlandığında ürün seviyesinde kabul edilir:
 
 - [ ] macOS, iOS ve Android release build üretilebiliyor (Faz 16)
 - [x] Notes core tamam

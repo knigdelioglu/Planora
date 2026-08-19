@@ -59,15 +59,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cp build/app/outputs/flutter-apk/app-release.apk not-tablet.apk
-          sha256sum not-tablet.apk > not-tablet.apk.sha256
+          cp build/app/outputs/flutter-apk/app-release.apk planora-tablet.apk
+          sha256sum planora-tablet.apk > planora-tablet.apk.sha256
 
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: not-android-tablet-apk
+          name: planora-android-tablet-apk
           path: |
-            not-tablet.apk
-            not-tablet.apk.sha256
+            planora-tablet.apk
+            planora-tablet.apk.sha256
           retention-days: 14
           if-no-files-found: error

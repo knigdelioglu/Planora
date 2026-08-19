@@ -47,7 +47,7 @@ class _BootstrapHostState extends State<BootstrapHost> {
             overrides: [
               appServicesProvider.overrideWithValue(snapshot.requireData),
             ],
-            child: const NotApp(),
+            child: const PlanoraApp(),
           );
         }
         if (snapshot.hasError) {
@@ -65,7 +65,7 @@ class _BootstrapHostState extends State<BootstrapHost> {
                         const Icon(Icons.error_outline_rounded, size: 52),
                         const SizedBox(height: 16),
                         const Text(
-                          'Not başlatılamadı',
+                          'Planora başlatılamadı',
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w700,

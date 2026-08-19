@@ -6,7 +6,7 @@ class KanbanBoardView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Not')),
+      appBar: AppBar(title: const Text('Planora')),
       body: const Center(
         child: Text('Offline-first workspace scaffold is ready.'),
       ),

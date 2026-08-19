@@ -249,7 +249,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         ),
                         child: Center(
                           child: Text(
-                            'N',
+                            'P',
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.onPrimary,
                               fontWeight: FontWeight.w700,
@@ -259,7 +259,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        'Not',
+                        'Planora',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ],

@@ -1,6 +1,6 @@
 # Privacy
 
-Not is designed as a private, single-user personal workspace.
+Planora is designed as a private, single-user personal workspace.
 
 ## Local data
 

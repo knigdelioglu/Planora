@@ -43,7 +43,7 @@ jobs:
           --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ secrets.NOT_SUPABASE_PUBLISHABLE_KEY }}
       - uses: actions/upload-artifact@v4
         with:
-          name: not-android-aab
+          name: planora-android-aab
           path: build/app/outputs/bundle/release/app-release.aab
 
   macos:
@@ -82,7 +82,7 @@ jobs:
           test -n "$SIGN_ID"
           APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" | head -n 1)
           if [ -z "$APP_PATH" ]; then
-            APP_PATH="build/macos/Build/Products/Release/not_app.app"
+            APP_PATH="build/macos/Build/Products/Release/Planora.app"
           fi
           codesign --force --deep --options runtime --timestamp --sign "$SIGN_ID" "$APP_PATH"
           codesign --verify --deep --strict --verbose=2 "$APP_PATH"
@@ -90,7 +90,7 @@ jobs:
         run: |
           APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" | head -n 1)
           if [ -z "$APP_PATH" ]; then
-            APP_PATH="build/macos/Build/Products/Release/not_app.app"
+            APP_PATH="build/macos/Build/Products/Release/Planora.app"
           fi
           ditto -c -k --keepParent "$APP_PATH" not-macos-submission.zip
       - name: Notarize macOS app with Apple Notary Service
@@ -123,7 +123,7 @@ jobs:
         run: |
           APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" | head -n 1)
           if [ -z "$APP_PATH" ]; then
-            APP_PATH="build/macos/Build/Products/Release/not_app.app"
+            APP_PATH="build/macos/Build/Products/Release/Planora.app"
           fi
           xcrun stapler staple "$APP_PATH"
           xcrun stapler validate "$APP_PATH"
@@ -131,19 +131,19 @@ jobs:
         run: |
           APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" | head -n 1)
           if [ -z "$APP_PATH" ]; then
-            APP_PATH="build/macos/Build/Products/Release/not_app.app"
+            APP_PATH="build/macos/Build/Products/Release/Planora.app"
           fi
           spctl --assess --type execute --verbose "$APP_PATH"
       - name: Package notarized macOS app
         run: |
           APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" | head -n 1)
           if [ -z "$APP_PATH" ]; then
-            APP_PATH="build/macos/Build/Products/Release/not_app.app"
+            APP_PATH="build/macos/Build/Products/Release/Planora.app"
           fi
           ditto -c -k --keepParent "$APP_PATH" not-macos.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: not-macos-app
+          name: planora-macos-app
           path: not-macos.zip
 
   ios:
@@ -221,5 +221,5 @@ jobs:
           fi
       - uses: actions/upload-artifact@v4
         with:
-          name: not-ios-ipa
+          name: planora-ios-ipa
           path: build/ios/ipa/*.ipa

@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO="${NOT_GITHUB_REPO:-knigdelioglu/not}"
 WORKFLOW="android_tablet_apk.yml"
-ARTIFACT="not-android-tablet-apk"
+ARTIFACT="planora-android-tablet-apk"
 
 for cmd in gh adb; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -49,8 +49,8 @@ gh run download "$run_id" \
   --name "$ARTIFACT" \
   --dir "$tmp_dir"
 
-apk="$tmp_dir/not-tablet.apk"
-checksum="$tmp_dir/not-tablet.apk.sha256"
+apk="$tmp_dir/planora-tablet.apk"
+checksum="$tmp_dir/planora-tablet.apk.sha256"
 
 test -f "$apk" || { echo "error: APK missing from artifact" >&2; exit 1; }
 

@@ -1,6 +1,6 @@
-# Not
+# Planora
 
-Not, Notion benzeri kişisel not alma ve Kanban çalışma alanı için tasarlanan **tek kullanıcılı, offline-first Flutter uygulamasıdır**. Yerel veritabanı uygulamanın birincil çalışma kaynağıdır (source of truth); ağ bağlantısı olmadan notlar, kartlar, ekler ve hatırlatıcılar tam işlevsellikle kullanılabilir. Bulut senkronizasyonu yerel deneyimi bloklamayan, arka planda çalışan ikincil bir katmandır.
+Planora, Notion benzeri kişisel not alma ve Kanban çalışma alanı için tasarlanan **tek kullanıcılı, offline-first Flutter uygulamasıdır**. Yerel veritabanı uygulamanın birincil çalışma kaynağıdır (source of truth); ağ bağlantısı olmadan notlar, kartlar, ekler ve hatırlatıcılar tam işlevsellikle kullanılabilir. Bulut senkronizasyonu yerel deneyimi bloklamayan, arka planda çalışan ikincil bir katmandır.
 
 > **Durum:** Üretim Sürümü Adayı (Production-Ready) — Android, iOS ve macOS platformlarında çalışan, Drift yerel veritabanı, Supabase bulut senkronizasyonu, FTS5 tam metin arama, çift cihaz çakışma çözümü, erişilebilirlik (WCAG AA) ve kapsamlı test güvencesine sahip tam özellikli sürüm.
 

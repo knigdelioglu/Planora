@@ -1,10 +1,10 @@
-# Not — Ürün Kapsamı ve Sınırlar
+# Planora — Ürün Kapsamı ve Sınırlar
 
 > Durum: Ürün geliştirme için bağlayıcı scope belgesi  
 > Kapsam: iOS, Android ve macOS Flutter istemcisi  
 > Ürün modeli: Tek kullanıcı, offline-first, kişisel not + Kanban çalışma alanı
 
-Bu belge `Not` uygulamasının ürün sınırlarını tanımlar. Amaç, geliştirme sırasında özelliklerin kontrolsüz büyümesini engellemek; mimari, UX ve uygulama kararlarının hangi ürün hedeflerine hizmet ettiğini açık tutmaktır.
+Bu belge `Planora` uygulamasının ürün sınırlarını tanımlar. Amaç, geliştirme sırasında özelliklerin kontrolsüz büyümesini engellemek; mimari, UX ve uygulama kararlarının hangi ürün hedeflerine hizmet ettiğini açık tutmaktır.
 
 Bu dosya, **ne yapılacağını** ve en az onun kadar önemli olarak **ne yapılmayacağını** tanımlar. Yeni bir özellik bu belgede açıkça kapsam içinde değilse varsayılan olarak kapsam dışıdır ve eklenmeden önce bu belge güncellenmelidir.
 
@@ -12,7 +12,7 @@ Bu dosya, **ne yapılacağını** ve en az onun kadar önemli olarak **ne yapıl
 
 ## 1. Ürün tanımı
 
-`Not`, tek bir kişinin kendi cihazlarında kullanacağı, Notion benzeri fakat daha dar ve odaklı bir kişisel çalışma alanıdır.
+`Planora`, tek bir kişinin kendi cihazlarında kullanacağı, Notion benzeri fakat daha dar ve odaklı bir kişisel çalışma alanıdır.
 
 Uygulama dört temel ihtiyacı bir araya getirir:
 
@@ -890,10 +890,10 @@ Bu scope aşağıdaki proje belgeleriyle birlikte değerlendirilmelidir:
 
 ## 36. Kısa ürün sınırı özeti
 
-`Not` şudur:
+`Planora` şudur:
 
 > Tek kişinin kendi cihazlarında kullandığı; internet olmasa da çalışan; not, Kanban, dosya eki ve hatırlatıcı işlevlerini bir araya getiren; bağlantı geldiğinde verilerini güvenli biçimde senkronize eden kişisel çalışma alanı.
 
-`Not` şunlar değildir:
+`Planora` şunlar değildir:
 
 > Takım uygulaması, kurumsal proje yönetim sistemi, sosyal ağ, AI platformu, Office paketi, bulut disk, otomasyon servisi veya Notion'ın bütün özelliklerini kopyalamaya çalışan genel amaçlı workspace ürünü.

@@ -4,7 +4,7 @@ final class AppLogger {
   const AppLogger({this.enabled = true});
   final bool enabled;
 
-  void info(String message, {String name = 'Not'}) {
+  void info(String message, {String name = 'Planora'}) {
     if (enabled) developer.log(message, name: name);
   }
 
@@ -12,7 +12,7 @@ final class AppLogger {
     if (!enabled) return;
     developer.log(
       message,
-      name: 'Not',
+      name: 'Planora',
       level: 900,
       error: error,
       stackTrace: stackTrace,
@@ -23,7 +23,7 @@ final class AppLogger {
     if (!enabled) return;
     developer.log(
       message,
-      name: 'Not',
+      name: 'Planora',
       level: 1000,
       error: error,
       stackTrace: stackTrace,

@@ -6,14 +6,15 @@ import 'package:not_app/app/app_shell.dart';
 import 'package:not_app/app/providers.dart';
 import 'package:not_app/app/theme/app_theme.dart';
 
-class NotApp extends ConsumerStatefulWidget {
-  const NotApp({super.key});
+class PlanoraApp extends ConsumerStatefulWidget {
+  const PlanoraApp({super.key});
 
   @override
-  ConsumerState<NotApp> createState() => _NotAppState();
+  ConsumerState<PlanoraApp> createState() => _PlanoraAppState();
 }
 
-class _NotAppState extends ConsumerState<NotApp> with WidgetsBindingObserver {
+class _PlanoraAppState extends ConsumerState<PlanoraApp>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();

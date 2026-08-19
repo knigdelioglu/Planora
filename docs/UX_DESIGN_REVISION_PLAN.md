@@ -1,4 +1,4 @@
-# Not — UX Design Revizyon Planı
+# Planora — UX Design Revizyon Planı
 
 > Durum: Uygulama öncesi revizyon planı  
 > Hedef: Sade, modern, içerik-öncelikli, platforma uyumlu kullanıcı deneyimi  
@@ -81,7 +81,7 @@ Not editörü ve kart detayları çoğunlukla yeni route olarak açılıyor. Gen
 
 ### I. Renk kullanımı içerikten fazla dikkat çekebiliyor
 
-Not, kolon ve kartlara verilen renkler geniş tinted surface olarak kullanıldığında aynı anda çok sayıda renkli yüzey oluşabilir. Renk, kimlik/ayırt etme amacıyla nokta, ince accent veya küçük badge seviyesinde tutulmalıdır.
+Planora'da kolon ve kartlara verilen renkler geniş tinted surface olarak kullanıldığında aynı anda çok sayıda renkli yüzey oluşabilir. Renk, kimlik/ayırt etme amacıyla nokta, ince accent veya küçük badge seviyesinde tutulmalıdır.
 
 ### J. Platform tipografisi yeterince native değil
 

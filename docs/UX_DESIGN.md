@@ -1,16 +1,16 @@
-# Not — UX / UI Tasarım Spesifikasyonu
+# Planora — UX / UI Tasarım Spesifikasyonu
 
 > Durum: Ürün geliştirme için bağlayıcı tasarım referansı  
 > Kapsam: iOS, Android ve macOS Flutter istemcisi  
 > Ürün modeli: Tek kullanıcı, offline-first, kişisel not + Kanban çalışma alanı
 
-Bu belge, `Not` uygulamasının ekranlarını, navigasyonunu, görsel sistemini, bileşenlerini, buton davranışlarını, boş/yükleme/hata durumlarını, responsive kurallarını ve temel etkileşimlerini tanımlar. Uygulama geliştirilirken UI/UX kararları için birincil referans olarak kullanılmalıdır.
+Bu belge, `Planora` uygulamasının ekranlarını, navigasyonunu, görsel sistemini, bileşenlerini, buton davranışlarını, boş/yükleme/hata durumlarını, responsive kurallarını ve temel etkileşimlerini tanımlar. Uygulama geliştirilirken UI/UX kararları için birincil referans olarak kullanılmalıdır.
 
 ---
 
 ## 1. Tasarım vizyonu
 
-`Not`, Notion benzeri içerik esnekliğini görev yönetimi ve çevrimdışı kullanım güvenilirliği ile birleştiren kişisel bir çalışma alanıdır.
+`Planora`, Notion benzeri içerik esnekliğini görev yönetimi ve çevrimdışı kullanım güvenilirliği ile birleştiren kişisel bir çalışma alanıdır.
 
 Tasarımın ana karakteri:
 
@@ -461,7 +461,7 @@ Aynı işlev farklı form faktöründe:
 Üst bölüm:
 
 - uygulama logosu/işareti: `N`
-- ürün adı: `Not`
+- ürün adı: `Planora`
 - sidebar daralt butonu
 
 Navigasyon öğeleri:
