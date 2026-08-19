@@ -6,15 +6,21 @@ final class AppConfig {
   });
 
   factory AppConfig.fromEnvironment() {
-    return const AppConfig(
-      environment: String.fromEnvironment(
+    String rawUrl = const String.fromEnvironment('SUPABASE_URL').trim();
+    if (rawUrl.isNotEmpty &&
+        !rawUrl.startsWith('http://') &&
+        !rawUrl.startsWith('https://')) {
+      rawUrl = 'https://$rawUrl';
+    }
+    return AppConfig(
+      environment: const String.fromEnvironment(
         'APP_ENV',
         defaultValue: 'production',
       ),
-      supabaseUrl: String.fromEnvironment('SUPABASE_URL'),
-      supabasePublishableKey: String.fromEnvironment(
+      supabaseUrl: rawUrl,
+      supabasePublishableKey: const String.fromEnvironment(
         'SUPABASE_PUBLISHABLE_KEY',
-      ),
+      ).trim(),
     );
   }
 

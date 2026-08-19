@@ -150,6 +150,17 @@ final class _TestAuthService implements AuthService {
   }
 
   @override
+  Future<void> signInWithOAuth(OAuthProvider provider) async {
+    setSignedIn(true, email: 'oauth@example.com');
+  }
+
+  @override
+  Future<void> signInWithGoogle() => signInWithOAuth(OAuthProvider.google);
+
+  @override
+  Future<void> signInWithApple() => signInWithOAuth(OAuthProvider.apple);
+
+  @override
   Future<void> signOut() async {
     setSignedIn(false);
   }

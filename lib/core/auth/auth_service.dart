@@ -1,4 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+export 'package:supabase_flutter/supabase_flutter.dart' show OAuthProvider;
 
 final class AuthSessionState {
   const AuthSessionState({
@@ -19,6 +22,9 @@ abstract interface class AuthService {
   AuthSessionState get currentState;
   Future<void> signIn({required String email, required String password});
   Future<void> signUp({required String email, required String password});
+  Future<void> signInWithOAuth(OAuthProvider provider);
+  Future<void> signInWithGoogle();
+  Future<void> signInWithApple();
   Future<void> signOut();
 }
 
@@ -46,6 +52,17 @@ final class DisabledAuthService implements AuthService {
   Future<void> signUp({required String email, required String password}) {
     throw StateError('Cloud sync is not configured for this build.');
   }
+
+  @override
+  Future<void> signInWithOAuth(OAuthProvider provider) {
+    throw StateError('Cloud sync is not configured for this build.');
+  }
+
+  @override
+  Future<void> signInWithGoogle() => signInWithOAuth(OAuthProvider.google);
+
+  @override
+  Future<void> signInWithApple() => signInWithOAuth(OAuthProvider.apple);
 
   @override
   Future<void> signOut() async {}
@@ -96,6 +113,20 @@ final class SupabaseAuthService implements AuthService {
     }
     await _client.auth.signUp(email: cleanEmail, password: password);
   }
+
+  @override
+  Future<void> signInWithOAuth(OAuthProvider provider) async {
+    await _client.auth.signInWithOAuth(
+      provider,
+      redirectTo: kIsWeb ? null : 'io.notapp.notapp://login-callback',
+    );
+  }
+
+  @override
+  Future<void> signInWithGoogle() => signInWithOAuth(OAuthProvider.google);
+
+  @override
+  Future<void> signInWithApple() => signInWithOAuth(OAuthProvider.apple);
 
   @override
   Future<void> signOut() => _client.auth.signOut();

@@ -96,26 +96,64 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(create ? 'Bulut hesabı oluştur' : 'Bulut hesabına bağlan'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            TextField(
-              controller: email,
-              keyboardType: TextInputType.emailAddress,
-              autofillHints: const <String>[AutofillHints.email],
-              decoration: const InputDecoration(labelText: 'E-posta'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 380),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    _signInWithOAuth(OAuthProvider.google);
+                  },
+                  icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+                  label: const Text('Google ile devam et'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    _signInWithOAuth(OAuthProvider.apple);
+                  },
+                  icon: const Icon(Icons.apple_rounded, size: 22),
+                  label: const Text('Apple ile devam et'),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: <Widget>[
+                    const Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'veya e-posta ile',
+                        style: Theme.of(dialogContext).textTheme.bodySmall,
+                      ),
+                    ),
+                    const Expanded(child: Divider()),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: email,
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints: const <String>[AutofillHints.email],
+                  decoration: const InputDecoration(labelText: 'E-posta'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: password,
+                  obscureText: true,
+                  autofillHints: const <String>[AutofillHints.password],
+                  decoration: const InputDecoration(labelText: 'Parola'),
+                  onSubmitted: (_) => Navigator.of(
+                    dialogContext,
+                  ).pop((email.text.trim(), password.text)),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: password,
-              obscureText: true,
-              autofillHints: const <String>[AutofillHints.password],
-              decoration: const InputDecoration(labelText: 'Parola'),
-              onSubmitted: (_) => Navigator.of(
-                dialogContext,
-              ).pop((email.text.trim(), password.text)),
-            ),
-          ],
+          ),
         ),
         actions: <Widget>[
           TextButton(
@@ -149,6 +187,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _signInWithOAuth(OAuthProvider provider) async {
+    try {
+      await ref.read(authServiceProvider).signInWithOAuth(provider);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Giriş başarısız: $error')));
     }
   }
 

@@ -93,6 +93,15 @@ class _TestAuthService implements AuthService {
   }) async {}
 
   @override
+  Future<void> signInWithOAuth(OAuthProvider provider) async {}
+
+  @override
+  Future<void> signInWithGoogle() async {}
+
+  @override
+  Future<void> signInWithApple() async {}
+
+  @override
   Future<void> signOut() async {
     _state = const AuthSessionState(isConfigured: true, isSignedIn: false);
     _controller.add(_state);

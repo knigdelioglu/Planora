@@ -31,6 +31,24 @@ flutter run \
 
 Never commit or ship a `service_role` key.
 
+## OAuth Configuration (Google & Apple)
+
+To use Google and Apple sign-in:
+
+1. **Redirect URLs**:
+   - Go to **Supabase Dashboard -> Authentication -> URL Configuration -> Redirect URLs**.
+   - Add: `io.notapp.notapp://login-callback`
+
+2. **Google Provider**:
+   - Go to **Authentication -> Providers -> Google**.
+   - Enable Google provider.
+   - Enter your **Client ID** and **Client Secret** obtained from Google Cloud Console.
+
+3. **Apple Provider**:
+   - Go to **Authentication -> Providers -> Apple**.
+   - Enable Apple provider.
+   - Enter your Apple Developer Service ID, Team ID, Key ID, and private key.
+
 ## Row Level Security (RLS) & Storage Policies
 
 1. **Entities Isolation (`public.entities`)**:
