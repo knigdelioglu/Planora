@@ -8,7 +8,7 @@ on:
       - tools/phase18.trigger
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -16,11 +16,32 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 55
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
       SUPABASE_URL: ${{ secrets.NOT_SUPABASE_URL }}
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NOT_SUPABASE_PUBLISHABLE_KEY }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Open diagnostic tracking issue
         id: tracking
@@ -30,8 +51,8 @@ jobs:
         run: |
           set -euo pipefail
           issue_url=$(gh issue create \
-            --title "[CI diagnostic] Planora attempt 24" \
-            --body "GitHub Actions diagnostic run started for branch \`agent/ci-diagnostic-20260819\` at commit \`$GITHUB_SHA\`. Results will be posted here automatically.")
+            --title "[CI diagnostic] Planora attempt 25" \
+            --body "GitHub Actions diagnostic run started with PostgreSQL service for branch \`agent/ci-diagnostic-20260819\` at commit \`$GITHUB_SHA\`. Results will be posted here automatically.")
           echo "issue_url=$issue_url" >> "$GITHUB_OUTPUT"
 
       - uses: subosito/flutter-action@v2
@@ -39,6 +60,21 @@ jobs:
           flutter-version: '3.44.8'
           channel: stable
           cache: true
+
+      - name: Apply and commit canonical Dart formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          dart format lib test
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib test
+          if git diff --cached --quiet; then
+            echo "Formatting already canonical."
+          else
+            git commit -m "style: apply canonical Dart formatting"
+            git push origin HEAD:agent/ci-diagnostic-20260819
+          fi
 
       - name: Run Planora diagnostic suite
         id: diag
@@ -56,6 +92,7 @@ jobs:
             echo "Commit: $GITHUB_SHA"
             echo "Runner: $RUNNER_OS"
             echo "Flutter requested: 3.44.8 stable"
+            echo "PostgreSQL: postgres:16 service on localhost:5432"
             echo
           } >> "$report"
 
@@ -74,7 +111,7 @@ jobs:
             fi
             echo >> "$report"
             echo '```text' >> "$report"
-            tail -n 100 "$logfile" >> "$report"
+            tail -n 160 "$logfile" >> "$report"
             echo '```' >> "$report"
             echo >> "$report"
           }
