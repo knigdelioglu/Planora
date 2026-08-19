@@ -24,9 +24,9 @@ final class PolicySyncQueueRepository implements SyncQueueRepository {
     int? baseVersion,
   }) async {
     if (entityType == 'attachment') {
-      final Attachment? row = await (database.select(database.attachments)
-            ..where((tbl) => tbl.id.equals(entityId)))
-          .getSingleOrNull();
+      final Attachment? row = await (database.select(
+        database.attachments,
+      )..where((tbl) => tbl.id.equals(entityId))).getSingleOrNull();
       if (row != null && row.remotePath == null) {
         if (operationType == SyncOperationType.delete &&
             row.transferState == 'localOnly') {
@@ -34,9 +34,9 @@ final class PolicySyncQueueRepository implements SyncQueueRepository {
         }
         if (operationType != SyncOperationType.delete &&
             !backupPolicy.allowsSize(row.sizeBytes)) {
-          await (database.update(database.attachments)
-                ..where((tbl) => tbl.id.equals(entityId)))
-              .write(
+          await (database.update(
+            database.attachments,
+          )..where((tbl) => tbl.id.equals(entityId))).write(
             const AttachmentsCompanion(
               transferState: Value<String>('localOnly'),
             ),
@@ -64,9 +64,9 @@ final class PolicySyncQueueRepository implements SyncQueueRepository {
         allowed.add(operation);
         continue;
       }
-      final Attachment? row = await (database.select(database.attachments)
-            ..where((tbl) => tbl.id.equals(operation.entityId)))
-          .getSingleOrNull();
+      final Attachment? row = await (database.select(
+        database.attachments,
+      )..where((tbl) => tbl.id.equals(operation.entityId))).getSingleOrNull();
       if (row == null ||
           row.deletedAt != null ||
           row.remotePath != null ||
@@ -74,12 +74,10 @@ final class PolicySyncQueueRepository implements SyncQueueRepository {
         allowed.add(operation);
         continue;
       }
-      await (database.update(database.attachments)
-            ..where((tbl) => tbl.id.equals(operation.entityId)))
-          .write(
-        const AttachmentsCompanion(
-          transferState: Value<String>('localOnly'),
-        ),
+      await (database.update(
+        database.attachments,
+      )..where((tbl) => tbl.id.equals(operation.entityId))).write(
+        const AttachmentsCompanion(transferState: Value<String>('localOnly')),
       );
       await delegate.markCompleted(operation.id);
     }
@@ -128,10 +126,7 @@ final class PolicySyncQueueRepository implements SyncQueueRepository {
   Future<void> clearQueue({
     SyncOperationStatus? status,
     bool onlyUncompleted = true,
-  }) => delegate.clearQueue(
-    status: status,
-    onlyUncompleted: onlyUncompleted,
-  );
+  }) => delegate.clearQueue(status: status, onlyUncompleted: onlyUncompleted);
 
   @override
   Future<void> markProcessing(String operationId) =>

@@ -297,8 +297,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final double horizontal =
-                      constraints.maxWidth < 600 ? 16 : 24;
+                  final double horizontal = constraints.maxWidth < 600
+                      ? 16
+                      : 24;
                   return Column(
                     children: <Widget>[
                       Padding(

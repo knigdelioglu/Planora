@@ -88,8 +88,9 @@ final class SyncEngine {
           afterRevision: cursor,
         );
         if (batch.isEmpty) break;
-        for (final RemoteEntity remote in
-            _dependencyOrdered(_repairRemoteDependencies(batch))) {
+        for (final RemoteEntity remote in _dependencyOrdered(
+          _repairRemoteDependencies(batch),
+        )) {
           final int localVersion = await _localStore.localVersion(
             remote.entityType,
             remote.entityId,
@@ -181,29 +182,31 @@ final class SyncEngine {
       }
     }
 
-    return batch.map((RemoteEntity entity) {
-      if (entity.entityType != 'column') return entity;
-      final String? boardId = _payloadText(
-        entity.payload,
-        'boardId',
-        'board_id',
-      );
-      if (boardId != null) return entity;
-      final String? inferredBoardId = boardByColumn[entity.entityId];
-      if (inferredBoardId == null) return entity;
-      return RemoteEntity(
-        entityType: entity.entityType,
-        entityId: entity.entityId,
-        version: entity.version,
-        updatedAt: entity.updatedAt,
-        deletedAt: entity.deletedAt,
-        syncRevision: entity.syncRevision,
-        payload: <String, Object?>{
-          ...entity.payload,
-          'boardId': inferredBoardId,
-        },
-      );
-    }).toList(growable: false);
+    return batch
+        .map((RemoteEntity entity) {
+          if (entity.entityType != 'column') return entity;
+          final String? boardId = _payloadText(
+            entity.payload,
+            'boardId',
+            'board_id',
+          );
+          if (boardId != null) return entity;
+          final String? inferredBoardId = boardByColumn[entity.entityId];
+          if (inferredBoardId == null) return entity;
+          return RemoteEntity(
+            entityType: entity.entityType,
+            entityId: entity.entityId,
+            version: entity.version,
+            updatedAt: entity.updatedAt,
+            deletedAt: entity.deletedAt,
+            syncRevision: entity.syncRevision,
+            payload: <String, Object?>{
+              ...entity.payload,
+              'boardId': inferredBoardId,
+            },
+          );
+        })
+        .toList(growable: false);
   }
 
   String? _payloadText(

@@ -92,15 +92,17 @@ final class LocalEntityStore {
           'deletedAt': row.deletedAt?.toIso8601String(),
         };
       case 'card_note_link':
-        final row = await _database.customSelect(
-          '''
+        final row = await _database
+            .customSelect(
+              '''
           SELECT id, note_id, card_id, created_at, updated_at, version, deleted_at
           FROM card_note_links
           WHERE id = ?
           LIMIT 1
           ''',
-          variables: <Variable<Object>>[Variable<String>(entityId)],
-        ).getSingleOrNull();
+              variables: <Variable<Object>>[Variable<String>(entityId)],
+            )
+            .getSingleOrNull();
         if (row == null) return null;
         return <String, Object?>{
           'id': row.read<String>('id'),
@@ -286,7 +288,10 @@ final class LocalEntityStore {
         case 'card_note_link':
           final String? noteId = p['noteId']?.toString();
           final String? cardId = p['cardId']?.toString();
-          if (noteId == null || noteId.isEmpty || cardId == null || cardId.isEmpty) {
+          if (noteId == null ||
+              noteId.isEmpty ||
+              cardId == null ||
+              cardId.isEmpty) {
             if (deleted != null) {
               await _database.customStatement(
                 'DELETE FROM card_note_links WHERE id = ?',
