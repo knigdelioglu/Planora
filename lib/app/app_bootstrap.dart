@@ -5,6 +5,9 @@ import 'package:not_app/core/database/app_database.dart';
 import 'package:not_app/core/logging/app_logger.dart';
 import 'package:not_app/core/network/network_info.dart';
 import 'package:not_app/core/remote/remote_gateway.dart';
+import 'package:not_app/core/remote/secure_remote_gateway.dart';
+import 'package:not_app/core/security/local_data_key_service.dart';
+import 'package:not_app/core/services/encrypted_file_storage_service.dart';
 import 'package:not_app/core/services/file_picker_service.dart';
 import 'package:not_app/core/services/file_storage_service.dart';
 import 'package:not_app/core/services/notification_service.dart';
@@ -21,6 +24,7 @@ import 'package:not_app/features/conflicts/domain/repositories/conflict_reposito
 import 'package:not_app/features/kanban/data/repositories/kanban_repository_impl.dart';
 import 'package:not_app/features/kanban/data/repositories/lifecycle_kanban_repository.dart';
 import 'package:not_app/features/kanban/domain/repositories/kanban_repository.dart';
+import 'package:not_app/features/notes/data/repositories/lifecycle_notes_repository.dart';
 import 'package:not_app/features/notes/data/repositories/note_kanban_repository_impl.dart';
 import 'package:not_app/features/notes/data/repositories/notes_repository_impl.dart';
 import 'package:not_app/features/notes/domain/repositories/note_kanban_repository.dart';
@@ -38,13 +42,14 @@ final class AppBootstrap {
     final AppConfig config = AppConfig.fromEnvironment();
     const AppClock clock = SystemClock();
     const AppLogger logger = AppLogger();
-    final AppDatabase database = await AppDatabase.open();
+    final LocalDataKeyService dataKeys = SecureLocalDataKeyService();
+    final AppDatabase database = await AppDatabase.open(keyService: dataKeys);
     try {
       final LocalNotificationService notifications = LocalNotificationService();
       await notifications.initialize();
 
       AuthService auth;
-      RemoteGateway remote;
+      RemoteGateway rawRemote;
       if (config.cloudConfigured) {
         await Supabase.initialize(
           url: config.supabaseUrl,
@@ -52,14 +57,19 @@ final class AppBootstrap {
         );
         final SupabaseClient client = Supabase.instance.client;
         auth = SupabaseAuthService(client);
-        remote = SupabaseRemoteGateway(client);
+        rawRemote = SupabaseRemoteGateway(client);
       } else {
         auth = const DisabledAuthService();
-        remote = const DisabledRemoteGateway();
+        rawRemote = const DisabledRemoteGateway();
       }
 
       final NetworkInfo network = ConnectivityNetworkInfo();
-      final FileStorageService storage = SandboxFileStorageService();
+      final EncryptedFileStorageService encryptedStorage =
+          EncryptedFileStorageService(SandboxFileStorageService(), dataKeys);
+      final FileStorageService storage = encryptedStorage;
+      final RemoteGateway remote = rawRemote is DisabledRemoteGateway
+          ? rawRemote
+          : SecureRemoteGateway(rawRemote, encryptedStorage);
       final FilePickerService picker = PlatformFilePickerService();
       final SyncQueueRepository baseQueue = DriftSyncQueueRepository(
         database: database,
@@ -92,7 +102,7 @@ final class AppBootstrap {
         database,
         clock,
       );
-      final NotesRepository notes = DriftNotesRepository(
+      final NotesRepository rawNotes = DriftNotesRepository(
         database: database,
         syncQueue: queue,
         clock: clock,
@@ -109,6 +119,11 @@ final class AppBootstrap {
         notifications: notifications,
         syncQueue: queue,
         clock: clock,
+      );
+      final NotesRepository notes = LifecycleNotesRepository(
+        rawNotes,
+        attachments,
+        reminders,
       );
       final KanbanRepository kanban = LifecycleKanbanRepository(
         delegate: DriftKanbanRepository(

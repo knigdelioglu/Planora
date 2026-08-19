@@ -10,8 +10,9 @@ permissions:
   contents: read
 
 jobs:
-  test-and-analyze:
+  quality-and-unit:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
@@ -35,14 +36,113 @@ jobs:
         run: dart format --output=none --set-exit-if-changed lib test
       - name: Static analysis
         run: flutter analyze
-      - name: Run unit database and widget tests
-        run: flutter test --coverage
-      - name: Run integration tests
-        run: flutter test test/integration
+      - name: Run unit database and widget tests with coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t tests < <(
+            find test -type f -name '*_test.dart' \
+              ! -path 'test/integration/*' \
+              ! -path 'test/performance/*' \
+              ! -path 'test/core/remote/*' \
+              ! -name '*_performance_test.dart' \
+              | sort
+          )
+          if [ "${#tests[@]}" -eq 0 ]; then
+            echo 'No unit/database/widget tests selected.' >&2
+            exit 1
+          fi
+          printf 'Coverage test: %s\n' "${tests[@]}"
+          flutter test --coverage "${tests[@]}"
+
+  sqlite-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - name: Run SQLite/offline integration tests
+        run: >-
+          flutter test
+          test/integration/offline_flow_test.dart
+          test/integration/process_death_recovery_test.dart
+
+  postgres-security-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - name: Verify PostgreSQL availability
+        run: pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER"
+      - name: Run PostgreSQL RLS and two-client E2E tests
+        run: >-
+          flutter test
+          test/core/remote/supabase_rls_security_test.dart
+          test/integration/supabase_two_client_sync_e2e_test.dart
+
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - name: Run performance regression tests without coverage
+        run: >-
+          flutter test
+          test/performance/performance_regression_test.dart
+          test/features/kanban_performance_test.dart
+          test/features/search_performance_test.dart
 
   android-build:
-    needs: test-and-analyze
+    needs:
+      - quality-and-unit
+      - sqlite-integration
+      - postgres-security-e2e
+      - performance
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
@@ -58,8 +158,13 @@ jobs:
         run: flutter build appbundle --release --dart-define=APP_ENV=production
 
   apple-builds:
-    needs: test-and-analyze
+    needs:
+      - quality-and-unit
+      - sqlite-integration
+      - postgres-security-e2e
+      - performance
     runs-on: macos-26
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
