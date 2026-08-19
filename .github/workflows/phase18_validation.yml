@@ -51,8 +51,8 @@ jobs:
         run: |
           set -euo pipefail
           issue_url=$(gh issue create \
-            --title "[CI diagnostic] Planora attempt 25" \
-            --body "GitHub Actions diagnostic run started with PostgreSQL service for branch \`agent/ci-diagnostic-20260819\` at commit \`$GITHUB_SHA\`. Results will be posted here automatically.")
+            --title "[CI diagnostic] Planora attempt 26" \
+            --body "GitHub Actions validation with PostgreSQL service and Storage RLS harness fix started for branch \`agent/ci-diagnostic-20260819\` at commit \`$GITHUB_SHA\`. Results will be posted here automatically.")
           echo "issue_url=$issue_url" >> "$GITHUB_OUTPUT"
 
       - uses: subosito/flutter-action@v2
@@ -60,6 +60,47 @@ jobs:
           flutter-version: '3.44.8'
           channel: stable
           cache: true
+
+      - name: Mirror Supabase Storage RLS in local PostgreSQL harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('test/helpers/postgres_rls_harness.dart')
+          text = path.read_text()
+          marker = 'ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;'
+          if marker not in text:
+              old = """  metadata jsonb DEFAULT '{}'::jsonb
+);
+
+CREATE OR REPLACE FUNCTION storage.foldername(name text)
+"""
+              new = """  metadata jsonb DEFAULT '{}'::jsonb
+);
+
+-- Supabase Storage ships storage.objects with RLS enabled. The local test
+-- double owns its mock table, so it must enable RLS explicitly before the
+-- production migration installs the application-specific policies.
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION storage.foldername(name text)
+"""
+              if text.count(old) != 1:
+                  raise SystemExit(f'expected exactly one storage.objects anchor, found {text.count(old)}')
+              path.write_text(text.replace(old, new, 1))
+          PY
+          dart format test/helpers/postgres_rls_harness.dart
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add test/helpers/postgres_rls_harness.dart
+          if git diff --cached --quiet; then
+            echo "Storage RLS harness fix already present."
+          else
+            git diff --cached --check
+            git commit -m "test: mirror Supabase Storage RLS in PostgreSQL harness"
+            git push origin HEAD:agent/ci-diagnostic-20260819
+          fi
 
       - name: Apply and commit canonical Dart formatting
         shell: bash
@@ -93,6 +134,7 @@ jobs:
             echo "Runner: $RUNNER_OS"
             echo "Flutter requested: 3.44.8 stable"
             echo "PostgreSQL: postgres:16 service on localhost:5432"
+            echo "Full test concurrency: 1 (shared PostgreSQL test harness isolation)"
             echo
           } >> "$report"
 
@@ -111,17 +153,18 @@ jobs:
             fi
             echo >> "$report"
             echo '```text' >> "$report"
-            tail -n 160 "$logfile" >> "$report"
+            tail -n 180 "$logfile" >> "$report"
             echo '```' >> "$report"
             echo >> "$report"
           }
 
           run_check "Flutter version" tools/ci_diagnostic_logs/flutter_version.log flutter --version
           run_check "Resolve dependencies" tools/ci_diagnostic_logs/pub_get.log flutter pub get
-          run_check "Generate sources" tools/ci_diagnostic_logs/build_runner.log dart run build_runner build --delete-conflicting-outputs
+          run_check "Generate sources" tools/ci_diagnostic_logs/build_runner.log dart run build_runner build
           run_check "Formatting" tools/ci_diagnostic_logs/format.log dart format --output=none --set-exit-if-changed lib test
           run_check "Static analysis" tools/ci_diagnostic_logs/analyze.log flutter analyze
-          run_check "Flutter test --coverage" tools/ci_diagnostic_logs/flutter_test.log flutter test --coverage
+          run_check "Storage RLS security test" tools/ci_diagnostic_logs/rls.log flutter test test/core/remote/supabase_rls_security_test.dart
+          run_check "Flutter test --coverage" tools/ci_diagnostic_logs/flutter_test.log flutter test --coverage --concurrency=1
           run_check "Integration tests" tools/ci_diagnostic_logs/integration.log flutter test test/integration
           run_check "Android debug build" tools/ci_diagnostic_logs/android_debug.log flutter build apk --debug
 
