@@ -88,7 +88,7 @@ final class SyncEngine {
           afterRevision: cursor,
         );
         if (batch.isEmpty) break;
-        for (final RemoteEntity remote in batch) {
+        for (final RemoteEntity remote in _dependencyOrdered(batch)) {
           final int localVersion = await _localStore.localVersion(
             remote.entityType,
             remote.entityId,
@@ -130,6 +130,35 @@ final class SyncEngine {
     } finally {
       _running = false;
     }
+  }
+
+  /// Remote revisions are globally ordered, but records created in the same
+  /// sync window can still be returned in an order that violates local
+  /// foreign-key dependencies. Apply board hierarchy parents first so a card
+  /// never reaches SQLite before its board and column are present.
+  List<RemoteEntity> _dependencyOrdered(List<RemoteEntity> batch) {
+    final List<RemoteEntity> ordered = List<RemoteEntity>.from(batch);
+    int rank(RemoteEntity entity) {
+      switch (entity.entityType) {
+        case 'board':
+          return 0;
+        case 'column':
+          return 1;
+        case 'card':
+          return 2;
+        case 'card_note_link':
+          return 3;
+        default:
+          return 4;
+      }
+    }
+
+    ordered.sort((RemoteEntity first, RemoteEntity second) {
+      final int rankComparison = rank(first).compareTo(rank(second));
+      if (rankComparison != 0) return rankComparison;
+      return first.syncRevision.compareTo(second.syncRevision);
+    });
+    return ordered;
   }
 
   Future<bool> _push(SyncOperation operation) async {

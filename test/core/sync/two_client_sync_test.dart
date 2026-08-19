@@ -33,6 +33,7 @@ final class _MemoryRemoteGateway implements RemoteGateway {
   int _revision = 0;
   bool online = true;
   bool failAfterNextApply = false;
+  bool reversePullOrder = false;
 
   @override
   bool get available => online;
@@ -92,6 +93,9 @@ final class _MemoryRemoteGateway implements RemoteGateway {
             (RemoteEntity a, RemoteEntity b) =>
                 a.syncRevision.compareTo(b.syncRevision),
           );
+    if (reversePullOrder) {
+      rows.setAll(0, rows.reversed.toList(growable: false));
+    }
     return rows.take(limit).toList(growable: false);
   }
 
@@ -312,5 +316,115 @@ void main() {
       client.database.conflicts,
     )..where((tbl) => tbl.resolvedAt.isNull())).get();
     expect(openConflicts, isEmpty);
+  });
+
+  test('pull applies board hierarchy before cards', () async {
+    final _MutableClock clock = _MutableClock(DateTime.utc(2026, 8, 16, 10));
+    final _MemoryRemoteGateway remote = _MemoryRemoteGateway();
+    final _ClientHarness deviceA = _ClientHarness.create(
+      remote: remote,
+      clock: clock,
+    );
+    final _ClientHarness deviceB = _ClientHarness.create(
+      remote: remote,
+      clock: clock,
+    );
+    addTearDown(deviceA.close);
+    addTearDown(deviceB.close);
+
+    const String boardId = 'board-sync-order';
+    const String columnId = 'column-sync-order';
+    const String cardId = 'card-sync-order';
+    final DateTime now = clock.nowUtc();
+    await deviceA.database
+        .into(deviceA.database.boards)
+        .insert(
+          BoardsCompanion.insert(
+            id: boardId,
+            title: 'Board',
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    await deviceA.database
+        .into(deviceA.database.boardColumns)
+        .insert(
+          BoardColumnsCompanion.insert(
+            id: columnId,
+            boardId: boardId,
+            title: 'Column',
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    await deviceA.database
+        .into(deviceA.database.cards)
+        .insert(
+          CardsCompanion.insert(
+            id: cardId,
+            boardId: boardId,
+            columnId: columnId,
+            title: 'Card',
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+    final DriftSyncQueueRepository queue = DriftSyncQueueRepository(
+      database: deviceA.database,
+      clock: clock,
+    );
+    await queue.enqueue(
+      entityType: 'board',
+      entityId: boardId,
+      operationType: SyncOperationType.upsert,
+      payload: <String, Object?>{
+        'title': 'Board',
+        'colorHex': null,
+        'createdAt': now.toIso8601String(),
+        'updatedAt': now.toIso8601String(),
+        'version': 1,
+        'deletedAt': null,
+      },
+    );
+    await queue.enqueue(
+      entityType: 'column',
+      entityId: columnId,
+      operationType: SyncOperationType.upsert,
+      payload: <String, Object?>{
+        'board_id': boardId,
+        'title': 'Column',
+        'colorHex': null,
+        'rank_key': 'hzzzzzzzzzzz',
+        'createdAt': now.toIso8601String(),
+        'updatedAt': now.toIso8601String(),
+        'version': 1,
+        'deletedAt': null,
+      },
+    );
+    await queue.enqueue(
+      entityType: 'card',
+      entityId: cardId,
+      operationType: SyncOperationType.upsert,
+      payload: <String, Object?>{
+        'board_id': boardId,
+        'column_id': columnId,
+        'title': 'Card',
+        'description': null,
+        'rank_key': 'hzzzzzzzzzzz',
+        'createdAt': now.toIso8601String(),
+        'updatedAt': now.toIso8601String(),
+        'version': 1,
+        'deletedAt': null,
+      },
+    );
+
+    expect((await deviceA.engine.runOnce()).pushed, 3);
+    remote.reversePullOrder = true;
+    expect((await deviceB.engine.runOnce()).pulled, 3);
+    final Card? syncedCard = await (deviceB.database.select(
+      deviceB.database.cards,
+    )..where((tbl) => tbl.id.equals(cardId))).getSingleOrNull();
+    expect(syncedCard, isA<Card>());
   });
 }

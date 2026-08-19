@@ -160,7 +160,7 @@ final class LocalEntityStore {
   }
 
   Future<void> applyRemote(RemoteEntity remote) async {
-    final Map<String, Object?> p = remote.payload;
+    final Map<String, Object?> p = _normalizePayload(remote.payload);
     final DateTime created = _date(p['createdAt']) ?? remote.updatedAt;
     final DateTime updated = remote.updatedAt;
     final DateTime? deleted = remote.deletedAt;
@@ -224,7 +224,7 @@ final class LocalEntityStore {
               .insertOnConflictUpdate(
                 BoardColumnsCompanion.insert(
                   id: remote.entityId,
-                  boardId: p['boardId']! as String,
+                  boardId: _requiredText(p, 'boardId', remote),
                   title: (p['title'] ?? '').toString(),
                   colorHex: Value<String?>(p['colorHex'] as String?),
                   rankKey: Value<String>(
@@ -242,8 +242,8 @@ final class LocalEntityStore {
               .insertOnConflictUpdate(
                 CardsCompanion.insert(
                   id: remote.entityId,
-                  boardId: p['boardId']! as String,
-                  columnId: p['columnId']! as String,
+                  boardId: _requiredText(p, 'boardId', remote),
+                  columnId: _requiredText(p, 'columnId', remote),
                   title: (p['title'] ?? '').toString(),
                   description: Value<String?>(p['description'] as String?),
                   rankKey: Value<String>(
@@ -303,8 +303,8 @@ final class LocalEntityStore {
               .insertOnConflictUpdate(
                 AttachmentsCompanion.insert(
                   id: remote.entityId,
-                  parentType: p['parentType']! as String,
-                  parentId: p['parentId']! as String,
+                  parentType: _requiredText(p, 'parentType', remote),
+                  parentId: _requiredText(p, 'parentId', remote),
                   fileName: (p['fileName'] ?? 'attachment').toString(),
                   localPath: existing?.localPath ?? '',
                   remotePath: Value<String?>(p['remotePath'] as String?),
@@ -328,8 +328,8 @@ final class LocalEntityStore {
               .insertOnConflictUpdate(
                 RemindersCompanion.insert(
                   id: remote.entityId,
-                  parentType: p['parentType']! as String,
-                  parentId: p['parentId']! as String,
+                  parentType: _requiredText(p, 'parentType', remote),
+                  parentId: _requiredText(p, 'parentId', remote),
                   title: (p['title'] ?? '').toString(),
                   body: Value<String?>(p['body'] as String?),
                   scheduledAtUtc: _date(p['scheduledAtUtc']) ?? updated,
@@ -353,6 +353,52 @@ final class LocalEntityStore {
 
   DateTime? _date(Object? raw) =>
       raw == null ? null : DateTime.tryParse(raw.toString())?.toUtc();
+
+  Map<String, Object?> _normalizePayload(Map<String, Object?> payload) {
+    final Map<String, Object?> normalized = Map<String, Object?>.from(payload);
+    const Map<String, String> aliases = <String, String>{
+      'createdAt': 'created_at',
+      'updatedAt': 'updated_at',
+      'deletedAt': 'deleted_at',
+      'contentJson': 'content_json',
+      'isFavorite': 'is_favorite',
+      'boardId': 'board_id',
+      'columnId': 'column_id',
+      'noteId': 'note_id',
+      'cardId': 'card_id',
+      'rankKey': 'rank_key',
+      'parentType': 'parent_type',
+      'parentId': 'parent_id',
+      'fileName': 'file_name',
+      'remotePath': 'remote_path',
+      'mimeType': 'mime_type',
+      'sizeBytes': 'size_bytes',
+      'scheduledAtUtc': 'scheduled_at_utc',
+      'timeZoneId': 'time_zone_id',
+    };
+    for (final MapEntry<String, String> alias in aliases.entries) {
+      if (!normalized.containsKey(alias.key) &&
+          normalized.containsKey(alias.value)) {
+        normalized[alias.key] = normalized[alias.value];
+      }
+    }
+    return normalized;
+  }
+
+  String _requiredText(
+    Map<String, Object?> payload,
+    String field,
+    RemoteEntity remote,
+  ) {
+    final Object? value = payload[field];
+    final String text = value?.toString().trim() ?? '';
+    if (text.isEmpty) {
+      throw StateError(
+        'Remote ${remote.entityType}/${remote.entityId} is missing $field.',
+      );
+    }
+    return text;
+  }
 
   int _notificationIdFor(String id) {
     final String hex = id.replaceAll('-', '').padRight(8, '0').substring(0, 8);
