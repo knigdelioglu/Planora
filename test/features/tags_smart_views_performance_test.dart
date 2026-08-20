@@ -8,6 +8,8 @@ import 'package:not_app/features/smart_views/data/repositories/smart_views_repos
 import 'package:not_app/features/smart_views/domain/entities/content_filter.dart';
 
 final class _Clock implements AppClock {
+  const _Clock();
+
   @override
   DateTime nowUtc() => DateTime.utc(2026, 8, 20, 12);
 }
