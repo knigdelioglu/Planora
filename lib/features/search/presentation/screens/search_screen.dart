@@ -353,33 +353,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         setDialogState(() => hasAttachment = value),
                   ),
                   const SizedBox(height: 10),
-                  DropdownButtonFormField<int?>(
-                    initialValue: updatedWithinDays,
+                  DropdownButtonFormField<String>(
+                    initialValue: updatedWithinDays?.toString() ?? 'all',
                     decoration: const InputDecoration(labelText: 'Güncellenme'),
-                    items: const <DropdownMenuItem<int?>>[
-                      DropdownMenuItem<int?>(
-                        value: null,
-                        child: Text('Tüm zamanlar'),
-                      ),
-                      DropdownMenuItem<int?>(
-                        value: 1,
-                        child: Text('Son 24 saat'),
-                      ),
-                      DropdownMenuItem<int?>(
-                        value: 7,
-                        child: Text('Son 7 gün'),
-                      ),
-                      DropdownMenuItem<int?>(
-                        value: 30,
-                        child: Text('Son 30 gün'),
-                      ),
-                      DropdownMenuItem<int?>(
-                        value: 90,
-                        child: Text('Son 90 gün'),
-                      ),
+                    items: const <DropdownMenuItem<String>>[
+                      DropdownMenuItem(value: 'all', child: Text('Tüm zamanlar')),
+                      DropdownMenuItem(value: '1', child: Text('Son 24 saat')),
+                      DropdownMenuItem(value: '7', child: Text('Son 7 gün')),
+                      DropdownMenuItem(value: '30', child: Text('Son 30 gün')),
+                      DropdownMenuItem(value: '90', child: Text('Son 90 gün')),
                     ],
-                    onChanged: (value) =>
-                        setDialogState(() => updatedWithinDays = value),
+                    onChanged: (value) => setDialogState(() {
+                      updatedWithinDays = value == null || value == 'all'
+                          ? null
+                          : int.tryParse(value);
+                    }),
                   ),
                 ],
               ),

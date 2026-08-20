@@ -1,5 +1,3 @@
-// ignore_for_file: prefer_initializing_formals, close_sinks
-
 import 'dart:async';
 import 'dart:convert';
 
@@ -18,16 +16,12 @@ import 'package:uuid/uuid.dart';
 
 final class DriftSmartViewsRepository implements SmartViewsRepository {
   DriftSmartViewsRepository({
-    required AppDatabase database,
-    required SyncQueueRepository syncQueue,
-    required AppClock clock,
-    required EntityChangeBus changes,
+    required this._database,
+    required this._syncQueue,
+    required this._clock,
+    required this._changes,
     Uuid? uuid,
-  }) : _database = database,
-       _syncQueue = syncQueue,
-       _clock = clock,
-       _changes = changes,
-       _uuid = uuid ?? const Uuid();
+  }) : _uuid = uuid ?? const Uuid();
 
   final AppDatabase _database;
   final SyncQueueRepository _syncQueue;
@@ -43,6 +37,8 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
 
   @override
   Stream<List<SmartViewResult>> watchResults(ContentFilter filter) {
+    // Broadcast controller is intentionally re-listenable; onCancel releases all external subscriptions.
+    // ignore: close_sinks
     late StreamController<List<SmartViewResult>> controller;
     final List<StreamSubscription<dynamic>> subscriptions =
         <StreamSubscription<dynamic>>[];
@@ -495,6 +491,8 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
     Iterable<String> entityTypes,
     Future<T> Function() load,
   ) {
+    // Broadcast controller is intentionally re-listenable; onCancel releases the external subscription.
+    // ignore: close_sinks
     late StreamController<T> controller;
     StreamSubscription<void>? subscription;
     Future<void> emit() async {

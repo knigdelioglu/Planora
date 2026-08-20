@@ -1,5 +1,3 @@
-// ignore_for_file: prefer_initializing_formals, close_sinks
-
 import 'dart:async';
 import 'dart:convert';
 
@@ -15,14 +13,11 @@ import 'package:not_app/features/tags/domain/repositories/tags_repository.dart';
 
 final class DriftTagsRepository implements TagsRepository {
   DriftTagsRepository({
-    required AppDatabase database,
-    required SyncQueueRepository syncQueue,
-    required AppClock clock,
-    required EntityChangeBus changes,
-  }) : _database = database,
-       _syncQueue = syncQueue,
-       _clock = clock,
-       _changes = changes;
+    required this._database,
+    required this._syncQueue,
+    required this._clock,
+    required this._changes,
+  });
 
   static const Set<String> supportedColorKeys = <String>{
     'gray',
@@ -523,6 +518,8 @@ final class DriftTagsRepository implements TagsRepository {
   }
 
   Stream<T> _watch<T>(Iterable<String> types, Future<T> Function() load) {
+    // Broadcast controller is intentionally re-listenable; onCancel releases the external subscription.
+    // ignore: close_sinks
     late StreamController<T> controller;
     StreamSubscription<void>? subscription;
     bool loading = false;

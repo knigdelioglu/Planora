@@ -534,6 +534,15 @@ Future<_EditorResult?> _showSmartViewEditor(
         .first;
     if (snapshot != null) snapshots[board.id] = snapshot;
   }
+  if (boardId == null) {
+    columnId = null;
+  } else if (!boards.any((board) => board.id == boardId)) {
+    boardId = null;
+    columnId = null;
+  } else if (columnId != null &&
+      !(snapshots[boardId]?.columns.any((column) => column.id == columnId) ?? false)) {
+    columnId = null;
+  }
   if (!context.mounted) {
     name.dispose();
     textQuery.dispose();

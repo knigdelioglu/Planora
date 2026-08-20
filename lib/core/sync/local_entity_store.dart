@@ -1,5 +1,3 @@
-// ignore_for_file: prefer_initializing_formals
-
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
@@ -12,8 +10,8 @@ final class LocalEntityStore {
   LocalEntityStore({
     required this._database,
     required AppClock clock,
-    EntityChangeBus? changes,
-  }) : _changes = changes;
+    this._changes,
+  });
 
   final AppDatabase _database;
   final EntityChangeBus? _changes;
