@@ -1,6 +1,5 @@
 name: Agent run tests
 
-# Validation trigger: tags + smart views feature branch
 on:
   push:
     branches: [agent/run-tests]
@@ -9,11 +8,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:16-alpine
@@ -41,11 +41,56 @@ jobs:
           flutter-version: '3.44.8'
           channel: stable
           cache: true
-      - name: Resolve dependencies
-        run: flutter pub get
-      - name: Generate Drift code
-        run: dart run build_runner build --delete-conflicting-outputs
-      - name: Run all Flutter tests
-        run: flutter test --coverage --concurrency=1
-      - name: Run integration tests explicitly
-        run: flutter test test/integration --concurrency=1
+      - name: Run validation and publish summary
+        shell: bash
+        run: |
+          set -u
+          mkdir -p test-results .ci-logs
+          result='test-results/tags-smart-views-validation.txt'
+          : > "$result"
+          echo "commit=${GITHUB_SHA}" >> "$result"
+          echo "run_id=${GITHUB_RUN_ID}" >> "$result"
+          echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$result"
+          overall=0
+
+          run_check() {
+            name="$1"
+            command="$2"
+            log=".ci-logs/${name}.log"
+            echo "== $name =="
+            set +e
+            bash -lc "$command" >"$log" 2>&1
+            code=$?
+            set -e
+            echo "${name}=${code}" >> "$result"
+            if [ "$code" -ne 0 ]; then
+              overall=1
+              echo "--- ${name} failure tail ---" >> "$result"
+              tail -n 160 "$log" >> "$result"
+              echo "--- end ${name} failure tail ---" >> "$result"
+            fi
+          }
+
+          run_check pub_get "flutter pub get"
+          run_check drift_codegen "dart run build_runner build --delete-conflicting-outputs"
+          run_check format "dart format --output=none --set-exit-if-changed lib test"
+          run_check analyze "flutter analyze"
+          run_check all_tests "flutter test --coverage --concurrency=1"
+          run_check integration_tests "flutter test test/integration --concurrency=1"
+          run_check tags_smart_views_tests "flutter test test/features/tags_smart_views_test.dart test/database/tags_smart_views_migration_test.dart test/core/sync/tags_sync_dependency_test.dart --concurrency=1"
+          run_check tags_smart_views_performance "flutter test test/features/tags_smart_views_performance_test.dart --concurrency=1"
+
+          if [ "$overall" -eq 0 ]; then
+            echo 'overall=PASS' >> "$result"
+          else
+            echo 'overall=FAIL' >> "$result"
+          fi
+          echo "finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$result"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$result"
+          git commit -m 'ci: record tags smart views validation result'
+          git push origin HEAD:agent/run-tests
+
+          exit "$overall"
