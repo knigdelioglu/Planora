@@ -135,19 +135,22 @@ final class SyncEngine {
 
   /// Remote revisions are globally ordered, but records created in the same
   /// sync window can still be returned in an order that violates local
-  /// foreign-key dependencies. Apply board hierarchy parents first so a card
-  /// never reaches SQLite before its board and column are present.
+  /// dependencies. Apply hierarchy/tag parents before dependent records so a
+  /// child never reaches SQLite before the row it references is present.
   List<RemoteEntity> _dependencyOrdered(List<RemoteEntity> batch) {
     final List<RemoteEntity> ordered = List<RemoteEntity>.from(batch);
     int rank(RemoteEntity entity) {
       switch (entity.entityType) {
         case 'board':
+        case 'note':
+        case 'tag':
           return 0;
         case 'column':
           return 1;
         case 'card':
           return 2;
         case 'card_note_link':
+        case 'tag_assignment':
           return 3;
         default:
           return 4;
