@@ -14,6 +14,9 @@ import 'package:not_app/features/notes/domain/repositories/notes_repository.dart
 import 'package:not_app/features/notes/presentation/screens/note_editor_screen.dart';
 import 'package:not_app/features/notes/presentation/widgets/note_grid_card.dart';
 import 'package:not_app/features/notes/presentation/widgets/note_move_to_kanban_dialog.dart';
+import 'package:not_app/features/smart_views/presentation/screens/smart_views_screen.dart';
+import 'package:not_app/features/tags/domain/entities/tag.dart';
+import 'package:not_app/features/tags/presentation/widgets/tag_strip.dart';
 
 class NotesScreen extends ConsumerStatefulWidget {
   const NotesScreen({super.key});
@@ -54,9 +57,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
   Future<void> _changeColor(NoteEntity note) async {
     final settings = ref.read(settingsRepositoryProvider);
-    final String? current = await settings
-        .watchEntityColor('note', note.id)
-        .first;
+    final String? current = await settings.watchEntityColor('note', note.id).first;
     if (!mounted) return;
     final ColorPickerValue? value = await showEntityColorDialog(
       context,
@@ -70,9 +71,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   Future<void> _moveToKanban(NoteEntity note) async {
     final bool moved = await showMoveNoteToKanbanDialog(context, note: note);
     if (!mounted || !moved) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Not panoya taşındı.')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Not panoya taşındı.')),
+    );
   }
 
   Future<void> _trash(NoteEntity note) async {
@@ -91,9 +92,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           ),
         );
     unawaited(
-      Future<void>.delayed(const Duration(seconds: 5), () {
-        feedback.close();
-      }),
+      Future<void>.delayed(const Duration(seconds: 5), feedback.close),
     );
   }
 
@@ -132,11 +131,30 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              subtitle: Text(
-                preview.isEmpty ? 'İçerik yok' : preview.replaceAll('\n', ' '),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              subtitle: note.isDeleted
+                  ? Text(
+                      preview.isEmpty ? 'İçerik yok' : preview.replaceAll('\n', ' '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          preview.isEmpty ? 'İçerik yok' : preview.replaceAll('\n', ' '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 5),
+                        TagStrip(
+                          targetType: TagTargetType.note,
+                          targetId: note.id,
+                          editable: false,
+                          compact: true,
+                          maxVisible: 3,
+                        ),
+                      ],
+                    ),
               trailing: note.isDeleted
                   ? PopupMenuButton<String>(
                       tooltip: 'Çöp kutusu işlemleri',
@@ -144,25 +162,20 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         if (value == 'restore') {
                           await repository.restore(note.id);
                         } else if (value == 'delete') {
-                          final bool confirmed =
-                              await showDialog<bool>(
+                          final bool confirmed = await showDialog<bool>(
                                 context: context,
                                 builder: (context) => AlertDialog(
-                                  title: const Text(
-                                    'Kalıcı olarak silinsin mi?',
-                                  ),
+                                  title: const Text('Kalıcı olarak silinsin mi?'),
                                   content: const Text(
                                     'Bu not geri alınamayacak şekilde silinecek.',
                                   ),
                                   actions: <Widget>[
                                     TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, false),
+                                      onPressed: () => Navigator.pop(context, false),
                                       child: const Text('Vazgeç'),
                                     ),
                                     FilledButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, true),
+                                      onPressed: () => Navigator.pop(context, true),
                                       child: const Text('Kalıcı sil'),
                                     ),
                                   ],
@@ -175,14 +188,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         }
                       },
                       itemBuilder: (_) => const <PopupMenuEntry<String>>[
-                        PopupMenuItem(
-                          value: 'restore',
-                          child: Text('Geri yükle'),
-                        ),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Text('Kalıcı sil'),
-                        ),
+                        PopupMenuItem(value: 'restore', child: Text('Geri yükle')),
+                        PopupMenuItem(value: 'delete', child: Text('Kalıcı sil')),
                       ],
                     )
                   : Row(
@@ -191,17 +198,20 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                         if (note.isFavorite)
                           IconButton(
                             tooltip: 'Favoriden çıkar',
-                            onPressed: () =>
-                                repository.setFavorite(note.id, false),
+                            onPressed: () => repository.setFavorite(note.id, false),
                             icon: const Icon(Icons.star_rounded, size: 19),
                           ),
                         PopupMenuButton<String>(
                           tooltip: 'Not işlemleri',
                           onSelected: (value) async {
                             if (value == 'favorite') {
-                              await repository.setFavorite(
-                                note.id,
-                                !note.isFavorite,
+                              await repository.setFavorite(note.id, !note.isFavorite);
+                            } else if (value == 'tags') {
+                              await showTagPicker(
+                                context,
+                                ref,
+                                targetType: TagTargetType.note,
+                                targetId: note.id,
                               );
                             } else if (value == 'color') {
                               await _changeColor(note);
@@ -215,24 +225,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                             PopupMenuItem(
                               value: 'favorite',
                               child: Text(
-                                note.isFavorite
-                                    ? 'Favoriden çıkar'
-                                    : 'Favoriye ekle',
+                                note.isFavorite ? 'Favoriden çıkar' : 'Favoriye ekle',
                               ),
                             ),
-                            const PopupMenuItem(
-                              value: 'color',
-                              child: Text('Rengi değiştir'),
-                            ),
-                            const PopupMenuItem(
-                              value: 'move',
-                              child: Text('Panoya taşı'),
-                            ),
+                            const PopupMenuItem(value: 'tags', child: Text('Etiketler')),
+                            const PopupMenuItem(value: 'color', child: Text('Rengi değiştir')),
+                            const PopupMenuItem(value: 'move', child: Text('Panoya taşı')),
                             const PopupMenuDivider(),
-                            const PopupMenuItem(
-                              value: 'trash',
-                              child: Text('Çöpe taşı'),
-                            ),
+                            const PopupMenuItem(value: 'trash', child: Text('Çöpe taşı')),
                           ],
                         ),
                       ],
@@ -280,9 +280,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                     ? 'İçerik yok'
                     : plain.replaceAll('\n', ' ');
                 return NoteGridCard(
-                  title: note.title.trim().isEmpty
-                      ? 'Başlıksız not'
-                      : note.title,
+                  title: note.title.trim().isEmpty ? 'Başlıksız not' : note.title,
                   preview: preview,
                   updatedAt: note.updatedAt,
                   isFavorite: note.isFavorite,
@@ -323,6 +321,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
               actions: <Widget>[
+                IconButton(
+                  tooltip: 'Akıllı Görünümler',
+                  onPressed: () => AppRouter.push<void>(
+                    context,
+                    const SmartViewsScreen(),
+                  ),
+                  icon: const Icon(Icons.auto_awesome_motion_outlined),
+                ),
                 if (_filter != NoteFilter.trash)
                   SegmentedButton<NoteViewMode>(
                     showSelectedIcon: false,
@@ -411,17 +417,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                   }
                   return LayoutBuilder(
                     builder: (context, constraints) {
-                      final double horizontal = constraints.maxWidth < 600
-                          ? 12
-                          : 24;
-                      if (_filter == NoteFilter.trash ||
-                          viewMode == NoteViewMode.list) {
-                        return _listView(
-                          notes,
-                          horizontal,
-                          repository,
-                          settings,
-                        );
+                      final double horizontal = constraints.maxWidth < 600 ? 12 : 24;
+                      if (_filter == NoteFilter.trash || viewMode == NoteViewMode.list) {
+                        return _listView(notes, horizontal, repository, settings);
                       }
                       return _gridView(notes, horizontal, repository, settings);
                     },
