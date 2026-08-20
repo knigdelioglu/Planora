@@ -153,6 +153,7 @@ final class AppBootstrap {
         ),
         attachments: attachments,
         reminders: reminders,
+        tags: tags,
       );
       final NoteKanbanRepository noteKanban = DriftNoteKanbanRepository(
         database: database,
