@@ -540,7 +540,8 @@ Future<_EditorResult?> _showSmartViewEditor(
     boardId = null;
     columnId = null;
   } else if (columnId != null &&
-      !(snapshots[boardId]?.columns.any((column) => column.id == columnId) ?? false)) {
+      !(snapshots[boardId]?.columns.any((column) => column.id == columnId) ??
+          false)) {
     columnId = null;
   }
   if (!context.mounted) {

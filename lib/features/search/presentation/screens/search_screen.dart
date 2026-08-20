@@ -357,7 +357,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     initialValue: updatedWithinDays?.toString() ?? 'all',
                     decoration: const InputDecoration(labelText: 'Güncellenme'),
                     items: const <DropdownMenuItem<String>>[
-                      DropdownMenuItem(value: 'all', child: Text('Tüm zamanlar')),
+                      DropdownMenuItem(
+                        value: 'all',
+                        child: Text('Tüm zamanlar'),
+                      ),
                       DropdownMenuItem(value: '1', child: Text('Son 24 saat')),
                       DropdownMenuItem(value: '7', child: Text('Son 7 gün')),
                       DropdownMenuItem(value: '30', child: Text('Son 30 gün')),
