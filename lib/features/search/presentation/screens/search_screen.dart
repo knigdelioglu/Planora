@@ -689,12 +689,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               )
                             : visible.isEmpty && !_busy
                             ? EmptyState(
-                      icon: Icons.search_off_rounded,
-                      title: 'Sonuç bulunamadı',
-                      message: _hasAdvancedFilters
-                          ? 'Arama kelimesini veya filtreleri değiştirin.'
-                          : 'Farklı bir kelime deneyin.',
-                    )
+                                icon: Icons.search_off_rounded,
+                                title: 'Sonuç bulunamadı',
+                                message: _hasAdvancedFilters
+                                    ? 'Arama kelimesini veya filtreleri değiştirin.'
+                                    : 'Farklı bir kelime deneyin.',
+                              )
                             : Center(
                                 child: ConstrainedBox(
                                   constraints: const BoxConstraints(
