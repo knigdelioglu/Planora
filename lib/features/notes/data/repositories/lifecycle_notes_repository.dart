@@ -10,14 +10,14 @@ final class LifecycleNotesRepository implements NotesRepository {
   LifecycleNotesRepository(
     this._delegate,
     this._attachments,
-    this._reminders,
+    this._reminders, [
     this._tags,
-  );
+  ]);
 
   final NotesRepository _delegate;
   final AttachmentsRepository _attachments;
   final RemindersRepository _reminders;
-  final TagsRepository _tags;
+  final TagsRepository? _tags;
 
   @override
   Stream<List<NoteEntity>> watchNotes(NoteFilter filter) =>
@@ -66,7 +66,7 @@ final class LifecycleNotesRepository implements NotesRepository {
       await _reminders.remove(reminder.id);
     }
 
-    await _tags.deleteAssignmentsForTarget(
+    await _tags?.deleteAssignmentsForTarget(
       targetType: TagTargetType.note,
       targetId: noteId,
     );
