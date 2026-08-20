@@ -1,3 +1,3 @@
-attempt: 3
-started_at: 2026-08-20T10:42:00+03:00
-scope: tags-smart-views full validation
+attempt: 4
+started_at: 2026-08-20T11:30:00+03:00
+scope: repair and validate feature/tags-smart-views
