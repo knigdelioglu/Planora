@@ -14,6 +14,8 @@ import 'package:not_app/core/utils/clock.dart';
 import 'package:not_app/features/conflicts/data/repositories/conflict_repository_impl.dart';
 
 final class _Clock implements AppClock {
+  const _Clock();
+
   @override
   DateTime nowUtc() => DateTime.utc(2026, 8, 20, 12);
 }
@@ -140,11 +142,6 @@ void main() {
     final SyncRunResult result = await engine.runOnce();
     expect(result.pulled, 2);
 
-    final tagRows = await database.customSelect(
-      'SELECT id FROM tags WHERE id = ?',
-      variables: const [],
-    ).get();
-    // Direct identity assertions below avoid relying on repository listeners.
     final storedTag = await database.customSelect(
       "SELECT id FROM tags WHERE id = 'tag_test' LIMIT 1",
     ).getSingleOrNull();
@@ -152,7 +149,6 @@ void main() {
       "SELECT id, tag_id FROM tag_assignments WHERE id = 'assignment_test' LIMIT 1",
     ).getSingleOrNull();
 
-    expect(tagRows, isNotEmpty);
     expect(storedTag?.read<String>('id'), 'tag_test');
     expect(storedAssignment?.read<String>('tag_id'), 'tag_test');
   });
