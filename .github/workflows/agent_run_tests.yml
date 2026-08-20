@@ -15,6 +15,26 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
     steps:
       - uses: actions/checkout@v5
         with:
@@ -25,7 +45,6 @@ jobs:
           channel: stable
           cache: true
       - name: Validate
-        id: validate
         shell: bash
         run: |
           set -u
@@ -46,8 +65,10 @@ jobs:
             echo "${name}=${code}" >> "$summary"
             if [ "$code" -ne 0 ]; then
               overall=1
-              echo "--- ${name} failure ---" >> "$summary"
-              tail -n 100 "$log" >> "$summary"
+              echo "--- ${name} failures ---" >> "$summary"
+              grep -n -E -C 8 '❌|Test failed|EXCEPTION|Expected:|Actual:|error:' "$log" | tail -n 180 >> "$summary" || true
+              echo "--- ${name} tail ---" >> "$summary"
+              tail -n 80 "$log" >> "$summary"
               echo "--- end ${name} ---" >> "$summary"
             fi
           }
@@ -59,6 +80,7 @@ jobs:
           run_check tag_discovery flutter test test/features/smart_views_tag_discovery_test.dart --concurrency=1
           run_check tags_core flutter test test/features/tags_smart_views_test.dart test/core/sync/tags_sync_dependency_test.dart --concurrency=1
           run_check full_tests flutter test --concurrency=1
+          run_check integration flutter test test/integration --concurrency=1
 
           if [ "$overall" -eq 0 ]; then
             echo 'overall=PASS' >> "$summary"
@@ -79,5 +101,5 @@ jobs:
             printf 'validation workflow failed before checks\n' > "$body"
           fi
           gh issue create \
-            --title "[CI tag discovery validation] ${status}" \
+            --title "[CI tag discovery validation pg] ${status}" \
             --body-file "$body"
