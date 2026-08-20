@@ -24,7 +24,8 @@ final class LifecycleKanbanRepository implements KanbanRepository {
   Stream<List<BoardEntity>> watchBoards() => delegate.watchBoards();
 
   @override
-  Stream<KanbanSnapshot?> watchBoard(String boardId) => delegate.watchBoard(boardId);
+  Stream<KanbanSnapshot?> watchBoard(String boardId) =>
+      delegate.watchBoard(boardId);
 
   @override
   Stream<KanbanCard?> watchCard(String cardId) => delegate.watchCard(cardId);
@@ -76,8 +77,31 @@ final class LifecycleKanbanRepository implements KanbanRepository {
   );
 
   @override
-  Future<void> deleteColumn(String columnId, {String? moveCardsToColumnId}) =>
-      delegate.deleteColumn(columnId, moveCardsToColumnId: moveCardsToColumnId);
+  Future<void> deleteColumn(
+    String columnId, {
+    String? moveCardsToColumnId,
+  }) async {
+    if (moveCardsToColumnId == null) {
+      final List<BoardEntity> boards = await delegate.watchBoards().first;
+      for (final BoardEntity board in boards) {
+        final KanbanSnapshot? snapshot = await delegate.watchBoard(board.id).first;
+        if (snapshot == null ||
+            !snapshot.columns.any((column) => column.id == columnId)) {
+          continue;
+        }
+        final List<KanbanCard> cards =
+            snapshot.cardsByColumn[columnId] ?? const <KanbanCard>[];
+        for (final KanbanCard card in cards) {
+          await _deleteChildren('card', card.id);
+        }
+        break;
+      }
+    }
+    await delegate.deleteColumn(
+      columnId,
+      moveCardsToColumnId: moveCardsToColumnId,
+    );
+  }
 
   @override
   Future<String> createCard({
@@ -121,7 +145,9 @@ final class LifecycleKanbanRepository implements KanbanRepository {
   }
 
   Future<void> _deleteChildren(String parentType, String parentId) async {
-    final attachmentRows = await attachments.watchForParent(parentType, parentId).first;
+    final attachmentRows = await attachments
+        .watchForParent(parentType, parentId)
+        .first;
     for (final attachment in attachmentRows) {
       await attachments.remove(attachment.id);
     }
