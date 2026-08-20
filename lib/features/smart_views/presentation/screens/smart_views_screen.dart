@@ -20,6 +20,7 @@ final class _ViewChoice {
     required this.icon,
     required this.filter,
     this.saved,
+    this.tag,
   });
 
   final String key;
@@ -27,6 +28,7 @@ final class _ViewChoice {
   final IconData icon;
   final ContentFilter filter;
   final SmartViewEntity? saved;
+  final TagEntity? tag;
 }
 
 const List<_ViewChoice> _systemViews = <_ViewChoice>[
@@ -61,6 +63,10 @@ const List<_ViewChoice> _systemViews = <_ViewChoice>[
     filter: ContentFilter(updatedWithinDays: 7),
   ),
 ];
+
+final _smartViewTagsProvider = StreamProvider.autoDispose<List<TagEntity>>(
+  (ref) => ref.watch(tagsRepositoryProvider).watchTags(),
+);
 
 class SmartViewsScreen extends ConsumerStatefulWidget {
   const SmartViewsScreen({super.key, this.initialViewId});
@@ -141,9 +147,40 @@ class _SmartViewsScreenState extends ConsumerState<SmartViewsScreen> {
     }
   }
 
+  Future<void> _deleteTag(TagEntity tag) async {
+    final bool confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text('“${tag.name}” etiketi silinsin mi?'),
+            content: const Text(
+              'Etiket tüm not ve kartlardan kaldırılacak; içeriklerin kendisi silinmeyecek.',
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Vazgeç'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Sil'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+    await ref.read(tagsRepositoryProvider).deleteTag(tag.id);
+    if (mounted && _selectedKey == 'tag:${tag.id}') {
+      setState(() => _selectedKey = _systemViews.first.key);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final repository = ref.watch(smartViewsRepositoryProvider);
+    final List<TagEntity> tags =
+        ref.watch(_smartViewTagsProvider).asData?.value ?? const <TagEntity>[];
     return Scaffold(
       body: Column(
         children: <Widget>[
@@ -175,6 +212,15 @@ class _SmartViewsScreenState extends ConsumerState<SmartViewsScreen> {
                     snapshot.data ?? const <SmartViewEntity>[];
                 final List<_ViewChoice> choices = <_ViewChoice>[
                   ..._systemViews,
+                  ...tags.map(
+                    (TagEntity tag) => _ViewChoice(
+                      key: 'tag:${tag.id}',
+                      name: tag.name,
+                      icon: Icons.sell_outlined,
+                      filter: ContentFilter(anyTagIds: <String>[tag.id]),
+                      tag: tag,
+                    ),
+                  ),
                   ...saved.map(
                     (SmartViewEntity view) => _ViewChoice(
                       key: 'saved:${view.id}',
@@ -202,6 +248,7 @@ class _SmartViewsScreenState extends ConsumerState<SmartViewsScreen> {
                                 setState(() => _selectedKey = choice.key),
                             onEdit: _editView,
                             onDelete: _deleteView,
+                            onDeleteTag: _deleteTag,
                           ),
                           const Divider(height: 1),
                           Expanded(child: _Results(choice: selected)),
@@ -219,6 +266,7 @@ class _SmartViewsScreenState extends ConsumerState<SmartViewsScreen> {
                                 setState(() => _selectedKey = choice.key),
                             onEdit: _editView,
                             onDelete: _deleteView,
+                            onDeleteTag: _deleteTag,
                           ),
                         ),
                         const VerticalDivider(width: 1),
@@ -243,6 +291,7 @@ class _ViewList extends StatelessWidget {
     required this.onSelected,
     required this.onEdit,
     required this.onDelete,
+    required this.onDeleteTag,
   });
 
   final _ViewChoice selected;
@@ -250,6 +299,7 @@ class _ViewList extends StatelessWidget {
   final ValueChanged<_ViewChoice> onSelected;
   final ValueChanged<SmartViewEntity> onEdit;
   final ValueChanged<SmartViewEntity> onDelete;
+  final ValueChanged<TagEntity> onDeleteTag;
 
   @override
   Widget build(BuildContext context) => ListView(
@@ -259,7 +309,23 @@ class _ViewList extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
         child: Text('HAZIR', style: Theme.of(context).textTheme.labelSmall),
       ),
-      ...choices.where((choice) => choice.saved == null).map(_row),
+      ...choices
+          .where((choice) => choice.saved == null && choice.tag == null)
+          .map(_row),
+      const SizedBox(height: 16),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+        child: Text('ETİKETLER', style: Theme.of(context).textTheme.labelSmall),
+      ),
+      if (!choices.any((choice) => choice.tag != null))
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Text(
+            'Henüz etiket yok.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      ...choices.where((choice) => choice.tag != null).map(_row),
       const SizedBox(height: 16),
       Padding(
         padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
@@ -281,7 +347,18 @@ class _ViewList extends StatelessWidget {
     selected: selected.key == choice.key,
     leading: Icon(choice.icon, size: 19),
     title: Text(choice.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-    trailing: choice.saved == null
+    trailing: choice.tag != null
+        ? PopupMenuButton<String>(
+            key: ValueKey<String>('smart-view-tag-menu-${choice.tag!.id}'),
+            tooltip: 'Etiket işlemleri',
+            onSelected: (value) {
+              if (value == 'delete-tag') onDeleteTag(choice.tag!);
+            },
+            itemBuilder: (_) => const <PopupMenuEntry<String>>[
+              PopupMenuItem(value: 'delete-tag', child: Text('Etiketi sil')),
+            ],
+          )
+        : choice.saved == null
         ? null
         : PopupMenuButton<String>(
             tooltip: 'Görünüm işlemleri',
@@ -305,6 +382,7 @@ class _CompactSelector extends StatelessWidget {
     required this.onSelected,
     required this.onEdit,
     required this.onDelete,
+    required this.onDeleteTag,
   });
 
   final _ViewChoice selected;
@@ -312,6 +390,7 @@ class _CompactSelector extends StatelessWidget {
   final ValueChanged<_ViewChoice> onSelected;
   final ValueChanged<SmartViewEntity> onEdit;
   final ValueChanged<SmartViewEntity> onDelete;
+  final ValueChanged<TagEntity> onDeleteTag;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -345,7 +424,21 @@ class _CompactSelector extends StatelessWidget {
             },
           ),
         ),
-        if (selected.saved != null) ...<Widget>[
+        if (selected.tag != null) ...<Widget>[
+          const SizedBox(width: 6),
+          PopupMenuButton<String>(
+            key: ValueKey<String>(
+              'smart-view-selected-tag-menu-${selected.tag!.id}',
+            ),
+            tooltip: 'Etiket işlemleri',
+            onSelected: (value) {
+              if (value == 'delete-tag') onDeleteTag(selected.tag!);
+            },
+            itemBuilder: (_) => const <PopupMenuEntry<String>>[
+              PopupMenuItem(value: 'delete-tag', child: Text('Etiketi sil')),
+            ],
+          ),
+        ] else if (selected.saved != null) ...<Widget>[
           const SizedBox(width: 6),
           PopupMenuButton<String>(
             onSelected: (value) {
