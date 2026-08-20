@@ -10,9 +10,11 @@ final class ContentFilter {
   const ContentFilter({
     this.version = currentVersion,
     this.scope = ContentScope.all,
+    this.textQuery,
     this.allTagIds = const <String>[],
     this.anyTagIds = const <String>[],
     this.noneTagIds = const <String>[],
+    this.hasTags,
     this.favorite,
     this.hasReminder,
     this.hasAttachment,
@@ -27,9 +29,11 @@ final class ContentFilter {
 
   final int version;
   final ContentScope scope;
+  final String? textQuery;
   final List<String> allTagIds;
   final List<String> anyTagIds;
   final List<String> noneTagIds;
+  final bool? hasTags;
   final bool? favorite;
   final bool? hasReminder;
   final bool? hasAttachment;
@@ -41,9 +45,11 @@ final class ContentFilter {
 
   bool get isEmpty =>
       scope == ContentScope.all &&
+      textQuery == null &&
       allTagIds.isEmpty &&
       anyTagIds.isEmpty &&
       noneTagIds.isEmpty &&
+      hasTags == null &&
       favorite == null &&
       hasReminder == null &&
       hasAttachment == null &&
@@ -54,10 +60,12 @@ final class ContentFilter {
   Map<String, Object?> toJson() => <String, Object?>{
     'version': version,
     'scope': scope.name,
+    'textQuery': textQuery,
     'tags': <String, Object?>{
       'all': allTagIds,
       'any': anyTagIds,
       'none': noneTagIds,
+      'hasTags': hasTags,
     },
     'favorite': favorite,
     'hasReminder': hasReminder,
@@ -90,7 +98,7 @@ final class ContentFilter {
         );
       }
     } catch (_) {
-      // Fall back to an empty filter so corrupt saved views remain recoverable.
+      // Corrupt persisted views fall back to a harmless empty filter.
     }
     return const ContentFilter();
   }
@@ -110,9 +118,11 @@ final class ContentFilter {
         json['scope']?.toString(),
         ContentScope.all,
       ),
+      textQuery: _nullableText(json['textQuery']),
       allTagIds: _stringList(tags['all']),
       anyTagIds: _stringList(tags['any']),
       noneTagIds: _stringList(tags['none']),
+      hasTags: tags['hasTags'] as bool?,
       favorite: json['favorite'] as bool?,
       hasReminder: json['hasReminder'] as bool?,
       hasAttachment: json['hasAttachment'] as bool?,
@@ -134,9 +144,13 @@ final class ContentFilter {
 
   ContentFilter copyWith({
     ContentScope? scope,
+    String? textQuery,
+    bool clearTextQuery = false,
     List<String>? allTagIds,
     List<String>? anyTagIds,
     List<String>? noneTagIds,
+    bool? hasTags,
+    bool clearHasTags = false,
     bool? favorite,
     bool clearFavorite = false,
     bool? hasReminder,
@@ -154,9 +168,11 @@ final class ContentFilter {
   }) => ContentFilter(
     version: version,
     scope: scope ?? this.scope,
+    textQuery: clearTextQuery ? null : textQuery ?? this.textQuery,
     allTagIds: allTagIds ?? this.allTagIds,
     anyTagIds: anyTagIds ?? this.anyTagIds,
     noneTagIds: noneTagIds ?? this.noneTagIds,
+    hasTags: clearHasTags ? null : hasTags ?? this.hasTags,
     favorite: clearFavorite ? null : favorite ?? this.favorite,
     hasReminder: clearHasReminder ? null : hasReminder ?? this.hasReminder,
     hasAttachment: clearHasAttachment
