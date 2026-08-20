@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
 import 'package:not_app/app/widgets/common_widgets.dart';
+import 'package:not_app/app/widgets/content/app_content.dart';
 import 'package:not_app/app/widgets/navigation/app_toolbar.dart';
 import 'package:not_app/features/tags/domain/entities/tag.dart';
 import 'package:not_app/features/tags/presentation/widgets/tag_strip.dart';
@@ -166,7 +167,9 @@ class TagsManagementScreen extends ConsumerWidget {
                           color: color.withValues(alpha: selected ? 0.22 : 0.10),
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: selected ? color : color.withValues(alpha: 0.25),
+                            color: selected
+                                ? color
+                                : color.withValues(alpha: 0.25),
                             width: selected ? 2 : 1,
                           ),
                         ),
@@ -202,7 +205,9 @@ class TagsManagementScreen extends ConsumerWidget {
         await repository.createTag(name: value, colorKey: colorKey);
       } else {
         if (value != tag.name) await repository.renameTag(tag.id, value);
-        if (colorKey != tag.colorKey) await repository.setColor(tag.id, colorKey);
+        if (colorKey != tag.colorKey) {
+          await repository.setColor(tag.id, colorKey);
+        }
       }
     } catch (error) {
       if (!context.mounted) return;
