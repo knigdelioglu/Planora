@@ -14,6 +14,7 @@ import 'package:not_app/features/notes/domain/entities/note_document.dart';
 import 'package:not_app/features/notes/presentation/widgets/formatting_toolbar.dart';
 import 'package:not_app/features/notes/presentation/widgets/slash_command_palette.dart';
 import 'package:not_app/features/reminders/presentation/reminder_widgets.dart';
+import 'package:not_app/features/tags/public/tags_ui.dart';
 import 'package:uuid/uuid.dart';
 
 class NoteEditorScreen extends ConsumerStatefulWidget {
@@ -723,7 +724,16 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
               PopupMenuButton<String>(
                 tooltip: 'Not işlemleri',
                 onSelected: (value) {
-                  if (value == 'attachment') {
+                  if (value == 'tags') {
+                    unawaited(
+                      showTagPicker(
+                        context,
+                        ref,
+                        targetType: TagTargetType.note,
+                        targetId: widget.noteId,
+                      ),
+                    );
+                  } else if (value == 'attachment') {
                     unawaited(_addAttachment());
                   } else if (value == 'reminder') {
                     unawaited(_addReminder());
@@ -732,6 +742,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
                   }
                 },
                 itemBuilder: (_) => const <PopupMenuEntry<String>>[
+                  PopupMenuItem(value: 'tags', child: Text('Etiketler')),
                   PopupMenuItem(
                     value: 'attachment',
                     child: Text('Dosya veya görsel ekle'),

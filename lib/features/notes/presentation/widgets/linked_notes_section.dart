@@ -30,7 +30,9 @@ class _LinkedNotesSectionState extends ConsumerState<LinkedNotesSection> {
   }
 
   void _reload() {
-    _future = ref.read(noteKanbanRepositoryProvider).linkedNotesForCard(widget.cardId);
+    _future = ref
+        .read(noteKanbanRepositoryProvider)
+        .linkedNotesForCard(widget.cardId);
   }
 
   @override

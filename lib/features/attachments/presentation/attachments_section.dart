@@ -45,11 +45,13 @@ class AttachmentsSection extends ConsumerWidget {
                           item.sizeBytes,
                         ) &&
                         item.remotePath == null;
-                    final bool localOnly = item.isLocalOnly || exceedsCloudLimit;
+                    final bool localOnly =
+                        item.isLocalOnly || exceedsCloudLimit;
                     final String statusLabel = localOnly
                         ? 'Cihazda · Buluta yedeklenmiyor'
                         : item.transferStatusLabel(progress);
-                    final bool isTransferring = item.isTransferring && !localOnly;
+                    final bool isTransferring =
+                        item.isTransferring && !localOnly;
                     final bool canRetry = item.canRetry && !localOnly;
 
                     return ListTile(
@@ -76,9 +78,12 @@ class AttachmentsSection extends ConsumerWidget {
                             const SizedBox(height: 3),
                             Text(
                               'Bu ek yalnızca bu cihazda tutulur; diğer cihazlarda otomatik görünmez.',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context).colorScheme.tertiary,
-                              ),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.tertiary,
+                                  ),
                             ),
                           ],
                           if (isTransferring) ...<Widget>[

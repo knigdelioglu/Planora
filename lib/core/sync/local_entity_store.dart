@@ -2,13 +2,19 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:not_app/core/database/app_database.dart';
+import 'package:not_app/core/events/entity_change_bus.dart';
 import 'package:not_app/core/remote/remote_models.dart';
 import 'package:not_app/core/utils/clock.dart';
 
 final class LocalEntityStore {
-  LocalEntityStore({required this._database, required AppClock clock});
+  LocalEntityStore({
+    required this._database,
+    required AppClock clock,
+    this._changes,
+  });
 
   final AppDatabase _database;
+  final EntityChangeBus? _changes;
 
   Future<bool> hasPendingMutation(String entityType, String entityId) async {
     final row =
@@ -92,15 +98,17 @@ final class LocalEntityStore {
           'deletedAt': row.deletedAt?.toIso8601String(),
         };
       case 'card_note_link':
-        final row = await _database.customSelect(
-          '''
+        final row = await _database
+            .customSelect(
+              '''
           SELECT id, note_id, card_id, created_at, updated_at, version, deleted_at
           FROM card_note_links
           WHERE id = ?
           LIMIT 1
           ''',
-          variables: <Variable<Object>>[Variable<String>(entityId)],
-        ).getSingleOrNull();
+              variables: <Variable<Object>>[Variable<String>(entityId)],
+            )
+            .getSingleOrNull();
         if (row == null) return null;
         return <String, Object?>{
           'id': row.read<String>('id'),
@@ -148,6 +156,73 @@ final class LocalEntityStore {
           'updatedAt': row.updatedAt.toIso8601String(),
           'version': row.version,
           'deletedAt': row.deletedAt?.toIso8601String(),
+        };
+      case 'tag':
+        final row = await _database
+            .customSelect(
+              '''
+          SELECT id, name, normalized_name, color_key,
+                 created_at, updated_at, version, deleted_at
+          FROM tags WHERE id = ? LIMIT 1
+          ''',
+              variables: <Variable<Object>>[Variable<String>(entityId)],
+            )
+            .getSingleOrNull();
+        if (row == null) return null;
+        return <String, Object?>{
+          'id': row.read<String>('id'),
+          'name': row.read<String>('name'),
+          'normalizedName': row.read<String>('normalized_name'),
+          'colorKey': row.read<String>('color_key'),
+          'createdAt': row.read<String>('created_at'),
+          'updatedAt': row.read<String>('updated_at'),
+          'version': row.read<int>('version'),
+          'deletedAt': row.readNullable<String>('deleted_at'),
+        };
+      case 'tag_assignment':
+        final row = await _database
+            .customSelect(
+              '''
+          SELECT id, tag_id, target_type, target_id,
+                 created_at, updated_at, version, deleted_at
+          FROM tag_assignments WHERE id = ? LIMIT 1
+          ''',
+              variables: <Variable<Object>>[Variable<String>(entityId)],
+            )
+            .getSingleOrNull();
+        if (row == null) return null;
+        return <String, Object?>{
+          'id': row.read<String>('id'),
+          'tagId': row.read<String>('tag_id'),
+          'targetType': row.read<String>('target_type'),
+          'targetId': row.read<String>('target_id'),
+          'createdAt': row.read<String>('created_at'),
+          'updatedAt': row.read<String>('updated_at'),
+          'version': row.read<int>('version'),
+          'deletedAt': row.readNullable<String>('deleted_at'),
+        };
+      case 'smart_view':
+        final row = await _database
+            .customSelect(
+              '''
+          SELECT id, name, icon_key, rank_key, query_json,
+                 created_at, updated_at, version, deleted_at
+          FROM smart_views WHERE id = ? LIMIT 1
+          ''',
+              variables: <Variable<Object>>[Variable<String>(entityId)],
+            )
+            .getSingleOrNull();
+        if (row == null) return null;
+        return <String, Object?>{
+          'id': row.read<String>('id'),
+          'name': row.read<String>('name'),
+          'iconKey': row.read<String>('icon_key'),
+          'rankKey': row.read<String>('rank_key'),
+          'queryJson': row.read<String>('query_json'),
+          'createdAt': row.read<String>('created_at'),
+          'updatedAt': row.read<String>('updated_at'),
+          'version': row.read<int>('version'),
+          'deletedAt': row.readNullable<String>('deleted_at'),
         };
       default:
         return null;
@@ -286,7 +361,10 @@ final class LocalEntityStore {
         case 'card_note_link':
           final String? noteId = p['noteId']?.toString();
           final String? cardId = p['cardId']?.toString();
-          if (noteId == null || noteId.isEmpty || cardId == null || cardId.isEmpty) {
+          if (noteId == null ||
+              noteId.isEmpty ||
+              cardId == null ||
+              cardId.isEmpty) {
             if (deleted != null) {
               await _database.customStatement(
                 'DELETE FROM card_note_links WHERE id = ?',
@@ -390,10 +468,117 @@ final class LocalEntityStore {
                   deletedAt: Value<DateTime?>(deleted),
                 ),
               );
+        case 'tag':
+          final String name = (p['name'] ?? '').toString().trim();
+          final String normalizedName =
+              (p['normalizedName'] ?? name.toLowerCase()).toString().trim();
+          await _database.customStatement(
+            '''
+            INSERT INTO tags(
+              id, name, normalized_name, color_key,
+              created_at, updated_at, version, deleted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              name = excluded.name,
+              normalized_name = excluded.normalized_name,
+              color_key = excluded.color_key,
+              created_at = excluded.created_at,
+              updated_at = excluded.updated_at,
+              version = excluded.version,
+              deleted_at = excluded.deleted_at
+            ''',
+            <Object?>[
+              remote.entityId,
+              name,
+              normalizedName,
+              (p['colorKey'] ?? 'indigo').toString(),
+              (p['createdAt'] ?? created.toIso8601String()).toString(),
+              updated.toIso8601String(),
+              remote.version,
+              deleted?.toIso8601String(),
+            ],
+          );
+        case 'tag_assignment':
+          final String? tagId = _optionalText(p, 'tagId');
+          final String? targetType = _optionalText(p, 'targetType');
+          final String? targetId = _optionalText(p, 'targetId');
+          if (tagId == null || targetType == null || targetId == null) {
+            if (deleted != null) {
+              await _database.customStatement(
+                'DELETE FROM tag_assignments WHERE id = ?',
+                <Object?>[remote.entityId],
+              );
+              return;
+            }
+            throw StateError('Tag assignment payload is incomplete.');
+          }
+          if (targetType != 'note' && targetType != 'card') {
+            throw StateError('Unsupported tag assignment target: $targetType');
+          }
+          await _database.customStatement(
+            '''
+            INSERT INTO tag_assignments(
+              id, tag_id, target_type, target_id,
+              created_at, updated_at, version, deleted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              tag_id = excluded.tag_id,
+              target_type = excluded.target_type,
+              target_id = excluded.target_id,
+              created_at = excluded.created_at,
+              updated_at = excluded.updated_at,
+              version = excluded.version,
+              deleted_at = excluded.deleted_at
+            ''',
+            <Object?>[
+              remote.entityId,
+              tagId,
+              targetType,
+              targetId,
+              (p['createdAt'] ?? created.toIso8601String()).toString(),
+              updated.toIso8601String(),
+              remote.version,
+              deleted?.toIso8601String(),
+            ],
+          );
+        case 'smart_view':
+          await _database.customStatement(
+            '''
+            INSERT INTO smart_views(
+              id, name, icon_key, rank_key, query_json,
+              created_at, updated_at, version, deleted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              name = excluded.name,
+              icon_key = excluded.icon_key,
+              rank_key = excluded.rank_key,
+              query_json = excluded.query_json,
+              created_at = excluded.created_at,
+              updated_at = excluded.updated_at,
+              version = excluded.version,
+              deleted_at = excluded.deleted_at
+            ''',
+            <Object?>[
+              remote.entityId,
+              (p['name'] ?? 'Akıllı görünüm').toString(),
+              (p['iconKey'] ?? 'filter_alt').toString(),
+              (p['rankKey'] ?? 'hzzzzzzzzzzz').toString(),
+              (p['queryJson'] ?? '{"version":1}').toString(),
+              (p['createdAt'] ?? created.toIso8601String()).toString(),
+              updated.toIso8601String(),
+              remote.version,
+              deleted?.toIso8601String(),
+            ],
+          );
         default:
           throw StateError('Unsupported remote entity: ${remote.entityType}');
       }
     });
+    if (remote.entityType == 'tag' ||
+        remote.entityType == 'tag_assignment' ||
+        remote.entityType == 'smart_view') {
+      _changes?.notify(remote.entityType);
+    }
   }
 
   DateTime? _date(Object? raw) =>
@@ -420,6 +605,13 @@ final class LocalEntityStore {
       'sizeBytes': 'size_bytes',
       'scheduledAtUtc': 'scheduled_at_utc',
       'timeZoneId': 'time_zone_id',
+      'normalizedName': 'normalized_name',
+      'colorKey': 'color_key',
+      'tagId': 'tag_id',
+      'targetType': 'target_type',
+      'targetId': 'target_id',
+      'iconKey': 'icon_key',
+      'queryJson': 'query_json',
     };
     for (final MapEntry<String, String> alias in aliases.entries) {
       if (!normalized.containsKey(alias.key) &&

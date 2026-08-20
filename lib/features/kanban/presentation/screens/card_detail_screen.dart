@@ -9,6 +9,7 @@ import 'package:not_app/features/kanban/domain/entities/kanban_card.dart';
 import 'package:not_app/features/kanban/domain/entities/kanban_snapshot.dart';
 import 'package:not_app/features/notes/presentation/widgets/linked_notes_section.dart';
 import 'package:not_app/features/reminders/presentation/reminder_widgets.dart';
+import 'package:not_app/features/tags/public/tags_ui.dart';
 
 class CardDetailScreen extends StatelessWidget {
   const CardDetailScreen({super.key, required this.cardId});
@@ -299,6 +300,11 @@ class _CardDetailPaneState extends ConsumerState<CardDetailPane> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      TagStrip(
+                        targetType: TagTargetType.card,
+                        targetId: card.id,
+                      ),
                       const SizedBox(height: 18),
                       if (board != null)
                         DropdownButtonFormField<String>(
@@ -344,9 +350,7 @@ class _CardDetailPaneState extends ConsumerState<CardDetailPane> {
                           Icons.description_outlined,
                           size: 19,
                         ),
-                        children: <Widget>[
-                          LinkedNotesSection(cardId: card.id),
-                        ],
+                        children: <Widget>[LinkedNotesSection(cardId: card.id)],
                       ),
                       ExpansionTile(
                         tilePadding: EdgeInsets.zero,

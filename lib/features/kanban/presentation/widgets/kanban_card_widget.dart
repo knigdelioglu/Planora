@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:not_app/app/theme/app_theme.dart';
 import 'package:not_app/app/widgets/content/app_content.dart';
 import 'package:not_app/features/kanban/domain/entities/kanban_card.dart';
+import 'package:not_app/features/tags/public/tags_ui.dart';
 
 class KanbanCardWidget extends StatefulWidget {
   const KanbanCardWidget({
@@ -180,6 +181,16 @@ class _KanbanCardWidgetState extends State<KanbanCardWidget> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                            if (!widget.feedback) ...<Widget>[
+                              const SizedBox(height: 5),
+                              TagStrip(
+                                targetType: TagTargetType.card,
+                                targetId: widget.card.id,
+                                editable: false,
+                                compact: true,
+                                maxVisible: 2,
                               ),
                             ],
                           ],

@@ -14,6 +14,7 @@ import 'package:not_app/features/notes/domain/repositories/notes_repository.dart
 import 'package:not_app/features/notes/presentation/screens/note_editor_screen.dart';
 import 'package:not_app/features/notes/presentation/widgets/note_grid_card.dart';
 import 'package:not_app/features/notes/presentation/widgets/note_move_to_kanban_dialog.dart';
+import 'package:not_app/features/tags/public/tags_ui.dart';
 
 class NotesScreen extends ConsumerStatefulWidget {
   const NotesScreen({super.key});
@@ -90,11 +91,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             ),
           ),
         );
-    unawaited(
-      Future<void>.delayed(const Duration(seconds: 5), () {
-        feedback.close();
-      }),
-    );
+    unawaited(Future<void>.delayed(const Duration(seconds: 5), feedback.close));
   }
 
   Widget _listView(
@@ -132,11 +129,34 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              subtitle: Text(
-                preview.isEmpty ? 'İçerik yok' : preview.replaceAll('\n', ' '),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              subtitle: note.isDeleted
+                  ? Text(
+                      preview.isEmpty
+                          ? 'İçerik yok'
+                          : preview.replaceAll('\n', ' '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          preview.isEmpty
+                              ? 'İçerik yok'
+                              : preview.replaceAll('\n', ' '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 5),
+                        TagStrip(
+                          targetType: TagTargetType.note,
+                          targetId: note.id,
+                          editable: false,
+                          compact: true,
+                          maxVisible: 3,
+                        ),
+                      ],
+                    ),
               trailing: note.isDeleted
                   ? PopupMenuButton<String>(
                       tooltip: 'Çöp kutusu işlemleri',
@@ -203,6 +223,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                 note.id,
                                 !note.isFavorite,
                               );
+                            } else if (value == 'tags') {
+                              await showTagPicker(
+                                context,
+                                ref,
+                                targetType: TagTargetType.note,
+                                targetId: note.id,
+                              );
                             } else if (value == 'color') {
                               await _changeColor(note);
                             } else if (value == 'move') {
@@ -219,6 +246,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                     ? 'Favoriden çıkar'
                                     : 'Favoriye ekle',
                               ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'tags',
+                              child: Text('Etiketler'),
                             ),
                             const PopupMenuItem(
                               value: 'color',

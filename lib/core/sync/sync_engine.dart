@@ -88,8 +88,9 @@ final class SyncEngine {
           afterRevision: cursor,
         );
         if (batch.isEmpty) break;
-        for (final RemoteEntity remote in
-            _dependencyOrdered(_repairRemoteDependencies(batch))) {
+        for (final RemoteEntity remote in _dependencyOrdered(
+          _repairRemoteDependencies(batch),
+        )) {
           final int localVersion = await _localStore.localVersion(
             remote.entityType,
             remote.entityId,
@@ -135,19 +136,22 @@ final class SyncEngine {
 
   /// Remote revisions are globally ordered, but records created in the same
   /// sync window can still be returned in an order that violates local
-  /// foreign-key dependencies. Apply board hierarchy parents first so a card
-  /// never reaches SQLite before its board and column are present.
+  /// dependencies. Apply hierarchy/tag parents before dependent records so a
+  /// child never reaches SQLite before the row it references is present.
   List<RemoteEntity> _dependencyOrdered(List<RemoteEntity> batch) {
     final List<RemoteEntity> ordered = List<RemoteEntity>.from(batch);
     int rank(RemoteEntity entity) {
       switch (entity.entityType) {
         case 'board':
+        case 'note':
+        case 'tag':
           return 0;
         case 'column':
           return 1;
         case 'card':
           return 2;
         case 'card_note_link':
+        case 'tag_assignment':
           return 3;
         default:
           return 4;
@@ -181,29 +185,31 @@ final class SyncEngine {
       }
     }
 
-    return batch.map((RemoteEntity entity) {
-      if (entity.entityType != 'column') return entity;
-      final String? boardId = _payloadText(
-        entity.payload,
-        'boardId',
-        'board_id',
-      );
-      if (boardId != null) return entity;
-      final String? inferredBoardId = boardByColumn[entity.entityId];
-      if (inferredBoardId == null) return entity;
-      return RemoteEntity(
-        entityType: entity.entityType,
-        entityId: entity.entityId,
-        version: entity.version,
-        updatedAt: entity.updatedAt,
-        deletedAt: entity.deletedAt,
-        syncRevision: entity.syncRevision,
-        payload: <String, Object?>{
-          ...entity.payload,
-          'boardId': inferredBoardId,
-        },
-      );
-    }).toList(growable: false);
+    return batch
+        .map((RemoteEntity entity) {
+          if (entity.entityType != 'column') return entity;
+          final String? boardId = _payloadText(
+            entity.payload,
+            'boardId',
+            'board_id',
+          );
+          if (boardId != null) return entity;
+          final String? inferredBoardId = boardByColumn[entity.entityId];
+          if (inferredBoardId == null) return entity;
+          return RemoteEntity(
+            entityType: entity.entityType,
+            entityId: entity.entityId,
+            version: entity.version,
+            updatedAt: entity.updatedAt,
+            deletedAt: entity.deletedAt,
+            syncRevision: entity.syncRevision,
+            payload: <String, Object?>{
+              ...entity.payload,
+              'boardId': inferredBoardId,
+            },
+          );
+        })
+        .toList(growable: false);
   }
 
   String? _payloadText(

@@ -28,19 +28,21 @@ void main() {
     );
     final DateTime now = clock.nowUtc();
 
-    await db.into(db.attachments).insert(
-      AttachmentsCompanion.insert(
-        id: 'large-attachment',
-        parentType: 'note',
-        parentId: 'note-1',
-        fileName: 'large.pdf',
-        localPath: '/local/large.pdf',
-        sizeBytes: AttachmentBackupPolicy.maximumCloudBackupBytes + 1,
-        transferState: const Value<String>('pendingUpload'),
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
+    await db
+        .into(db.attachments)
+        .insert(
+          AttachmentsCompanion.insert(
+            id: 'large-attachment',
+            parentType: 'note',
+            parentId: 'note-1',
+            fileName: 'large.pdf',
+            localPath: '/local/large.pdf',
+            sizeBytes: AttachmentBackupPolicy.maximumCloudBackupBytes + 1,
+            transferState: const Value<String>('pendingUpload'),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
 
     await queue.enqueue(
       entityType: 'attachment',
@@ -66,9 +68,9 @@ void main() {
       },
     );
 
-    final Attachment row = await (db.select(db.attachments)
-          ..where((tbl) => tbl.id.equals('large-attachment')))
-        .getSingle();
+    final Attachment row = await (db.select(
+      db.attachments,
+    )..where((tbl) => tbl.id.equals('large-attachment'))).getSingle();
     expect(row.transferState, 'localOnly');
     expect(await baseQueue.dueOperations(), isEmpty);
   });
@@ -87,19 +89,21 @@ void main() {
     );
     final DateTime now = clock.nowUtc();
 
-    await db.into(db.attachments).insert(
-      AttachmentsCompanion.insert(
-        id: 'limit-attachment',
-        parentType: 'note',
-        parentId: 'note-1',
-        fileName: 'limit.pdf',
-        localPath: '/local/limit.pdf',
-        sizeBytes: AttachmentBackupPolicy.maximumCloudBackupBytes,
-        transferState: const Value<String>('pendingUpload'),
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
+    await db
+        .into(db.attachments)
+        .insert(
+          AttachmentsCompanion.insert(
+            id: 'limit-attachment',
+            parentType: 'note',
+            parentId: 'note-1',
+            fileName: 'limit.pdf',
+            localPath: '/local/limit.pdf',
+            sizeBytes: AttachmentBackupPolicy.maximumCloudBackupBytes,
+            transferState: const Value<String>('pendingUpload'),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
 
     await queue.enqueue(
       entityType: 'attachment',

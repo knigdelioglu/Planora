@@ -18,6 +18,9 @@ import 'package:not_app/features/reminders/presentation/screens/reminders_screen
 import 'package:not_app/features/search/domain/entities/search_result.dart';
 import 'package:not_app/features/search/presentation/screens/search_screen.dart';
 import 'package:not_app/features/settings/presentation/settings_screen.dart';
+import 'package:not_app/features/smart_views/presentation/screens/smart_views_screen.dart';
+import 'package:not_app/features/smart_views/public/smart_views_api.dart';
+import 'package:not_app/features/tags/presentation/screens/tags_management_screen.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -102,6 +105,14 @@ class _AppShellState extends ConsumerState<AppShell> {
         return;
     }
   }
+
+  Future<void> _openSmartViews([String? initialViewId]) => AppRouter.push<void>(
+    context,
+    SmartViewsScreen(initialViewId: initialViewId),
+  );
+
+  Future<void> _openTags() =>
+      AppRouter.push<void>(context, const TagsManagementScreen());
 
   void _openSettings() {
     final double width = MediaQuery.sizeOf(context).width;
@@ -219,6 +230,45 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
   }
 
+  Widget _savedViewSidebar() => StreamBuilder<List<SmartViewEntity>>(
+    stream: ref.watch(smartViewsRepositoryProvider).watchViews(),
+    builder: (context, snapshot) {
+      final List<SmartViewEntity> views =
+          snapshot.data ?? const <SmartViewEntity>[];
+      final List<SmartViewEntity> visible = views
+          .take(4)
+          .toList(growable: false);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
+            child: Text(
+              'AKILLI GÖRÜNÜMLER',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ),
+          ...visible.map(
+            (view) => AppSidebarItem(
+              label: view.name,
+              icon: Icons.filter_alt_outlined,
+              selectedIcon: Icons.filter_alt_rounded,
+              selected: false,
+              onTap: () => _openSmartViews(view.id),
+            ),
+          ),
+          AppSidebarItem(
+            label: views.isEmpty ? 'Akıllı Görünümler' : 'Tümünü göster',
+            icon: Icons.auto_awesome_motion_outlined,
+            selectedIcon: Icons.auto_awesome_motion_rounded,
+            selected: false,
+            onTap: _openSmartViews,
+          ),
+        ],
+      );
+    },
+  );
+
   Widget _expanded(bool configured, bool signedIn) => Scaffold(
     body: Row(
       children: <Widget>[
@@ -304,18 +354,43 @@ class _AppShellState extends ConsumerState<AppShell> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 2),
-                ...List<Widget>.generate(_mainDestinations.length, (index) {
-                  final item = _mainDestinations[index];
-                  return AppSidebarItem(
-                    label: item.label,
-                    icon: item.icon,
-                    selectedIcon: item.selectedIcon,
-                    selected: _index == index,
-                    onTap: () => setState(() => _index = index),
-                  );
-                }),
-                const Spacer(),
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: <Widget>[
+                      ...List<Widget>.generate(_mainDestinations.length, (
+                        index,
+                      ) {
+                        final item = _mainDestinations[index];
+                        return AppSidebarItem(
+                          label: item.label,
+                          icon: item.icon,
+                          selectedIcon: item.selectedIcon,
+                          selected: _index == index,
+                          onTap: () => setState(() => _index = index),
+                        );
+                      }),
+                      _savedViewSidebar(),
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
+                        child: Text(
+                          'DÜZENLE',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      AppSidebarItem(
+                        label: 'Etiketler',
+                        icon: Icons.sell_outlined,
+                        selectedIcon: Icons.sell_rounded,
+                        selected: false,
+                        onTap: _openTags,
+                      ),
+                    ],
+                  ),
+                ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
                   child: _sync(configured, signedIn),
@@ -358,7 +433,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     ),
                     child: Center(
                       child: Text(
-                        'N',
+                        'P',
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onPrimary,
                           fontWeight: FontWeight.w700,
@@ -371,6 +446,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                   tooltip: 'Ara · ⌘K',
                   onPressed: _openSearch,
                   icon: const Icon(Icons.search_rounded),
+                ),
+                IconButton(
+                  tooltip: 'Akıllı Görünümler',
+                  onPressed: _openSmartViews,
+                  icon: const Icon(Icons.auto_awesome_motion_outlined),
                 ),
               ],
             ),
@@ -418,6 +498,8 @@ class _AppShellState extends ConsumerState<AppShell> {
               context,
               const SearchScreen(autofocus: true),
             ),
+            onSmartViews: _openSmartViews,
+            onTags: _openTags,
             onSettings: () =>
                 AppRouter.push<void>(context, const SettingsScreen()),
             sync: _sync(configured, signedIn),
@@ -463,11 +545,15 @@ class _AppShellState extends ConsumerState<AppShell> {
 class _CompactMore extends StatelessWidget {
   const _CompactMore({
     required this.onSearch,
+    required this.onSmartViews,
+    required this.onTags,
     required this.onSettings,
     required this.sync,
   });
 
   final VoidCallback onSearch;
+  final VoidCallback onSmartViews;
+  final VoidCallback onTags;
   final VoidCallback onSettings;
   final Widget sync;
 
@@ -482,6 +568,18 @@ class _CompactMore extends StatelessWidget {
         leading: const Icon(Icons.search_rounded),
         title: const Text('Arama'),
         onTap: onSearch,
+      ),
+      ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+        leading: const Icon(Icons.auto_awesome_motion_outlined),
+        title: const Text('Akıllı Görünümler'),
+        onTap: onSmartViews,
+      ),
+      ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+        leading: const Icon(Icons.sell_outlined),
+        title: const Text('Etiketleri Yönet'),
+        onTap: onTags,
       ),
       ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8),

@@ -22,8 +22,9 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
 
   @override
   Future<List<LinkedNoteEntity>> linkedNotesForCard(String cardId) async {
-    final rows = await database.customSelect(
-      '''
+    final rows = await database
+        .customSelect(
+          '''
       SELECT l.note_id, l.card_id, n.title
       FROM card_note_links AS l
       INNER JOIN notes AS n ON n.id = l.note_id
@@ -34,8 +35,9 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
         AND c.deleted_at IS NULL
       ORDER BY l.updated_at DESC
       ''',
-      variables: <Variable<Object>>[Variable<String>(cardId)],
-    ).get();
+          variables: <Variable<Object>>[Variable<String>(cardId)],
+        )
+        .get();
     return rows
         .map(
           (row) => LinkedNoteEntity(
@@ -49,8 +51,9 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
 
   @override
   Future<String?> linkedCardIdForNote(String noteId) async {
-    final row = await database.customSelect(
-      '''
+    final row = await database
+        .customSelect(
+          '''
       SELECT l.card_id
       FROM card_note_links AS l
       INNER JOIN cards AS c ON c.id = l.card_id
@@ -59,8 +62,9 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
         AND c.deleted_at IS NULL
       LIMIT 1
       ''',
-      variables: <Variable<Object>>[Variable<String>(noteId)],
-    ).getSingleOrNull();
+          variables: <Variable<Object>>[Variable<String>(noteId)],
+        )
+        .getSingleOrNull();
     return row?.read<String>('card_id');
   }
 
@@ -89,25 +93,29 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
     required String noteId,
     required String cardId,
   }) async {
-    final Note? note = await (database.select(database.notes)
-          ..where((tbl) => tbl.id.equals(noteId) & tbl.deletedAt.isNull()))
-        .getSingleOrNull();
+    final Note? note =
+        await (database.select(database.notes)
+              ..where((tbl) => tbl.id.equals(noteId) & tbl.deletedAt.isNull()))
+            .getSingleOrNull();
     if (note == null) throw StateError('Not bulunamadı.');
 
-    final Card? card = await (database.select(database.cards)
-          ..where((tbl) => tbl.id.equals(cardId) & tbl.deletedAt.isNull()))
-        .getSingleOrNull();
+    final Card? card =
+        await (database.select(database.cards)
+              ..where((tbl) => tbl.id.equals(cardId) & tbl.deletedAt.isNull()))
+            .getSingleOrNull();
     if (card == null) throw StateError('Hedef kart bulunamadı.');
 
-    final existing = await database.customSelect(
-      '''
+    final existing = await database
+        .customSelect(
+          '''
       SELECT id, note_id, card_id, created_at, updated_at, version, deleted_at
       FROM card_note_links
       WHERE id = ?
       LIMIT 1
       ''',
-      variables: <Variable<Object>>[Variable<String>(noteId)],
-    ).getSingleOrNull();
+          variables: <Variable<Object>>[Variable<String>(noteId)],
+        )
+        .getSingleOrNull();
 
     if (existing != null &&
         existing.read<String>('card_id') == cardId &&
@@ -135,14 +143,7 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
           version = excluded.version,
           deleted_at = NULL
         ''',
-        <Object?>[
-          noteId,
-          noteId,
-          cardId,
-          createdAt,
-          updatedAt,
-          version,
-        ],
+        <Object?>[noteId, noteId, cardId, createdAt, updatedAt, version],
       );
       await syncQueue.enqueue(
         entityType: 'card_note_link',
@@ -164,15 +165,17 @@ final class DriftNoteKanbanRepository implements NoteKanbanRepository {
 
   @override
   Future<void> unlinkNote(String noteId) async {
-    final existing = await database.customSelect(
-      '''
+    final existing = await database
+        .customSelect(
+          '''
       SELECT id, note_id, card_id, created_at, updated_at, version, deleted_at
       FROM card_note_links
       WHERE id = ?
       LIMIT 1
       ''',
-      variables: <Variable<Object>>[Variable<String>(noteId)],
-    ).getSingleOrNull();
+          variables: <Variable<Object>>[Variable<String>(noteId)],
+        )
+        .getSingleOrNull();
     if (existing == null ||
         existing.readNullable<String>('deleted_at') != null) {
       return;

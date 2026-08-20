@@ -7,7 +7,7 @@ import 'package:not_app/core/database/app_database.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 void main() {
-  test('schema v1 fixture migrates to v4 without data loss', () async {
+  test('schema v1 fixture migrates to v5 without data loss', () async {
     final _FixtureDatabase fixture = await _FixtureDatabase.create(
       'schema_v1.sql',
     );
@@ -44,7 +44,7 @@ void main() {
     }
 
     AppDatabase db = AppDatabase(NativeDatabase(fixture.file));
-    expect(await _userVersion(db), 4);
+    expect(await _userVersion(db), 5);
 
     final notes = await db.select(db.notes).get();
     expect(notes, hasLength(1));
@@ -72,6 +72,9 @@ void main() {
     expect(await _tableExists(db, 'sync_meta'), isTrue);
     expect(await _tableExists(db, 'search_fts'), isTrue);
     expect(await _tableExists(db, 'card_note_links'), isTrue);
+    expect(await _tableExists(db, 'tags'), isTrue);
+    expect(await _tableExists(db, 'tag_assignments'), isTrue);
+    expect(await _tableExists(db, 'smart_views'), isTrue);
     expect(
       await _indexNames(db),
       containsAll(<String>[
@@ -95,13 +98,16 @@ void main() {
     await db.close();
 
     db = AppDatabase(NativeDatabase(fixture.file));
-    expect(await _userVersion(db), 4);
+    expect(await _userVersion(db), 5);
     expect((await db.select(db.notes).get()).single.title, 'Legacy note');
     expect(await _tableExists(db, 'card_note_links'), isTrue);
+    expect(await _tableExists(db, 'tags'), isTrue);
+    expect(await _tableExists(db, 'tag_assignments'), isTrue);
+    expect(await _tableExists(db, 'smart_views'), isTrue);
     await db.close();
   });
 
-  test('schema v2 fixture migrates conflict rows to v4', () async {
+  test('schema v2 fixture migrates conflict rows to v5', () async {
     final _FixtureDatabase fixture = await _FixtureDatabase.create(
       'schema_v2.sql',
     );
@@ -125,7 +131,7 @@ void main() {
     final AppDatabase db = AppDatabase(NativeDatabase(fixture.file));
     addTearDown(db.close);
 
-    expect(await _userVersion(db), 4);
+    expect(await _userVersion(db), 5);
     expect(await _columnNames(db, 'conflicts'), contains('resolution'));
     expect(await _tableExists(db, 'card_note_links'), isTrue);
 

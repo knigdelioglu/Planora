@@ -2,6 +2,7 @@ import 'package:not_app/app/app_services.dart';
 import 'package:not_app/core/auth/auth_service.dart';
 import 'package:not_app/core/config/app_config.dart';
 import 'package:not_app/core/database/app_database.dart';
+import 'package:not_app/core/events/entity_change_bus.dart';
 import 'package:not_app/core/logging/app_logger.dart';
 import 'package:not_app/core/network/network_info.dart';
 import 'package:not_app/core/remote/remote_gateway.dart';
@@ -33,6 +34,10 @@ import 'package:not_app/features/reminders/data/repositories/reminders_repositor
 import 'package:not_app/features/reminders/domain/repositories/reminders_repository.dart';
 import 'package:not_app/features/search/data/repositories/search_repository_impl.dart';
 import 'package:not_app/features/search/domain/repositories/search_repository.dart';
+import 'package:not_app/features/smart_views/data/repositories/smart_views_repository_impl.dart';
+import 'package:not_app/features/smart_views/domain/repositories/smart_views_repository.dart';
+import 'package:not_app/features/tags/data/repositories/tags_repository_impl.dart';
+import 'package:not_app/features/tags/domain/repositories/tags_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 final class AppBootstrap {
@@ -44,6 +49,7 @@ final class AppBootstrap {
     const AppLogger logger = AppLogger();
     final LocalDataKeyService dataKeys = SecureLocalDataKeyService();
     final AppDatabase database = await AppDatabase.open(keyService: dataKeys);
+    final EntityChangeBus changes = EntityChangeBus();
     try {
       final LocalNotificationService notifications = LocalNotificationService();
       await notifications.initialize();
@@ -82,6 +88,7 @@ final class AppBootstrap {
       final LocalEntityStore localStore = LocalEntityStore(
         database: database,
         clock: clock,
+        changes: changes,
       );
       final ConflictRepository conflicts = DriftConflictRepository(
         database: database,
@@ -101,6 +108,18 @@ final class AppBootstrap {
       final AppSettingsRepository settings = DriftAppSettingsRepository(
         database,
         clock,
+      );
+      final TagsRepository tags = DriftTagsRepository(
+        database: database,
+        syncQueue: queue,
+        clock: clock,
+        changes: changes,
+      );
+      final SmartViewsRepository smartViews = DriftSmartViewsRepository(
+        database: database,
+        syncQueue: queue,
+        clock: clock,
+        changes: changes,
       );
       final NotesRepository rawNotes = DriftNotesRepository(
         database: database,
@@ -124,6 +143,7 @@ final class AppBootstrap {
         rawNotes,
         attachments,
         reminders,
+        tags,
       );
       final KanbanRepository kanban = LifecycleKanbanRepository(
         delegate: DriftKanbanRepository(
@@ -133,6 +153,7 @@ final class AppBootstrap {
         ),
         attachments: attachments,
         reminders: reminders,
+        tags: tags,
       );
       final NoteKanbanRepository noteKanban = DriftNoteKanbanRepository(
         database: database,
@@ -158,6 +179,7 @@ final class AppBootstrap {
       return AppServices(
         config: config,
         database: database,
+        changeBus: changes,
         clock: clock,
         logger: logger,
         networkInfo: network,
@@ -178,8 +200,11 @@ final class AppBootstrap {
         attachments: attachments,
         reminders: reminders,
         search: search,
+        tags: tags,
+        smartViews: smartViews,
       );
     } catch (_) {
+      await changes.dispose();
       await database.close();
       rethrow;
     }
