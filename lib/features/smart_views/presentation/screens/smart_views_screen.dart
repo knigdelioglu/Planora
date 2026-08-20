@@ -1,10 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:not_app/app/providers.dart';
 import 'package:not_app/app/router/app_router.dart';
 import 'package:not_app/app/widgets/common_widgets.dart';
+import 'package:not_app/app/widgets/content/app_content.dart';
 import 'package:not_app/app/widgets/navigation/app_toolbar.dart';
 import 'package:not_app/features/kanban/presentation/screens/card_detail_screen.dart';
 import 'package:not_app/features/notes/presentation/screens/note_editor_screen.dart';
@@ -110,7 +109,8 @@ class _SmartViewsScreenState extends ConsumerState<SmartViewsScreen> {
   }
 
   Future<void> _deleteView(SmartViewEntity view) async {
-    final bool confirmed = await showDialog<bool>(
+    final bool confirmed =
+        await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: Text('“${view.name}” silinsin mi?'),
@@ -188,8 +188,7 @@ class _SmartViewsScreenState extends ConsumerState<SmartViewsScreen> {
 
                 return LayoutBuilder(
                   builder: (context, constraints) {
-                    final bool wide = constraints.maxWidth >= 760;
-                    if (!wide) {
+                    if (constraints.maxWidth < 760) {
                       return Column(
                         children: <Widget>[
                           _CompactSelector(
@@ -257,7 +256,7 @@ class _ViewList extends StatelessWidget {
         child: Text('HAZIR', style: Theme.of(context).textTheme.labelSmall),
       ),
       ...choices.where((choice) => choice.saved == null).map(
-        (choice) => _row(context, choice),
+        (choice) => _row(choice),
       ),
       const SizedBox(height: 16),
       Padding(
@@ -273,12 +272,12 @@ class _ViewList extends StatelessWidget {
           ),
         ),
       ...choices.where((choice) => choice.saved != null).map(
-        (choice) => _row(context, choice),
+        (choice) => _row(choice),
       ),
     ],
   );
 
-  Widget _row(BuildContext context, _ViewChoice choice) => AppListRow(
+  Widget _row(_ViewChoice choice) => AppListRow(
     selected: selected.key == choice.key,
     leading: Icon(choice.icon, size: 19),
     title: Text(choice.name, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -404,7 +403,8 @@ class _Results extends ConsumerWidget {
                 return const EmptyState(
                   icon: Icons.filter_alt_off_outlined,
                   title: 'Eşleşen içerik yok',
-                  message: 'Bu görünümün koşullarına uyan not veya kart bulunamadı.',
+                  message:
+                      'Bu görünümün koşullarına uyan not veya kart bulunamadı.',
                 );
               }
               return ListView.builder(
@@ -454,7 +454,7 @@ class _Results extends ConsumerWidget {
                           context,
                           NoteEditorScreen(noteId: result.entityId),
                         );
-                      } else if (result.entityType == 'card') {
+                      } else {
                         await AppRouter.push<void>(
                           context,
                           CardDetailScreen(cardId: result.entityId),
@@ -494,24 +494,36 @@ Future<_EditorResult?> showSmartViewEditor(
     text: initial?.filter.textQuery,
   );
   ContentScope scope = initial?.filter.scope ?? ContentScope.all;
-  Set<String> tagIds = Set<String>.from(initial?.filter.allTagIds ?? const <String>[]);
+  final Set<String> tagIds = Set<String>.from(
+    initial?.filter.allTagIds ?? const <String>[],
+  );
   bool? hasTags = initial?.filter.hasTags;
   bool? favorite = initial?.filter.favorite;
   bool? hasReminder = initial?.filter.hasReminder;
   bool? hasAttachment = initial?.filter.hasAttachment;
   int? days = initial?.filter.updatedWithinDays;
-  ContentSortField sortField = initial?.filter.sortField ?? ContentSortField.updatedAt;
+  ContentSortField sortField =
+      initial?.filter.sortField ?? ContentSortField.updatedAt;
   ContentSortDirection sortDirection =
       initial?.filter.sortDirection ?? ContentSortDirection.descending;
 
-  final List<TagEntity> availableTags = await ref.read(tagsRepositoryProvider).watchTags().first;
-  if (!context.mounted) return null;
+  final List<TagEntity> availableTags = await ref
+      .read(tagsRepositoryProvider)
+      .watchTags()
+      .first;
+  if (!context.mounted) {
+    name.dispose();
+    textQuery.dispose();
+    return null;
+  }
 
   final _EditorResult? result = await showDialog<_EditorResult>(
     context: context,
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
-        title: Text(initial == null ? 'Yeni Akıllı Görünüm' : 'Görünümü düzenle'),
+        title: Text(
+          initial == null ? 'Yeni Akıllı Görünüm' : 'Görünümü düzenle',
+        ),
         content: SizedBox(
           width: 500,
           child: SingleChildScrollView(
@@ -537,17 +549,34 @@ Future<_EditorResult?> showSmartViewEditor(
                   initialValue: scope,
                   decoration: const InputDecoration(labelText: 'İçerik'),
                   items: const <DropdownMenuItem<ContentScope>>[
-                    DropdownMenuItem(value: ContentScope.all, child: Text('Notlar + Kartlar')),
-                    DropdownMenuItem(value: ContentScope.notes, child: Text('Yalnız Notlar')),
-                    DropdownMenuItem(value: ContentScope.cards, child: Text('Yalnız Kartlar')),
+                    DropdownMenuItem(
+                      value: ContentScope.all,
+                      child: Text('Notlar + Kartlar'),
+                    ),
+                    DropdownMenuItem(
+                      value: ContentScope.notes,
+                      child: Text('Yalnız Notlar'),
+                    ),
+                    DropdownMenuItem(
+                      value: ContentScope.cards,
+                      child: Text('Yalnız Kartlar'),
+                    ),
                   ],
-                  onChanged: (value) => value == null ? null : setState(() => scope = value),
+                  onChanged: (value) {
+                    if (value != null) setState(() => scope = value);
+                  },
                 ),
                 const SizedBox(height: 16),
-                Text('Gerekli etiketler', style: Theme.of(context).textTheme.labelLarge),
+                Text(
+                  'Gerekli etiketler',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
                 const SizedBox(height: 8),
                 if (availableTags.isEmpty)
-                  Text('Henüz etiket yok.', style: Theme.of(context).textTheme.bodySmall)
+                  Text(
+                    'Henüz etiket yok.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  )
                 else
                   Wrap(
                     spacing: 6,
@@ -560,7 +589,10 @@ Future<_EditorResult?> showSmartViewEditor(
                         avatar: Container(
                           width: 7,
                           height: 7,
-                          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                         label: Text('#${tag.name}'),
                         onSelected: (value) => setState(() {
@@ -576,7 +608,11 @@ Future<_EditorResult?> showSmartViewEditor(
                   ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: hasTags == null ? 'any' : hasTags! ? 'tagged' : 'untagged',
+                  initialValue: hasTags == null
+                      ? 'any'
+                      : hasTags!
+                      ? 'tagged'
+                      : 'untagged',
                   decoration: const InputDecoration(labelText: 'Etiket durumu'),
                   items: const <DropdownMenuItem<String>>[
                     DropdownMenuItem(value: 'any', child: Text('Fark etmez')),
@@ -611,17 +647,21 @@ Future<_EditorResult?> showSmartViewEditor(
                   onChanged: (value) => setState(() => hasAttachment = value),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<int?>(
-                  initialValue: days,
+                DropdownButtonFormField<String>(
+                  initialValue: days?.toString() ?? 'all',
                   decoration: const InputDecoration(labelText: 'Güncellenme'),
-                  items: const <DropdownMenuItem<int?>>[
-                    DropdownMenuItem<int?>(value: null, child: Text('Tüm zamanlar')),
-                    DropdownMenuItem<int?>(value: 1, child: Text('Son 24 saat')),
-                    DropdownMenuItem<int?>(value: 7, child: Text('Son 7 gün')),
-                    DropdownMenuItem<int?>(value: 30, child: Text('Son 30 gün')),
-                    DropdownMenuItem<int?>(value: 90, child: Text('Son 90 gün')),
+                  items: const <DropdownMenuItem<String>>[
+                    DropdownMenuItem(value: 'all', child: Text('Tüm zamanlar')),
+                    DropdownMenuItem(value: '1', child: Text('Son 24 saat')),
+                    DropdownMenuItem(value: '7', child: Text('Son 7 gün')),
+                    DropdownMenuItem(value: '30', child: Text('Son 30 gün')),
+                    DropdownMenuItem(value: '90', child: Text('Son 90 gün')),
                   ],
-                  onChanged: (value) => setState(() => days = value),
+                  onChanged: (value) => setState(() {
+                    days = value == null || value == 'all'
+                        ? null
+                        : int.tryParse(value);
+                  }),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -640,9 +680,9 @@ Future<_EditorResult?> showSmartViewEditor(
                             child: Text('Başlık'),
                           ),
                         ],
-                        onChanged: (value) => value == null
-                            ? null
-                            : setState(() => sortField = value),
+                        onChanged: (value) {
+                          if (value != null) setState(() => sortField = value);
+                        },
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -660,9 +700,11 @@ Future<_EditorResult?> showSmartViewEditor(
                             child: Text('Artan'),
                           ),
                         ],
-                        onChanged: (value) => value == null
-                            ? null
-                            : setState(() => sortDirection = value),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => sortDirection = value);
+                          }
+                        },
                       ),
                     ),
                   ],
@@ -687,7 +729,9 @@ Future<_EditorResult?> showSmartViewEditor(
                   iconKey: initial?.iconKey ?? 'filter_alt',
                   filter: ContentFilter(
                     scope: scope,
-                    textQuery: textQuery.text.trim().isEmpty ? null : textQuery.text.trim(),
+                    textQuery: textQuery.text.trim().isEmpty
+                        ? null
+                        : textQuery.text.trim(),
                     allTagIds: tagIds.toList(growable: false),
                     hasTags: hasTags,
                     favorite: scope == ContentScope.cards ? null : favorite,
