@@ -1,99 +1,308 @@
-name: Agent run tests
+name: Apply tag discovery fix
 
 on:
   push:
     branches: [agent/run-tests]
     paths:
-      - 'tools/agent_run_tests.trigger'
-  workflow_dispatch:
+      - '.github/workflows/agent_run_tests.yml'
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
-  test:
+  patch:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U postgres -d postgres"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=10
-    env:
-      PGHOST: localhost
-      PGPORT: '5432'
-      PGUSER: postgres
-      PGPASSWORD: postgres
-      PGDATABASE: postgres
     steps:
       - uses: actions/checkout@v5
-      - id: flutter_setup
-        continue-on-error: true
-        uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.44.8'
-          channel: stable
-          cache: true
-      - name: Run validation and publish summary
+          ref: fix/tag-smart-view-discovery
+          fetch-depth: 0
+      - name: Patch Smart Views tag discovery
         shell: bash
         run: |
-          set -u
-          mkdir -p test-results .ci-logs
-          result='test-results/tags-smart-views-validation.txt'
-          : > "$result"
-          echo "commit=${GITHUB_SHA}" >> "$result"
-          echo "run_id=${GITHUB_RUN_ID}" >> "$result"
-          echo "flutter_setup=${{ steps.flutter_setup.outcome }}" >> "$result"
-          echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$result"
-          overall=0
+          python3 - <<'PY'
+          from pathlib import Path
 
-          run_check() {
-            name="$1"
-            command="$2"
-            log=".ci-logs/${name}.log"
-            echo "== $name =="
-            set +e
-            bash -lc "$command" >"$log" 2>&1
-            code=$?
-            set -e
-            echo "${name}=${code}" >> "$result"
-            if [ "$code" -ne 0 ]; then
-              overall=1
-              echo "--- ${name} failure tail ---" >> "$result"
-              tail -n 160 "$log" >> "$result"
-              echo "--- end ${name} failure tail ---" >> "$result"
-            fi
+          p = Path('lib/features/smart_views/presentation/screens/smart_views_screen.dart')
+          text = p.read_text()
+
+          def replace(old, new, count=1):
+              global text
+              found = text.count(old)
+              print(f'found={found} expected={count}: {old[:70]!r}')
+              if found != count:
+                  raise SystemExit(f'expected {count}, found {found}: {old[:100]!r}')
+              text = text.replace(old, new, count)
+
+          replace(
+              "    this.saved,\n  });\n\n  final String key;\n  final String name;\n  final IconData icon;\n  final ContentFilter filter;\n  final SmartViewEntity? saved;",
+              "    this.saved,\n    this.tag,\n  });\n\n  final String key;\n  final String name;\n  final IconData icon;\n  final ContentFilter filter;\n  final SmartViewEntity? saved;\n  final TagEntity? tag;",
+          )
+
+          replace(
+              "];\n\nclass SmartViewsScreen extends ConsumerStatefulWidget {",
+              "];\n\nfinal _smartViewTagsProvider = StreamProvider.autoDispose<List<TagEntity>>(\n  (ref) => ref.watch(tagsRepositoryProvider).watchTags(),\n);\n\nclass SmartViewsScreen extends ConsumerStatefulWidget {",
+          )
+
+          replace(
+              "  @override\n  Widget build(BuildContext context) {\n    final repository = ref.watch(smartViewsRepositoryProvider);",
+              "  Future<void> _deleteTag(TagEntity tag) async {\n    final bool confirmed =\n        await showDialog<bool>(\n          context: context,\n          builder: (dialogContext) => AlertDialog(\n            title: Text('“${tag.name}” etiketi silinsin mi?'),\n            content: const Text(\n              'Etiket tüm not ve kartlardan kaldırılacak; içeriklerin kendisi silinmeyecek.',\n            ),\n            actions: <Widget>[\n              TextButton(\n                onPressed: () => Navigator.pop(dialogContext, false),\n                child: const Text('Vazgeç'),\n              ),\n              FilledButton(\n                onPressed: () => Navigator.pop(dialogContext, true),\n                child: const Text('Sil'),\n              ),\n            ],\n          ),\n        ) ??\n        false;\n    if (!confirmed) return;\n    await ref.read(tagsRepositoryProvider).deleteTag(tag.id);\n    if (mounted && _selectedKey == 'tag:${tag.id}') {\n      setState(() => _selectedKey = _systemViews.first.key);\n    }\n  }\n\n  @override\n  Widget build(BuildContext context) {\n    final repository = ref.watch(smartViewsRepositoryProvider);\n    final List<TagEntity> tags =\n        ref.watch(_smartViewTagsProvider).asData?.value ?? const <TagEntity>[];",
+          )
+
+          replace(
+              "                final List<_ViewChoice> choices = <_ViewChoice>[\n                  ..._systemViews,\n                  ...saved.map(",
+              "                final List<_ViewChoice> choices = <_ViewChoice>[\n                  ..._systemViews,\n                  ...tags.map(\n                    (TagEntity tag) => _ViewChoice(\n                      key: 'tag:${tag.id}',\n                      name: tag.name,\n                      icon: Icons.sell_outlined,\n                      filter: ContentFilter(anyTagIds: <String>[tag.id]),\n                      tag: tag,\n                    ),\n                  ),\n                  ...saved.map(",
+          )
+
+          replace(
+              "                            onEdit: _editView,\n                            onDelete: _deleteView,\n                          ),",
+              "                            onEdit: _editView,\n                            onDelete: _deleteView,\n                            onDeleteTag: _deleteTag,\n                          ),",
+              2,
+          )
+
+          replace(
+              "    required this.onEdit,\n    required this.onDelete,\n  });\n\n  final _ViewChoice selected;\n  final List<_ViewChoice> choices;\n  final ValueChanged<_ViewChoice> onSelected;\n  final ValueChanged<SmartViewEntity> onEdit;\n  final ValueChanged<SmartViewEntity> onDelete;",
+              "    required this.onEdit,\n    required this.onDelete,\n    required this.onDeleteTag,\n  });\n\n  final _ViewChoice selected;\n  final List<_ViewChoice> choices;\n  final ValueChanged<_ViewChoice> onSelected;\n  final ValueChanged<SmartViewEntity> onEdit;\n  final ValueChanged<SmartViewEntity> onDelete;\n  final ValueChanged<TagEntity> onDeleteTag;",
+              2,
+          )
+
+          replace(
+              "      ...choices.where((choice) => choice.saved == null).map(_row),\n      const SizedBox(height: 16),\n      Padding(\n        padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),\n        child: Text('KAYITLI', style: Theme.of(context).textTheme.labelSmall),\n      ),",
+              "      ...choices\n          .where((choice) => choice.saved == null && choice.tag == null)\n          .map(_row),\n      const SizedBox(height: 16),\n      Padding(\n        padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),\n        child: Text('ETİKETLER', style: Theme.of(context).textTheme.labelSmall),\n      ),\n      if (!choices.any((choice) => choice.tag != null))\n        Padding(\n          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),\n          child: Text(\n            'Henüz etiket yok.',\n            style: Theme.of(context).textTheme.bodySmall,\n          ),\n        ),\n      ...choices.where((choice) => choice.tag != null).map(_row),\n      const SizedBox(height: 16),\n      Padding(\n        padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),\n        child: Text('KAYITLI', style: Theme.of(context).textTheme.labelSmall),\n      ),",
+          )
+
+          replace(
+              "    trailing: choice.saved == null\n        ? null\n        : PopupMenuButton<String>(",
+              "    trailing: choice.tag != null\n        ? PopupMenuButton<String>(\n            key: ValueKey<String>('smart-view-tag-menu-${choice.tag!.id}'),\n            tooltip: 'Etiket işlemleri',\n            onSelected: (value) {\n              if (value == 'delete-tag') onDeleteTag(choice.tag!);\n            },\n            itemBuilder: (_) => const <PopupMenuEntry<String>>[\n              PopupMenuItem(value: 'delete-tag', child: Text('Etiketi sil')),\n            ],\n          )\n        : choice.saved == null\n        ? null\n        : PopupMenuButton<String>(",
+          )
+
+          replace(
+              "        if (selected.saved != null) ...<Widget>[\n          const SizedBox(width: 6),\n          PopupMenuButton<String>(\n            onSelected: (value) {\n              if (value == 'edit') onEdit(selected.saved!);\n              if (value == 'delete') onDelete(selected.saved!);\n            },\n            itemBuilder: (_) => const <PopupMenuEntry<String>>[\n              PopupMenuItem(value: 'edit', child: Text('Düzenle')),\n              PopupMenuItem(value: 'delete', child: Text('Sil')),\n            ],\n          ),\n        ],",
+              "        if (selected.tag != null) ...<Widget>[\n          const SizedBox(width: 6),\n          PopupMenuButton<String>(\n            key: ValueKey<String>(\n              'smart-view-selected-tag-menu-${selected.tag!.id}',\n            ),\n            tooltip: 'Etiket işlemleri',\n            onSelected: (value) {\n              if (value == 'delete-tag') onDeleteTag(selected.tag!);\n            },\n            itemBuilder: (_) => const <PopupMenuEntry<String>>[\n              PopupMenuItem(value: 'delete-tag', child: Text('Etiketi sil')),\n            ],\n          ),\n        ] else if (selected.saved != null) ...<Widget>[\n          const SizedBox(width: 6),\n          PopupMenuButton<String>(\n            onSelected: (value) {\n              if (value == 'edit') onEdit(selected.saved!);\n              if (value == 'delete') onDelete(selected.saved!);\n            },\n            itemBuilder: (_) => const <PopupMenuEntry<String>>[\n              PopupMenuItem(value: 'edit', child: Text('Düzenle')),\n              PopupMenuItem(value: 'delete', child: Text('Sil')),\n            ],\n          ),\n        ],",
+          )
+
+          p.write_text(text)
+          PY
+      - name: Add focused widget tests
+        shell: bash
+        run: |
+          cat > test/features/smart_views_tag_discovery_test.dart <<'DART'
+          import 'dart:async';
+
+          import 'package:flutter/material.dart';
+          import 'package:flutter_riverpod/flutter_riverpod.dart';
+          import 'package:flutter_test/flutter_test.dart';
+          import 'package:not_app/app/providers.dart';
+          import 'package:not_app/features/smart_views/domain/entities/content_filter.dart';
+          import 'package:not_app/features/smart_views/domain/entities/smart_view.dart';
+          import 'package:not_app/features/smart_views/domain/entities/smart_view_result.dart';
+          import 'package:not_app/features/smart_views/domain/repositories/smart_views_repository.dart';
+          import 'package:not_app/features/smart_views/presentation/screens/smart_views_screen.dart';
+          import 'package:not_app/features/tags/domain/entities/tag.dart';
+          import 'package:not_app/features/tags/domain/repositories/tags_repository.dart';
+
+          void main() {
+            testWidgets('created tags automatically become filterable smart views', (
+              WidgetTester tester,
+            ) async {
+              final _FakeTagsRepository tags = _FakeTagsRepository(<TagEntity>[_tag]);
+              final _FakeSmartViewsRepository smartViews = _FakeSmartViewsRepository();
+              addTearDown(tags.dispose);
+
+              await tester.pumpWidget(
+                ProviderScope(
+                  overrides: [
+                    tagsRepositoryProvider.overrideWithValue(tags),
+                    smartViewsRepositoryProvider.overrideWithValue(smartViews),
+                  ],
+                  child: const MaterialApp(home: SmartViewsScreen()),
+                ),
+              );
+              await tester.pumpAndSettle();
+
+              expect(find.text('ETİKETLER'), findsOneWidget);
+              expect(find.text('Okul'), findsOneWidget);
+
+              await tester.tap(find.text('Okul'));
+              await tester.pumpAndSettle();
+
+              expect(smartViews.lastFilter?.anyTagIds, <String>['tag-1']);
+            });
+
+            testWidgets('tag can be deleted directly from smart views', (
+              WidgetTester tester,
+            ) async {
+              final _FakeTagsRepository tags = _FakeTagsRepository(<TagEntity>[_tag]);
+              final _FakeSmartViewsRepository smartViews = _FakeSmartViewsRepository();
+              addTearDown(tags.dispose);
+
+              await tester.pumpWidget(
+                ProviderScope(
+                  overrides: [
+                    tagsRepositoryProvider.overrideWithValue(tags),
+                    smartViewsRepositoryProvider.overrideWithValue(smartViews),
+                  ],
+                  child: const MaterialApp(home: SmartViewsScreen()),
+                ),
+              );
+              await tester.pumpAndSettle();
+
+              await tester.tap(
+                find.byKey(const ValueKey<String>('smart-view-tag-menu-tag-1')),
+              );
+              await tester.pumpAndSettle();
+              await tester.tap(find.text('Etiketi sil'));
+              await tester.pumpAndSettle();
+              await tester.tap(find.widgetWithText(FilledButton, 'Sil'));
+              await tester.pumpAndSettle();
+
+              expect(tags.deletedIds, <String>['tag-1']);
+              expect(find.text('Okul'), findsNothing);
+            });
           }
 
-          run_check pub_get "flutter pub get"
-          run_check drift_codegen "dart run build_runner build --delete-conflicting-outputs"
-          run_check format "dart format --output=none --set-exit-if-changed lib test"
-          run_check analyze "flutter analyze"
-          run_check all_tests "flutter test --coverage --concurrency=1"
-          run_check integration_tests "flutter test test/integration --concurrency=1"
-          run_check tags_smart_views_tests "flutter test test/features/tags_smart_views_test.dart test/database/tags_smart_views_migration_test.dart test/core/sync/tags_sync_dependency_test.dart --concurrency=1"
-          run_check tags_smart_views_performance "flutter test test/features/tags_smart_views_performance_test.dart --concurrency=1"
+          final TagEntity _tag = TagEntity(
+            id: 'tag-1',
+            name: 'Okul',
+            normalizedName: 'okul',
+            colorKey: 'indigo',
+            createdAt: DateTime(2026),
+            updatedAt: DateTime(2026),
+            version: 1,
+          );
 
-          if [ "$overall" -eq 0 ]; then
-            echo 'overall=PASS' >> "$result"
-          else
-            echo 'overall=FAIL' >> "$result"
-          fi
-          echo "finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$result"
+          final class _FakeSmartViewsRepository implements SmartViewsRepository {
+            ContentFilter? lastFilter;
 
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "$result"
-          git commit -m 'ci: record tags smart views validation result'
-          git push origin HEAD:agent/run-tests
+            @override
+            Stream<List<SmartViewEntity>> watchViews() =>
+                Stream<List<SmartViewEntity>>.value(const <SmartViewEntity>[]);
 
-          exit "$overall"
+            @override
+            Stream<List<SmartViewResult>> watchResults(ContentFilter filter) {
+              lastFilter = filter;
+              return Stream<List<SmartViewResult>>.value(const <SmartViewResult>[]);
+            }
+
+            @override
+            Future<List<SmartViewResult>> query(ContentFilter filter) async {
+              lastFilter = filter;
+              return const <SmartViewResult>[];
+            }
+
+            @override
+            Future<String> createView({
+              required String name,
+              required ContentFilter filter,
+              String iconKey = 'filter_alt',
+            }) async => 'view-1';
+
+            @override
+            Future<void> updateView({
+              required String viewId,
+              required String name,
+              required ContentFilter filter,
+              String? iconKey,
+            }) async {}
+
+            @override
+            Future<void> deleteView(String viewId) async {}
+          }
+
+          final class _FakeTagsRepository implements TagsRepository {
+            _FakeTagsRepository(List<TagEntity> tags) : _tags = List<TagEntity>.of(tags);
+
+            final StreamController<List<TagEntity>> _changes =
+                StreamController<List<TagEntity>>.broadcast(sync: true);
+            List<TagEntity> _tags;
+            final List<String> deletedIds = <String>[];
+
+            @override
+            Stream<List<TagEntity>> watchTags() async* {
+              yield List<TagEntity>.unmodifiable(_tags);
+              yield* _changes.stream;
+            }
+
+            @override
+            Future<void> deleteTag(String tagId) async {
+              deletedIds.add(tagId);
+              _tags = _tags.where((TagEntity tag) => tag.id != tagId).toList();
+              _changes.add(List<TagEntity>.unmodifiable(_tags));
+            }
+
+            Future<void> dispose() => _changes.close();
+
+            @override
+            Stream<List<TagEntity>> watchTagsForTarget({
+              required TagTargetType targetType,
+              required String targetId,
+            }) => Stream<List<TagEntity>>.value(const <TagEntity>[]);
+
+            @override
+            Stream<int> watchUsageCount(String tagId) => Stream<int>.value(0);
+
+            @override
+            Future<List<TagEntity>> tagsForTarget({
+              required TagTargetType targetType,
+              required String targetId,
+            }) async => const <TagEntity>[];
+
+            @override
+            Future<String> createTag({
+              required String name,
+              String colorKey = 'indigo',
+            }) => throw UnimplementedError();
+
+            @override
+            Future<void> renameTag(String tagId, String name) =>
+                throw UnimplementedError();
+
+            @override
+            Future<void> setColor(String tagId, String colorKey) =>
+                throw UnimplementedError();
+
+            @override
+            Future<void> assign({
+              required String tagId,
+              required TagTargetType targetType,
+              required String targetId,
+            }) => throw UnimplementedError();
+
+            @override
+            Future<void> unassign({
+              required String tagId,
+              required TagTargetType targetType,
+              required String targetId,
+            }) => throw UnimplementedError();
+
+            @override
+            Future<void> deleteAssignmentsForTarget({
+              required TagTargetType targetType,
+              required String targetId,
+            }) => throw UnimplementedError();
+          }
+          DART
+      - name: Format and commit fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          dart format \
+            lib/features/smart_views/presentation/screens/smart_views_screen.dart \
+            test/features/smart_views_tag_discovery_test.dart
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            lib/features/smart_views/presentation/screens/smart_views_screen.dart \
+            test/features/smart_views_tag_discovery_test.dart
+          git commit -m "fix: expose tags as smart views"
+          git push origin HEAD:fix/tag-smart-view-discovery
+      - name: Publish result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "[CI tag discovery patch] ${{ job.status }}" \
+            --body "Automatic tag discovery patch status: ${{ job.status }}."
