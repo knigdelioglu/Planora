@@ -1,6 +1,7 @@
 import 'package:not_app/core/auth/auth_service.dart';
 import 'package:not_app/core/config/app_config.dart';
 import 'package:not_app/core/database/app_database.dart';
+import 'package:not_app/core/events/entity_change_bus.dart';
 import 'package:not_app/core/logging/app_logger.dart';
 import 'package:not_app/core/network/network_info.dart';
 import 'package:not_app/core/remote/remote_gateway.dart';
@@ -20,11 +21,14 @@ import 'package:not_app/features/notes/domain/repositories/note_kanban_repositor
 import 'package:not_app/features/notes/domain/repositories/notes_repository.dart';
 import 'package:not_app/features/reminders/domain/repositories/reminders_repository.dart';
 import 'package:not_app/features/search/domain/repositories/search_repository.dart';
+import 'package:not_app/features/smart_views/domain/repositories/smart_views_repository.dart';
+import 'package:not_app/features/tags/domain/repositories/tags_repository.dart';
 
 final class AppServices {
   AppServices({
     required this.config,
     required this.database,
+    required this.changeBus,
     required this.clock,
     required this.logger,
     required this.networkInfo,
@@ -45,10 +49,13 @@ final class AppServices {
     required this.attachments,
     required this.reminders,
     required this.search,
+    required this.tags,
+    required this.smartViews,
   });
 
   final AppConfig config;
   final AppDatabase database;
+  final EntityChangeBus changeBus;
   final AppClock clock;
   final AppLogger logger;
   final NetworkInfo networkInfo;
@@ -69,9 +76,12 @@ final class AppServices {
   final AttachmentsRepository attachments;
   final RemindersRepository reminders;
   final SearchRepository search;
+  final TagsRepository tags;
+  final SmartViewsRepository smartViews;
 
   Future<void> dispose() async {
     await syncCoordinator.stop();
+    await changeBus.dispose();
     await database.close();
   }
 }
