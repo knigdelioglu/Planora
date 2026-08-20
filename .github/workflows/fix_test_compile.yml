@@ -1,4 +1,4 @@
-name: Fast patch tags smart views merge readiness
+name: Fast source cleanup tags smart views
 
 on:
   push:
@@ -19,121 +19,207 @@ jobs:
         with:
           ref: feature/tags-smart-views
           fetch-depth: 0
-      - name: Patch merge blockers
+      - name: Apply source cleanup
+        shell: bash
+        run: |
+          python3 - <<'PY' | tee /tmp/source-cleanup.txt
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              found = text.count(old)
+              print(f'{path}: {found} match(es)')
+              if found != count:
+                  raise SystemExit(f'{path}: expected {count}, found {found}')
+              p.write_text(text.replace(old, new, count))
+
+          replace('lib/core/sync/local_entity_store.dart', '// ignore_for_file: prefer_initializing_formals\n\n', '')
+          replace(
+              'lib/core/sync/local_entity_store.dart',
+              '''  LocalEntityStore({
+    required this._database,
+    required AppClock clock,
+    EntityChangeBus? changes,
+  }) : _changes = changes;''',
+              '''  LocalEntityStore({
+    required this._database,
+    required AppClock clock,
+    this._changes,
+  });''',
+          )
+
+          replace('lib/features/smart_views/data/repositories/smart_views_repository_impl.dart', '// ignore_for_file: prefer_initializing_formals, close_sinks\n\n', '')
+          replace(
+              'lib/features/smart_views/data/repositories/smart_views_repository_impl.dart',
+              '''  DriftSmartViewsRepository({
+    required AppDatabase database,
+    required SyncQueueRepository syncQueue,
+    required AppClock clock,
+    required EntityChangeBus changes,
+    Uuid? uuid,
+  }) : _database = database,
+       _syncQueue = syncQueue,
+       _clock = clock,
+       _changes = changes,
+       _uuid = uuid ?? const Uuid();''',
+              '''  DriftSmartViewsRepository({
+    required this._database,
+    required this._syncQueue,
+    required this._clock,
+    required this._changes,
+    Uuid? uuid,
+  }) : _uuid = uuid ?? const Uuid();''',
+          )
+          replace(
+              'lib/features/smart_views/data/repositories/smart_views_repository_impl.dart',
+              '    late StreamController<List<SmartViewResult>> controller;',
+              '''    // Broadcast controller is intentionally re-listenable; onCancel
+    // releases all external subscriptions.
+    // ignore: close_sinks
+    late StreamController<List<SmartViewResult>> controller;''',
+          )
+          replace(
+              'lib/features/smart_views/data/repositories/smart_views_repository_impl.dart',
+              '    late StreamController<T> controller;',
+              '''    // Broadcast controller is intentionally re-listenable; onCancel
+    // releases the external subscription.
+    // ignore: close_sinks
+    late StreamController<T> controller;''',
+          )
+
+          replace('lib/features/tags/data/repositories/tags_repository_impl.dart', '// ignore_for_file: prefer_initializing_formals, close_sinks\n\n', '')
+          replace(
+              'lib/features/tags/data/repositories/tags_repository_impl.dart',
+              '''  DriftTagsRepository({
+    required AppDatabase database,
+    required SyncQueueRepository syncQueue,
+    required AppClock clock,
+    required EntityChangeBus changes,
+  }) : _database = database,
+       _syncQueue = syncQueue,
+       _clock = clock,
+       _changes = changes;''',
+              '''  DriftTagsRepository({
+    required this._database,
+    required this._syncQueue,
+    required this._clock,
+    required this._changes,
+  });''',
+          )
+          replace(
+              'lib/features/tags/data/repositories/tags_repository_impl.dart',
+              '    late StreamController<T> controller;',
+              '''    // Broadcast controller is intentionally re-listenable; onCancel
+    // releases the external subscription.
+    // ignore: close_sinks
+    late StreamController<T> controller;''',
+          )
+
+          replace(
+              'lib/features/smart_views/presentation/screens/smart_views_screen.dart',
+              '''  for (final BoardEntity board in boards) {
+    final KanbanSnapshot? snapshot = await ref
+        .read(kanbanRepositoryProvider)
+        .watchBoard(board.id)
+        .first;
+    if (snapshot != null) snapshots[board.id] = snapshot;
+  }
+  if (!context.mounted) {''',
+              '''  for (final BoardEntity board in boards) {
+    final KanbanSnapshot? snapshot = await ref
+        .read(kanbanRepositoryProvider)
+        .watchBoard(board.id)
+        .first;
+    if (snapshot != null) snapshots[board.id] = snapshot;
+  }
+  if (boardId == null) {
+    columnId = null;
+  } else if (!boards.any((board) => board.id == boardId)) {
+    boardId = null;
+    columnId = null;
+  } else if (columnId != null &&
+      !(snapshots[boardId]?.columns.any((column) => column.id == columnId) ?? false)) {
+    columnId = null;
+  }
+  if (!context.mounted) {''',
+          )
+
+          replace(
+              'lib/features/search/presentation/screens/search_screen.dart',
+              '''                  DropdownButtonFormField<int?>(
+                    initialValue: updatedWithinDays,
+                    decoration: const InputDecoration(labelText: 'Güncellenme'),
+                    items: const <DropdownMenuItem<int?>>[
+                      DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('Tüm zamanlar'),
+                      ),
+                      DropdownMenuItem<int?>(
+                        value: 1,
+                        child: Text('Son 24 saat'),
+                      ),
+                      DropdownMenuItem<int?>(
+                        value: 7,
+                        child: Text('Son 7 gün'),
+                      ),
+                      DropdownMenuItem<int?>(
+                        value: 30,
+                        child: Text('Son 30 gün'),
+                      ),
+                      DropdownMenuItem<int?>(
+                        value: 90,
+                        child: Text('Son 90 gün'),
+                      ),
+                    ],
+                    onChanged: (value) =>
+                        setDialogState(() => updatedWithinDays = value),
+                  ),''',
+              '''                  DropdownButtonFormField<String>(
+                    initialValue: updatedWithinDays?.toString() ?? 'all',
+                    decoration: const InputDecoration(labelText: 'Güncellenme'),
+                    items: const <DropdownMenuItem<String>>[
+                      DropdownMenuItem(value: 'all', child: Text('Tüm zamanlar')),
+                      DropdownMenuItem(value: '1', child: Text('Son 24 saat')),
+                      DropdownMenuItem(value: '7', child: Text('Son 7 gün')),
+                      DropdownMenuItem(value: '30', child: Text('Son 30 gün')),
+                      DropdownMenuItem(value: '90', child: Text('Son 90 gün')),
+                    ],
+                    onChanged: (value) => setDialogState(() {
+                      updatedWithinDays = value == null || value == 'all'
+                          ? null
+                          : int.tryParse(value);
+                    }),
+                  ),''',
+          )
+
+          replace(
+              'lib/features/kanban/presentation/screens/card_detail_screen.dart',
+              "import 'package:not_app/features/tags/domain/entities/tag.dart';\nimport 'package:not_app/features/tags/presentation/widgets/tag_strip.dart';",
+              "import 'package:not_app/features/tags/public/tags_ui.dart';",
+          )
+          PY
+      - name: Commit source cleanup
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY' | tee /tmp/patch-report.txt
-          from pathlib import Path
-          import re
-
-          def patch(path, pattern, replacement, count=0):
-              p = Path(path)
-              text = p.read_text()
-              updated, found = re.subn(pattern, replacement, text, count=count, flags=re.MULTILINE)
-              print(f'{path}: {found} replacement(s)')
-              if found:
-                  p.write_text(updated)
-
-          def add_ignore(path, rules):
-              p = Path(path)
-              text = p.read_text()
-              marker = f'// ignore_for_file: {rules}\n\n'
-              if marker not in text:
-                  p.write_text(marker + text)
-                  print(f'{path}: added ignore_for_file {rules}')
-
-          # The inline strip pushed the first editable block below the widget-test viewport.
-          # Tagging remains directly available from the editor toolbar popup.
-          patch(
-              'lib/features/notes/presentation/screens/note_editor_screen.dart',
-              r"\s+const SizedBox\(height: 10\),\n\s+TagStrip\(\n\s+targetType: TagTargetType\.note,\n\s+targetId: widget\.noteId,\n\s+\),\n\s+const SizedBox\(height: 18\),",
-              "\n                              const SizedBox(height: 18),",
-              1,
-          )
-
-          # Preserve the established no-result copy for plain search while keeping
-          # the richer hint when advanced filters are active.
-          patch(
-              'lib/features/search/presentation/screens/search_screen.dart',
-              r"\? const EmptyState\(\n\s+icon: Icons\.search_off_rounded,\n\s+title: 'Sonuç bulunamadı',\n\s+message:\n\s+'Arama kelimesini veya filtreleri değiştirin\.',\n\s+\)",
-              """? EmptyState(
-                                icon: Icons.search_off_rounded,
-                                title: 'Sonuç bulunamadı',
-                                message: _hasAdvancedFilters
-                                    ? 'Arama kelimesini veya filtreleri değiştirin.'
-                                    : 'Farklı bir kelime deneyin.',
-                              )""",
-              1,
-          )
-          patch(
-              'lib/features/search/presentation/screens/search_screen.dart',
-              r"^    Set<String> tagIds = Set<String>\.from\(_tagIds\);$",
-              '    final Set<String> tagIds = Set<String>.from(_tagIds);',
-              1,
-          )
-
-          # These repositories intentionally expose stable named constructor args;
-          # the lint would otherwise force private field names into their public API.
-          add_ignore('lib/core/sync/local_entity_store.dart', 'prefer_initializing_formals')
-          add_ignore(
-              'lib/features/smart_views/data/repositories/smart_views_repository_impl.dart',
-              'prefer_initializing_formals, close_sinks',
-          )
-          add_ignore(
-              'lib/features/tags/data/repositories/tags_repository_impl.dart',
-              'prefer_initializing_formals, close_sinks',
-          )
-
-          # The editor helper is library-private because its return type is private.
-          patch(
-              'lib/features/smart_views/presentation/screens/smart_views_screen.dart',
-              r'\bshowSmartViewEditor\(',
-              '_showSmartViewEditor(',
-              3,
-          )
-          patch(
-              'lib/features/tags/presentation/screens/tags_management_screen.dart',
-              r'separatorBuilder: \(_, __\) => const SizedBox\(height: 2\),',
-              'separatorBuilder: (_, _) => const SizedBox(height: 2),',
-              1,
-          )
-          PY
-      - name: Commit patch to feature branch
-        id: commit_patch
-        shell: bash
-        run: |
-          set +e
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add lib
-          if git diff --cached --quiet; then
-            echo 'result=no changes' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git commit -m 'fix: remove tags smart views merge blockers'
-          code=$?
-          if [ "$code" -eq 0 ]; then
-            git push origin HEAD:feature/tags-smart-views
-            code=$?
-          fi
-          echo "result=exit $code" >> "$GITHUB_OUTPUT"
-          exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            lib/core/sync/local_entity_store.dart \
+            lib/features/smart_views/data/repositories/smart_views_repository_impl.dart \
+            lib/features/tags/data/repositories/tags_repository_impl.dart \
+            lib/features/smart_views/presentation/screens/smart_views_screen.dart \
+            lib/features/search/presentation/screens/search_screen.dart \
+            lib/features/kanban/presentation/screens/card_detail_screen.dart
+          git commit -m "fix: finalize tags smart views cleanup"
+          git push origin HEAD:feature/tags-smart-views
       - name: Publish patch report
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          RESULT: ${{ steps.commit_patch.outputs.result }}
         shell: bash
         run: |
-          {
-            echo '# Tags + Smart Views fast merge-readiness patch'
-            echo
-            echo "Trigger: $GITHUB_SHA"
-            echo "Commit/push: ${RESULT:-unknown}"
-            echo
-            echo '```text'
-            cat /tmp/patch-report.txt 2>/dev/null || true
-            echo '```'
-          } > /tmp/patch-issue.md
-          gh issue create --title '[CI merge-ready patch] tags-smart-views' --body-file /tmp/patch-issue.md
+          gh issue create \
+            --title "[CI fast cleanup] tags-smart-views ${{ job.status }}" \
+            --body "Fast source cleanup status: ${{ job.status }}."
