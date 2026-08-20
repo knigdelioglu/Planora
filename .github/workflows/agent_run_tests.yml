@@ -36,7 +36,9 @@ jobs:
       PGDATABASE: postgres
     steps:
       - uses: actions/checkout@v5
-      - uses: subosito/flutter-action@v2
+      - id: flutter_setup
+        continue-on-error: true
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.44.8'
           channel: stable
@@ -50,6 +52,7 @@ jobs:
           : > "$result"
           echo "commit=${GITHUB_SHA}" >> "$result"
           echo "run_id=${GITHUB_RUN_ID}" >> "$result"
+          echo "flutter_setup=${{ steps.flutter_setup.outcome }}" >> "$result"
           echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$result"
           overall=0
 
