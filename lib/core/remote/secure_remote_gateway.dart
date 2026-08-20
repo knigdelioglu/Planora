@@ -15,8 +15,12 @@ final class SecureRemoteGateway implements RemoteGateway {
     'board',
     'column',
     'card',
+    'card_note_link',
     'attachment',
     'reminder',
+    'tag',
+    'tag_assignment',
+    'smart_view',
   };
 
   final RemoteGateway _delegate;
