@@ -1,5 +1,6 @@
 name: Agent run tests
 
+# Validation trigger: tags + smart views feature branch
 on:
   push:
     branches: [agent/run-tests]
