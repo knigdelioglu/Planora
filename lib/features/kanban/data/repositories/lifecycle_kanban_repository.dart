@@ -4,8 +4,7 @@ import 'package:not_app/features/kanban/domain/entities/kanban_card.dart';
 import 'package:not_app/features/kanban/domain/entities/kanban_snapshot.dart';
 import 'package:not_app/features/kanban/domain/repositories/kanban_repository.dart';
 import 'package:not_app/features/reminders/domain/repositories/reminders_repository.dart';
-import 'package:not_app/features/tags/domain/entities/tag.dart';
-import 'package:not_app/features/tags/domain/repositories/tags_repository.dart';
+import 'package:not_app/features/tags/public/tags_api.dart';
 
 final class LifecycleKanbanRepository implements KanbanRepository {
   LifecycleKanbanRepository({
