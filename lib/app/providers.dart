@@ -13,6 +13,8 @@ import 'package:not_app/features/notes/domain/repositories/note_kanban_repositor
 import 'package:not_app/features/notes/domain/repositories/notes_repository.dart';
 import 'package:not_app/features/reminders/domain/repositories/reminders_repository.dart';
 import 'package:not_app/features/search/domain/repositories/search_repository.dart';
+import 'package:not_app/features/smart_views/domain/repositories/smart_views_repository.dart';
+import 'package:not_app/features/tags/domain/repositories/tags_repository.dart';
 
 final class AppServiceRegistry {
   const AppServiceRegistry._();
@@ -51,6 +53,12 @@ final remindersRepositoryProvider = Provider<RemindersRepository>(
 );
 final searchRepositoryProvider = Provider<SearchRepository>(
   (ref) => ref.watch(appServicesProvider).search,
+);
+final tagsRepositoryProvider = Provider<TagsRepository>(
+  (ref) => ref.watch(appServicesProvider).tags,
+);
+final smartViewsRepositoryProvider = Provider<SmartViewsRepository>(
+  (ref) => ref.watch(appServicesProvider).smartViews,
 );
 final conflictRepositoryProvider = Provider<ConflictRepository>(
   (ref) => ref.watch(appServicesProvider).conflicts,
