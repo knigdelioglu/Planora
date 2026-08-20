@@ -1,2 +1,3 @@
-attempt: 19
-started_at: 2026-08-17T15:15:00+03:00
+attempt: 20
+started_at: 2026-08-20T11:13:00+03:00
+scope: feature/tags-smart-views canonical dart format
