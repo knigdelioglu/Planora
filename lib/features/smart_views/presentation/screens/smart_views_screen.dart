@@ -6,12 +6,12 @@ import 'package:not_app/app/widgets/common_widgets.dart';
 import 'package:not_app/app/widgets/content/app_content.dart';
 import 'package:not_app/app/widgets/navigation/app_toolbar.dart';
 import 'package:not_app/features/kanban/presentation/screens/card_detail_screen.dart';
+import 'package:not_app/features/kanban/public/kanban_api.dart';
 import 'package:not_app/features/notes/presentation/screens/note_editor_screen.dart';
 import 'package:not_app/features/smart_views/domain/entities/content_filter.dart';
 import 'package:not_app/features/smart_views/domain/entities/smart_view.dart';
 import 'package:not_app/features/smart_views/domain/entities/smart_view_result.dart';
-import 'package:not_app/features/tags/domain/entities/tag.dart';
-import 'package:not_app/features/tags/presentation/widgets/tag_strip.dart';
+import 'package:not_app/features/tags/public/tags_ui.dart';
 
 final class _ViewChoice {
   const _ViewChoice({
@@ -255,9 +255,7 @@ class _ViewList extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
         child: Text('HAZIR', style: Theme.of(context).textTheme.labelSmall),
       ),
-      ...choices.where((choice) => choice.saved == null).map(
-        (choice) => _row(choice),
-      ),
+      ...choices.where((choice) => choice.saved == null).map(_row),
       const SizedBox(height: 16),
       Padding(
         padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
@@ -271,9 +269,7 @@ class _ViewList extends StatelessWidget {
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
-      ...choices.where((choice) => choice.saved != null).map(
-        (choice) => _row(choice),
-      ),
+      ...choices.where((choice) => choice.saved != null).map(_row),
     ],
   );
 
@@ -494,14 +490,22 @@ Future<_EditorResult?> showSmartViewEditor(
     text: initial?.filter.textQuery,
   );
   ContentScope scope = initial?.filter.scope ?? ContentScope.all;
-  final Set<String> tagIds = Set<String>.from(
+  final Set<String> allTagIds = Set<String>.from(
     initial?.filter.allTagIds ?? const <String>[],
+  );
+  final Set<String> anyTagIds = Set<String>.from(
+    initial?.filter.anyTagIds ?? const <String>[],
+  );
+  final Set<String> noneTagIds = Set<String>.from(
+    initial?.filter.noneTagIds ?? const <String>[],
   );
   bool? hasTags = initial?.filter.hasTags;
   bool? favorite = initial?.filter.favorite;
   bool? hasReminder = initial?.filter.hasReminder;
   bool? hasAttachment = initial?.filter.hasAttachment;
   int? days = initial?.filter.updatedWithinDays;
+  String? boardId = initial?.filter.boardId;
+  String? columnId = initial?.filter.columnId;
   ContentSortField sortField =
       initial?.filter.sortField ?? ContentSortField.updatedAt;
   ContentSortDirection sortDirection =
@@ -511,248 +515,385 @@ Future<_EditorResult?> showSmartViewEditor(
       .read(tagsRepositoryProvider)
       .watchTags()
       .first;
+  final List<BoardEntity> boards = await ref
+      .read(kanbanRepositoryProvider)
+      .watchBoards()
+      .first;
+  final Map<String, KanbanSnapshot> snapshots = <String, KanbanSnapshot>{};
+  for (final BoardEntity board in boards) {
+    final KanbanSnapshot? snapshot = await ref
+        .read(kanbanRepositoryProvider)
+        .watchBoard(board.id)
+        .first;
+    if (snapshot != null) snapshots[board.id] = snapshot;
+  }
   if (!context.mounted) {
     name.dispose();
     textQuery.dispose();
     return null;
   }
 
+  void selectTag(
+    String tagId,
+    Set<String> target,
+    bool selected,
+  ) {
+    if (selected) {
+      allTagIds.remove(tagId);
+      anyTagIds.remove(tagId);
+      noneTagIds.remove(tagId);
+      target.add(tagId);
+      hasTags = null;
+    } else {
+      target.remove(tagId);
+    }
+  }
+
   final _EditorResult? result = await showDialog<_EditorResult>(
     context: context,
     builder: (dialogContext) => StatefulBuilder(
-      builder: (context, setState) => AlertDialog(
-        title: Text(
-          initial == null ? 'Yeni Akıllı Görünüm' : 'Görünümü düzenle',
-        ),
-        content: SizedBox(
-          width: 500,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                TextField(
-                  controller: name,
-                  autofocus: true,
-                  decoration: const InputDecoration(labelText: 'Ad'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: textQuery,
-                  decoration: const InputDecoration(
-                    labelText: 'Metin içerir',
-                    hintText: 'İsteğe bağlı',
-                    prefixIcon: Icon(Icons.search_rounded),
+      builder: (context, setState) {
+        final List<BoardColumnEntity> columns = boardId == null
+            ? const <BoardColumnEntity>[]
+            : snapshots[boardId]?.columns ?? const <BoardColumnEntity>[];
+        return AlertDialog(
+          title: Text(
+            initial == null ? 'Yeni Akıllı Görünüm' : 'Görünümü düzenle',
+          ),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  TextField(
+                    controller: name,
+                    autofocus: true,
+                    decoration: const InputDecoration(labelText: 'Ad'),
                   ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<ContentScope>(
-                  initialValue: scope,
-                  decoration: const InputDecoration(labelText: 'İçerik'),
-                  items: const <DropdownMenuItem<ContentScope>>[
-                    DropdownMenuItem(
-                      value: ContentScope.all,
-                      child: Text('Notlar + Kartlar'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: textQuery,
+                    decoration: const InputDecoration(
+                      labelText: 'Metin içerir',
+                      hintText: 'İsteğe bağlı',
+                      prefixIcon: Icon(Icons.search_rounded),
                     ),
-                    DropdownMenuItem(
-                      value: ContentScope.notes,
-                      child: Text('Yalnız Notlar'),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<ContentScope>(
+                    initialValue: scope,
+                    decoration: const InputDecoration(labelText: 'İçerik'),
+                    items: const <DropdownMenuItem<ContentScope>>[
+                      DropdownMenuItem(
+                        value: ContentScope.all,
+                        child: Text('Notlar + Kartlar'),
+                      ),
+                      DropdownMenuItem(
+                        value: ContentScope.notes,
+                        child: Text('Yalnız Notlar'),
+                      ),
+                      DropdownMenuItem(
+                        value: ContentScope.cards,
+                        child: Text('Yalnız Kartlar'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        scope = value;
+                        if (scope == ContentScope.notes) {
+                          boardId = null;
+                          columnId = null;
+                        }
+                        if (scope == ContentScope.cards) favorite = null;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                  _TagFilterSection(
+                    title: 'Tümü gerekli',
+                    subtitle: 'İçerik seçilen etiketlerin tamamını taşımalı.',
+                    tags: availableTags,
+                    selected: allTagIds,
+                    onSelected: (tagId, selected) => setState(
+                      () => selectTag(tagId, allTagIds, selected),
                     ),
-                    DropdownMenuItem(
-                      value: ContentScope.cards,
-                      child: Text('Yalnız Kartlar'),
+                  ),
+                  const SizedBox(height: 14),
+                  _TagFilterSection(
+                    title: 'Herhangi biri',
+                    subtitle: 'Seçilen etiketlerden en az biri yeterli.',
+                    tags: availableTags,
+                    selected: anyTagIds,
+                    onSelected: (tagId, selected) => setState(
+                      () => selectTag(tagId, anyTagIds, selected),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _TagFilterSection(
+                    title: 'Hariç tut',
+                    subtitle: 'Bu etiketlerden herhangi birini taşıyan içerik gelmez.',
+                    tags: availableTags,
+                    selected: noneTagIds,
+                    onSelected: (tagId, selected) => setState(
+                      () => selectTag(tagId, noneTagIds, selected),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    initialValue: hasTags == null
+                        ? 'any'
+                        : hasTags!
+                        ? 'tagged'
+                        : 'untagged',
+                    decoration: const InputDecoration(labelText: 'Etiket durumu'),
+                    items: const <DropdownMenuItem<String>>[
+                      DropdownMenuItem(value: 'any', child: Text('Fark etmez')),
+                      DropdownMenuItem(value: 'tagged', child: Text('Etiketli')),
+                      DropdownMenuItem(value: 'untagged', child: Text('Etiketsiz')),
+                    ],
+                    onChanged: (value) => setState(() {
+                      hasTags = switch (value) {
+                        'tagged' => true,
+                        'untagged' => false,
+                        _ => null,
+                      };
+                      if (hasTags == false) {
+                        allTagIds.clear();
+                        anyTagIds.clear();
+                        noneTagIds.clear();
+                      }
+                    }),
+                  ),
+                  if (scope != ContentScope.cards) ...<Widget>[
+                    const SizedBox(height: 12),
+                    _NullableBoolField(
+                      label: 'Favori',
+                      value: favorite,
+                      onChanged: (value) => setState(() => favorite = value),
                     ),
                   ],
-                  onChanged: (value) {
-                    if (value != null) setState(() => scope = value);
-                  },
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Gerekli etiketler',
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-                const SizedBox(height: 8),
-                if (availableTags.isEmpty)
-                  Text(
-                    'Henüz etiket yok.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  )
-                else
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: availableTags.map((tag) {
-                      final bool selected = tagIds.contains(tag.id);
-                      final Color color = tagColor(context, tag.colorKey);
-                      return FilterChip(
-                        selected: selected,
-                        avatar: Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
+                  const SizedBox(height: 8),
+                  _NullableBoolField(
+                    label: 'Hatırlatıcı',
+                    value: hasReminder,
+                    onChanged: (value) => setState(() => hasReminder = value),
+                  ),
+                  const SizedBox(height: 8),
+                  _NullableBoolField(
+                    label: 'Dosya eki',
+                    value: hasAttachment,
+                    onChanged: (value) => setState(() => hasAttachment = value),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: days?.toString() ?? 'all',
+                    decoration: const InputDecoration(labelText: 'Güncellenme'),
+                    items: const <DropdownMenuItem<String>>[
+                      DropdownMenuItem(value: 'all', child: Text('Tüm zamanlar')),
+                      DropdownMenuItem(value: '1', child: Text('Son 24 saat')),
+                      DropdownMenuItem(value: '7', child: Text('Son 7 gün')),
+                      DropdownMenuItem(value: '30', child: Text('Son 30 gün')),
+                      DropdownMenuItem(value: '90', child: Text('Son 90 gün')),
+                    ],
+                    onChanged: (value) => setState(() {
+                      days = value == null || value == 'all'
+                          ? null
+                          : int.tryParse(value);
+                    }),
+                  ),
+                  if (scope != ContentScope.notes && boards.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: boardId ?? '__all__',
+                      decoration: const InputDecoration(labelText: 'Pano'),
+                      items: <DropdownMenuItem<String>>[
+                        const DropdownMenuItem(
+                          value: '__all__',
+                          child: Text('Tüm panolar'),
+                        ),
+                        ...boards.map(
+                          (board) => DropdownMenuItem(
+                            value: board.id,
+                            child: Text(board.title),
                           ),
                         ),
-                        label: Text('#${tag.name}'),
-                        onSelected: (value) => setState(() {
-                          if (value) {
-                            tagIds.add(tag.id);
-                            hasTags = null;
-                          } else {
-                            tagIds.remove(tag.id);
-                          }
+                      ],
+                      onChanged: (value) => setState(() {
+                        boardId = value == '__all__' ? null : value;
+                        columnId = null;
+                      }),
+                    ),
+                    if (boardId != null && columns.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: columnId ?? '__all__',
+                        decoration: const InputDecoration(labelText: 'Kolon'),
+                        items: <DropdownMenuItem<String>>[
+                          const DropdownMenuItem(
+                            value: '__all__',
+                            child: Text('Tüm kolonlar'),
+                          ),
+                          ...columns.map(
+                            (column) => DropdownMenuItem(
+                              value: column.id,
+                              child: Text(column.title),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) => setState(() {
+                          columnId = value == '__all__' ? null : value;
                         }),
-                      );
-                    }).toList(growable: false),
+                      ),
+                    ],
+                  ],
+                  const SizedBox(height: 12),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: DropdownButtonFormField<ContentSortField>(
+                          initialValue: sortField,
+                          decoration: const InputDecoration(labelText: 'Sırala'),
+                          items: const <DropdownMenuItem<ContentSortField>>[
+                            DropdownMenuItem(
+                              value: ContentSortField.updatedAt,
+                              child: Text('Güncelleme'),
+                            ),
+                            DropdownMenuItem(
+                              value: ContentSortField.title,
+                              child: Text('Başlık'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) setState(() => sortField = value);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DropdownButtonFormField<ContentSortDirection>(
+                          initialValue: sortDirection,
+                          decoration: const InputDecoration(labelText: 'Yön'),
+                          items: const <DropdownMenuItem<ContentSortDirection>>[
+                            DropdownMenuItem(
+                              value: ContentSortDirection.descending,
+                              child: Text('Azalan'),
+                            ),
+                            DropdownMenuItem(
+                              value: ContentSortDirection.ascending,
+                              child: Text('Artan'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => sortDirection = value);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
                   ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: hasTags == null
-                      ? 'any'
-                      : hasTags!
-                      ? 'tagged'
-                      : 'untagged',
-                  decoration: const InputDecoration(labelText: 'Etiket durumu'),
-                  items: const <DropdownMenuItem<String>>[
-                    DropdownMenuItem(value: 'any', child: Text('Fark etmez')),
-                    DropdownMenuItem(value: 'tagged', child: Text('Etiketli')),
-                    DropdownMenuItem(value: 'untagged', child: Text('Etiketsiz')),
-                  ],
-                  onChanged: (value) => setState(() {
-                    hasTags = switch (value) {
-                      'tagged' => true,
-                      'untagged' => false,
-                      _ => null,
-                    };
-                    if (hasTags == false) tagIds.clear();
-                  }),
-                ),
-                const SizedBox(height: 12),
-                _NullableBoolField(
-                  label: 'Favori',
-                  value: favorite,
-                  onChanged: (value) => setState(() => favorite = value),
-                ),
-                const SizedBox(height: 8),
-                _NullableBoolField(
-                  label: 'Hatırlatıcı',
-                  value: hasReminder,
-                  onChanged: (value) => setState(() => hasReminder = value),
-                ),
-                const SizedBox(height: 8),
-                _NullableBoolField(
-                  label: 'Dosya eki',
-                  value: hasAttachment,
-                  onChanged: (value) => setState(() => hasAttachment = value),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: days?.toString() ?? 'all',
-                  decoration: const InputDecoration(labelText: 'Güncellenme'),
-                  items: const <DropdownMenuItem<String>>[
-                    DropdownMenuItem(value: 'all', child: Text('Tüm zamanlar')),
-                    DropdownMenuItem(value: '1', child: Text('Son 24 saat')),
-                    DropdownMenuItem(value: '7', child: Text('Son 7 gün')),
-                    DropdownMenuItem(value: '30', child: Text('Son 30 gün')),
-                    DropdownMenuItem(value: '90', child: Text('Son 90 gün')),
-                  ],
-                  onChanged: (value) => setState(() {
-                    days = value == null || value == 'all'
-                        ? null
-                        : int.tryParse(value);
-                  }),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: DropdownButtonFormField<ContentSortField>(
-                        initialValue: sortField,
-                        decoration: const InputDecoration(labelText: 'Sırala'),
-                        items: const <DropdownMenuItem<ContentSortField>>[
-                          DropdownMenuItem(
-                            value: ContentSortField.updatedAt,
-                            child: Text('Güncelleme'),
-                          ),
-                          DropdownMenuItem(
-                            value: ContentSortField.title,
-                            child: Text('Başlık'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) setState(() => sortField = value);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: DropdownButtonFormField<ContentSortDirection>(
-                        initialValue: sortDirection,
-                        decoration: const InputDecoration(labelText: 'Yön'),
-                        items: const <DropdownMenuItem<ContentSortDirection>>[
-                          DropdownMenuItem(
-                            value: ContentSortDirection.descending,
-                            child: Text('Azalan'),
-                          ),
-                          DropdownMenuItem(
-                            value: ContentSortDirection.ascending,
-                            child: Text('Artan'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() => sortDirection = value);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Vazgeç'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final String cleanName = name.text.trim();
-              if (cleanName.isEmpty) return;
-              Navigator.pop(
-                dialogContext,
-                _EditorResult(
-                  name: cleanName,
-                  iconKey: initial?.iconKey ?? 'filter_alt',
-                  filter: ContentFilter(
-                    scope: scope,
-                    textQuery: textQuery.text.trim().isEmpty
-                        ? null
-                        : textQuery.text.trim(),
-                    allTagIds: tagIds.toList(growable: false),
-                    hasTags: hasTags,
-                    favorite: scope == ContentScope.cards ? null : favorite,
-                    hasReminder: hasReminder,
-                    hasAttachment: hasAttachment,
-                    updatedWithinDays: days,
-                    sortField: sortField,
-                    sortDirection: sortDirection,
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Vazgeç'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final String cleanName = name.text.trim();
+                if (cleanName.isEmpty) return;
+                Navigator.pop(
+                  dialogContext,
+                  _EditorResult(
+                    name: cleanName,
+                    iconKey: initial?.iconKey ?? 'filter_alt',
+                    filter: ContentFilter(
+                      scope: scope,
+                      textQuery: textQuery.text.trim().isEmpty
+                          ? null
+                          : textQuery.text.trim(),
+                      allTagIds: allTagIds.toList(growable: false),
+                      anyTagIds: anyTagIds.toList(growable: false),
+                      noneTagIds: noneTagIds.toList(growable: false),
+                      hasTags: hasTags,
+                      favorite: scope == ContentScope.cards ? null : favorite,
+                      hasReminder: hasReminder,
+                      hasAttachment: hasAttachment,
+                      updatedWithinDays: days,
+                      boardId: scope == ContentScope.notes ? null : boardId,
+                      columnId: scope == ContentScope.notes ? null : columnId,
+                      sortField: sortField,
+                      sortDirection: sortDirection,
+                    ),
                   ),
-                ),
-              );
-            },
-            child: const Text('Kaydet'),
-          ),
-        ],
-      ),
+                );
+              },
+              child: const Text('Kaydet'),
+            ),
+          ],
+        );
+      },
     ),
   );
   name.dispose();
   textQuery.dispose();
   return result;
+}
+
+class _TagFilterSection extends StatelessWidget {
+  const _TagFilterSection({
+    required this.title,
+    required this.subtitle,
+    required this.tags,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<TagEntity> tags;
+  final Set<String> selected;
+  final void Function(String tagId, bool selected) onSelected;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: <Widget>[
+      Text(title, style: Theme.of(context).textTheme.labelLarge),
+      const SizedBox(height: 2),
+      Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+      const SizedBox(height: 8),
+      if (tags.isEmpty)
+        Text('Henüz etiket yok.', style: Theme.of(context).textTheme.bodySmall)
+      else
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: tags.map((tag) {
+            final bool active = selected.contains(tag.id);
+            final Color color = tagColor(context, tag.colorKey);
+            return FilterChip(
+              selected: active,
+              avatar: Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              label: Text('#${tag.name}'),
+              onSelected: (value) => onSelected(tag.id, value),
+            );
+          }).toList(growable: false),
+        ),
+    ],
+  );
 }
 
 class _NullableBoolField extends StatelessWidget {
@@ -779,8 +920,7 @@ class _NullableBoolField extends StatelessWidget {
         ],
         selected: <String>{value == null ? 'any' : value! ? 'yes' : 'no'},
         onSelectionChanged: (selection) {
-          final String selected = selection.first;
-          onChanged(switch (selected) {
+          onChanged(switch (selection.first) {
             'yes' => true,
             'no' => false,
             _ => null,
