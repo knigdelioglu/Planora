@@ -3,8 +3,7 @@ import 'package:not_app/features/notes/domain/entities/note.dart';
 import 'package:not_app/features/notes/domain/entities/note_document.dart';
 import 'package:not_app/features/notes/domain/repositories/notes_repository.dart';
 import 'package:not_app/features/reminders/domain/repositories/reminders_repository.dart';
-import 'package:not_app/features/tags/domain/entities/tag.dart';
-import 'package:not_app/features/tags/domain/repositories/tags_repository.dart';
+import 'package:not_app/features/tags/public/tags_api.dart';
 
 final class LifecycleNotesRepository implements NotesRepository {
   LifecycleNotesRepository(
