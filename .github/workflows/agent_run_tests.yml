@@ -4,7 +4,7 @@ on:
   push:
     branches: [agent/run-tests]
     paths:
-      - '.github/workflows/agent_run_tests.yml'
+      - 'tools/agent_run_tests.trigger'
   workflow_dispatch:
 
 permissions:
