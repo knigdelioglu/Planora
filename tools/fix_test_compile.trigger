@@ -1,3 +1,3 @@
-attempt: 6
-started_at: 2026-08-20T13:44:00+03:00
-scope: feature/tags-smart-views fast final cleanup yaml-fixed
+attempt: 7
+started_at: 2026-08-20T13:54:00+03:00
+scope: schema-v5 migration expectations and final analyzer lint
