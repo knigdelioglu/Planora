@@ -59,7 +59,7 @@ class TagsManagementScreen extends ConsumerWidget {
                 return ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                   itemCount: tags.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 2),
+                  separatorBuilder: (_, _) => const SizedBox(height: 2),
                   itemBuilder: (context, index) {
                     final TagEntity tag = tags[index];
                     return StreamBuilder<int>(

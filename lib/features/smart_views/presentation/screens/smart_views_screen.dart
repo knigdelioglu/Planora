@@ -83,7 +83,7 @@ class _SmartViewsScreenState extends ConsumerState<SmartViewsScreen> {
   }
 
   Future<void> _createView() async {
-    final _EditorResult? result = await showSmartViewEditor(context, ref);
+    final _EditorResult? result = await _showSmartViewEditor(context, ref);
     if (result == null) return;
     final String id = await ref
         .read(smartViewsRepositoryProvider)
@@ -96,7 +96,7 @@ class _SmartViewsScreenState extends ConsumerState<SmartViewsScreen> {
   }
 
   Future<void> _editView(SmartViewEntity view) async {
-    final _EditorResult? result = await showSmartViewEditor(
+    final _EditorResult? result = await _showSmartViewEditor(
       context,
       ref,
       initial: view,
@@ -487,7 +487,7 @@ final class _EditorResult {
   final ContentFilter filter;
 }
 
-Future<_EditorResult?> showSmartViewEditor(
+Future<_EditorResult?> _showSmartViewEditor(
   BuildContext context,
   WidgetRef ref, {
   SmartViewEntity? initial,

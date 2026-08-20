@@ -802,11 +802,6 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
                                   contentPadding: EdgeInsets.zero,
                                 ),
                               ),
-                              const SizedBox(height: 10),
-                              TagStrip(
-                                targetType: TagTargetType.note,
-                                targetId: widget.noteId,
-                              ),
                               const SizedBox(height: 18),
                               ReorderableListView.builder(
                                 shrinkWrap: true,

@@ -257,7 +257,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         .first;
     if (!mounted) return;
 
-    Set<String> tagIds = Set<String>.from(_tagIds);
+    final Set<String> tagIds = Set<String>.from(_tagIds);
     bool? hasTags = _hasTags;
     bool? hasReminder = _hasReminder;
     bool? hasAttachment = _hasAttachment;
@@ -688,12 +688,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                     'Notlar, kartlar ve panolar cihazınızda aranır. Etiket ve metadata filtreleri not/kart sonuçlarına uygulanabilir.',
                               )
                             : visible.isEmpty && !_busy
-                            ? const EmptyState(
-                                icon: Icons.search_off_rounded,
-                                title: 'Sonuç bulunamadı',
-                                message:
-                                    'Arama kelimesini veya filtreleri değiştirin.',
-                              )
+                            ? EmptyState(
+                      icon: Icons.search_off_rounded,
+                      title: 'Sonuç bulunamadı',
+                      message: _hasAdvancedFilters
+                          ? 'Arama kelimesini veya filtreleri değiştirin.'
+                          : 'Farklı bir kelime deneyin.',
+                    )
                             : Center(
                                 child: ConstrainedBox(
                                   constraints: const BoxConstraints(
