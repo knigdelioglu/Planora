@@ -19,6 +19,11 @@ jobs:
         with:
           ref: fix/tag-smart-view-discovery
           fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
       - name: Patch Smart Views tag discovery
         shell: bash
         run: |
