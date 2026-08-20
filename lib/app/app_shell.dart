@@ -19,6 +19,7 @@ import 'package:not_app/features/search/domain/entities/search_result.dart';
 import 'package:not_app/features/search/presentation/screens/search_screen.dart';
 import 'package:not_app/features/settings/presentation/settings_screen.dart';
 import 'package:not_app/features/smart_views/presentation/screens/smart_views_screen.dart';
+import 'package:not_app/features/smart_views/public/smart_views_api.dart';
 import 'package:not_app/features/tags/presentation/screens/tags_management_screen.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -105,8 +106,10 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
   }
 
-  Future<void> _openSmartViews() =>
-      AppRouter.push<void>(context, const SmartViewsScreen());
+  Future<void> _openSmartViews([String? initialViewId]) => AppRouter.push<void>(
+    context,
+    SmartViewsScreen(initialViewId: initialViewId),
+  );
 
   Future<void> _openTags() =>
       AppRouter.push<void>(context, const TagsManagementScreen());
@@ -227,6 +230,43 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
   }
 
+  Widget _savedViewSidebar() => StreamBuilder<List<SmartViewEntity>>(
+    stream: ref.watch(smartViewsRepositoryProvider).watchViews(),
+    builder: (context, snapshot) {
+      final List<SmartViewEntity> views =
+          snapshot.data ?? const <SmartViewEntity>[];
+      final List<SmartViewEntity> visible = views.take(4).toList(growable: false);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
+            child: Text(
+              'AKILLI GÖRÜNÜMLER',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ),
+          ...visible.map(
+            (view) => AppSidebarItem(
+              label: view.name,
+              icon: Icons.filter_alt_outlined,
+              selectedIcon: Icons.filter_alt_rounded,
+              selected: false,
+              onTap: () => _openSmartViews(view.id),
+            ),
+          ),
+          AppSidebarItem(
+            label: views.isEmpty ? 'Akıllı Görünümler' : 'Tümünü göster',
+            icon: Icons.auto_awesome_motion_outlined,
+            selectedIcon: Icons.auto_awesome_motion_rounded,
+            selected: false,
+            onTap: _openSmartViews,
+          ),
+        ],
+      );
+    },
+  );
+
   Widget _expanded(bool configured, bool signedIn) => Scaffold(
     body: Row(
       children: <Widget>[
@@ -310,39 +350,41 @@ class _AppShellState extends ConsumerState<AppShell> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 2),
-                ...List<Widget>.generate(_mainDestinations.length, (index) {
-                  final item = _mainDestinations[index];
-                  return AppSidebarItem(
-                    label: item.label,
-                    icon: item.icon,
-                    selectedIcon: item.selectedIcon,
-                    selected: _index == index,
-                    onTap: () => setState(() => _index = index),
-                  );
-                }),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
-                  child: Text(
-                    'DÜZENLE',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: <Widget>[
+                      ...List<Widget>.generate(_mainDestinations.length, (index) {
+                        final item = _mainDestinations[index];
+                        return AppSidebarItem(
+                          label: item.label,
+                          icon: item.icon,
+                          selectedIcon: item.selectedIcon,
+                          selected: _index == index,
+                          onTap: () => setState(() => _index = index),
+                        );
+                      }),
+                      _savedViewSidebar(),
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
+                        child: Text(
+                          'DÜZENLE',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      AppSidebarItem(
+                        label: 'Etiketler',
+                        icon: Icons.sell_outlined,
+                        selectedIcon: Icons.sell_rounded,
+                        selected: false,
+                        onTap: _openTags,
+                      ),
+                    ],
                   ),
                 ),
-                AppSidebarItem(
-                  label: 'Akıllı Görünümler',
-                  icon: Icons.auto_awesome_motion_outlined,
-                  selectedIcon: Icons.auto_awesome_motion_rounded,
-                  selected: false,
-                  onTap: _openSmartViews,
-                ),
-                AppSidebarItem(
-                  label: 'Etiketler',
-                  icon: Icons.sell_outlined,
-                  selectedIcon: Icons.sell_rounded,
-                  selected: false,
-                  onTap: _openTags,
-                ),
-                const Spacer(),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
                   child: _sync(configured, signedIn),
