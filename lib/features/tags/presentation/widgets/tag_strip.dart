@@ -49,8 +49,10 @@ class TagStrip extends ConsumerWidget {
         final List<TagEntity> all = snapshot.data ?? const <TagEntity>[];
         final int visibleCount = maxVisible == null
             ? all.length
-            : all.length.clamp(0, maxVisible!);
-        final List<TagEntity> visible = all.take(visibleCount).toList(growable: false);
+            : all.length.clamp(0, maxVisible!).toInt();
+        final List<TagEntity> visible = all
+            .take(visibleCount)
+            .toList(growable: false);
         final int hidden = all.length - visible.length;
         if (visible.isEmpty && !editable) return const SizedBox.shrink();
 
@@ -211,7 +213,10 @@ class _TagPickerContentState extends ConsumerState<_TagPickerContent> {
           Row(
             children: <Widget>[
               Expanded(
-                child: Text('Etiketler', style: Theme.of(context).textTheme.titleLarge),
+                child: Text(
+                  'Etiketler',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
               ),
               IconButton(
                 tooltip: 'Kapat',
@@ -236,76 +241,90 @@ class _TagPickerContentState extends ConsumerState<_TagPickerContent> {
           Expanded(
             child: StreamBuilder<List<TagEntity>>(
               stream: repository.watchTags(),
-              builder: (context, allSnapshot) => StreamBuilder<List<TagEntity>>(
-                stream: repository.watchTagsForTarget(
-                  targetType: widget.targetType,
-                  targetId: widget.targetId,
-                ),
-                builder: (context, selectedSnapshot) {
-                  final Set<String> selected = (selectedSnapshot.data ?? const <TagEntity>[])
-                      .map((TagEntity tag) => tag.id)
-                      .toSet();
-                  final String query = _search.text.trim().toLowerCase();
-                  final List<TagEntity> tags = (allSnapshot.data ?? const <TagEntity>[])
-                      .where(
-                        (TagEntity tag) =>
-                            query.isEmpty || tag.name.toLowerCase().contains(query),
-                      )
-                      .toList(growable: false);
+              builder: (context, allSnapshot) =>
+                  StreamBuilder<List<TagEntity>>(
+                    stream: repository.watchTagsForTarget(
+                      targetType: widget.targetType,
+                      targetId: widget.targetId,
+                    ),
+                    builder: (context, selectedSnapshot) {
+                      final Set<String> selected =
+                          (selectedSnapshot.data ?? const <TagEntity>[])
+                              .map((TagEntity tag) => tag.id)
+                              .toSet();
+                      final String query = _search.text.trim().toLowerCase();
+                      final List<TagEntity> tags =
+                          (allSnapshot.data ?? const <TagEntity>[])
+                              .where(
+                                (TagEntity tag) =>
+                                    query.isEmpty ||
+                                    tag.name.toLowerCase().contains(query),
+                              )
+                              .toList(growable: false);
 
-                  return ListView(
-                    children: <Widget>[
-                      ...tags.map(
-                        (TagEntity tag) => CheckboxListTile(
-                          value: selected.contains(tag.id),
-                          dense: true,
-                          controlAffinity: ListTileControlAffinity.trailing,
-                          secondary: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: tagColor(context, tag.colorKey),
-                              shape: BoxShape.circle,
+                      return ListView(
+                        children: <Widget>[
+                          ...tags.map(
+                            (TagEntity tag) => CheckboxListTile(
+                              value: selected.contains(tag.id),
+                              dense: true,
+                              controlAffinity:
+                                  ListTileControlAffinity.trailing,
+                              secondary: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: tagColor(context, tag.colorKey),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              title: Text(tag.name),
+                              onChanged: (bool? value) {
+                                if (value == true) {
+                                  unawaited(
+                                    repository.assign(
+                                      tagId: tag.id,
+                                      targetType: widget.targetType,
+                                      targetId: widget.targetId,
+                                    ),
+                                  );
+                                } else {
+                                  unawaited(
+                                    repository.unassign(
+                                      tagId: tag.id,
+                                      targetType: widget.targetType,
+                                      targetId: widget.targetId,
+                                    ),
+                                  );
+                                }
+                              },
                             ),
                           ),
-                          title: Text(tag.name),
-                          onChanged: (bool? value) {
-                            if (value == true) {
-                              unawaited(
-                                repository.assign(
-                                  tagId: tag.id,
-                                  targetType: widget.targetType,
-                                  targetId: widget.targetId,
-                                ),
-                              );
-                            } else {
-                              unawaited(
-                                repository.unassign(
-                                  tagId: tag.id,
-                                  targetType: widget.targetType,
-                                  targetId: widget.targetId,
-                                ),
-                              );
-                            }
-                          },
-                        ),
-                      ),
-                      if (query.isNotEmpty &&
-                          !tags.any((TagEntity tag) => tag.name.toLowerCase() == query))
-                        ListTile(
-                          leading: _creating
-                              ? const SizedBox.square(
-                                  dimension: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.add_rounded),
-                          title: Text('“${_search.text.trim()}” etiketini oluştur'),
-                          onTap: _creating ? null : () => unawaited(_create()),
-                        ),
-                    ],
-                  );
-                },
-              ),
+                          if (query.isNotEmpty &&
+                              !tags.any(
+                                (TagEntity tag) =>
+                                    tag.name.toLowerCase() == query,
+                              ))
+                            ListTile(
+                              leading: _creating
+                                  ? const SizedBox.square(
+                                      dimension: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.add_rounded),
+                              title: Text(
+                                '“${_search.text.trim()}” etiketini oluştur',
+                              ),
+                              onTap: _creating
+                                  ? null
+                                  : () => unawaited(_create()),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
             ),
           ),
         ],
