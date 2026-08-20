@@ -1,7 +1,8 @@
-name: Fix analyzer infos v2
+name: Fix tags smart views merge readiness
 
 on:
   push:
+    branches: [agent/run-tests]
     paths:
       - tools/fix_analyzer_infos_v2.trigger
 
@@ -10,17 +11,19 @@ permissions:
 
 jobs:
   fix:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: feature/tags-smart-views
           fetch-depth: 0
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.44.8'
           channel: stable
           cache: true
-      - name: Apply analyzer-safe API updates
+      - name: Apply targeted merge-readiness fixes
         shell: bash
         run: |
           python3 - <<'PY'
@@ -34,32 +37,196 @@ jobs:
                   raise SystemExit(f'{path}: expected {count} occurrences, found {found}: {old!r}')
               p.write_text(text.replace(old, new))
 
-          replace_exact('lib/app/widgets/content/app_content.dart', '        if (trailing != null) trailing!,', '        ?trailing,')
-          replace_exact('lib/app/widgets/navigation/app_sidebar_item.dart', '                  if (trailing != null) trailing!,', '                  ?trailing,')
-          replace_exact('lib/app/widgets/overlays/app_sheet.dart', '        if (trailing != null) trailing!,', '        ?trailing,')
-          replace_exact('lib/features/kanban/presentation/screens/card_detail_screen.dart', '      Navigator.of(context).maybePop();', '      unawaited(Navigator.of(context).maybePop());')
-          replace_exact('lib/features/kanban/presentation/screens/card_detail_screen.dart', '                          value: card.columnId,', '                          initialValue: card.columnId,')
-          replace_exact('lib/features/kanban/presentation/screens/kanban_board_screen.dart', '                            separatorBuilder: (_, __) =>', '                            separatorBuilder: (_, _) =>')
-          replace_exact('lib/features/kanban/presentation/screens/kanban_board_screen.dart', 'onDraggableCanceled: (_, __) => onDragEnd(),', 'onDraggableCanceled: (_, _) => onDragEnd(),', count=2)
-          replace_exact('lib/features/kanban/presentation/screens/kanban_board_screen.dart', '              value: _columnId,', '              initialValue: _columnId,')
-          replace_exact('lib/features/notes/presentation/screens/note_editor_screen.dart', '  Future<void> _trashNote() async {\n    await _persist(showState: false);\n    final repository = ref.read(notesRepositoryProvider);', '  Future<void> _trashNote() async {\n    await _persist(showState: false);\n    if (!mounted) return;\n    final repository = ref.read(notesRepositoryProvider);')
-          replace_exact('lib/features/notes/presentation/screens/note_editor_screen.dart', '  void _reorder(int oldIndex, int newIndex) {\n    if (newIndex > oldIndex) newIndex -= 1;', '  void _reorderItem(int oldIndex, int newIndex) {')
-          replace_exact('lib/features/notes/presentation/screens/note_editor_screen.dart', '                                onReorder: _reorder,', '                                onReorderItem: _reorderItem,')
-          replace_exact('lib/features/notes/presentation/screens/note_editor_screen.dart', '                  errorBuilder: (_, __, ___) => _fileTile(context, name),', '                  errorBuilder: (_, _, _) => _fileTile(context, name),')
-          replace_exact('lib/features/settings/presentation/settings_screen.dart', '                      if (!mounted) return;\n                      final health = services.syncCoordinator.currentHealth;', '                      if (!context.mounted) return;\n                      final health = services.syncCoordinator.currentHealth;')
+          replace_exact(
+              'lib/features/notes/presentation/screens/note_editor_screen.dart',
+              """                              const SizedBox(height: 10),
+                              TagStrip(
+                                targetType: TagTargetType.note,
+                                targetId: widget.noteId,
+                              ),
+                              const SizedBox(height: 18),""",
+              """                              const SizedBox(height: 18),""",
+          )
+
+          replace_exact(
+              'lib/features/search/presentation/screens/search_screen.dart',
+              """                                message: 'Arama kelimesini veya filtreleri değiştirin.',""",
+              """                                message: _hasAdvancedFilters
+                                    ? 'Arama kelimesini veya filtreleri değiştirin.'
+                                    : 'Farklı bir kelime deneyin.',""",
+          )
+          replace_exact(
+              'lib/features/search/presentation/screens/search_screen.dart',
+              '    Set<String> tagIds = Set<String>.from(_tagIds);',
+              '    final Set<String> tagIds = Set<String>.from(_tagIds);',
+          )
+
+          replace_exact(
+              'lib/core/sync/local_entity_store.dart',
+              """final class LocalEntityStore {
+  LocalEntityStore({
+    required this._database,
+    required AppClock clock,
+    EntityChangeBus? changes,
+  }) : _changes = changes;
+
+  final AppDatabase _database;
+  final EntityChangeBus? _changes;""",
+              """final class LocalEntityStore {
+  factory LocalEntityStore({
+    required AppDatabase database,
+    required AppClock clock,
+    EntityChangeBus? changes,
+  }) => LocalEntityStore._(database, changes);
+
+  LocalEntityStore._(this._database, this._changes);
+
+  final AppDatabase _database;
+  final EntityChangeBus? _changes;""",
+          )
+
+          replace_exact(
+              'lib/features/smart_views/data/repositories/smart_views_repository_impl.dart',
+              """final class DriftSmartViewsRepository implements SmartViewsRepository {
+  DriftSmartViewsRepository({
+    required AppDatabase database,
+    required SyncQueueRepository syncQueue,
+    required AppClock clock,
+    required EntityChangeBus changes,
+    Uuid? uuid,
+  }) : _database = database,
+       _syncQueue = syncQueue,
+       _clock = clock,
+       _changes = changes,
+       _uuid = uuid ?? const Uuid();""",
+              """final class DriftSmartViewsRepository implements SmartViewsRepository {
+  factory DriftSmartViewsRepository({
+    required AppDatabase database,
+    required SyncQueueRepository syncQueue,
+    required AppClock clock,
+    required EntityChangeBus changes,
+    Uuid? uuid,
+  }) => DriftSmartViewsRepository._(
+    database,
+    syncQueue,
+    clock,
+    changes,
+    uuid ?? const Uuid(),
+  );
+
+  DriftSmartViewsRepository._(
+    this._database,
+    this._syncQueue,
+    this._clock,
+    this._changes,
+    this._uuid,
+  );""",
+          )
+          replace_exact(
+              'lib/features/smart_views/data/repositories/smart_views_repository_impl.dart',
+              """      onCancel: () async {
+        for (final StreamSubscription<dynamic> subscription in subscriptions) {
+          await subscription.cancel();
+        }
+        subscriptions.clear();
+      },""",
+              """      onCancel: () async {
+        for (final StreamSubscription<dynamic> subscription in subscriptions) {
+          await subscription.cancel();
+        }
+        subscriptions.clear();
+        if (!controller.isClosed) await controller.close();
+      },""",
+          )
+          replace_exact(
+              'lib/features/smart_views/data/repositories/smart_views_repository_impl.dart',
+              """      onCancel: () async {
+        await subscription?.cancel();
+        subscription = null;
+      },""",
+              """      onCancel: () async {
+        await subscription?.cancel();
+        subscription = null;
+        if (!controller.isClosed) await controller.close();
+      },""",
+          )
+
+          replace_exact(
+              'lib/features/tags/data/repositories/tags_repository_impl.dart',
+              """final class DriftTagsRepository implements TagsRepository {
+  DriftTagsRepository({
+    required AppDatabase database,
+    required SyncQueueRepository syncQueue,
+    required AppClock clock,
+    required EntityChangeBus changes,
+  }) : _database = database,
+       _syncQueue = syncQueue,
+       _clock = clock,
+       _changes = changes;""",
+              """final class DriftTagsRepository implements TagsRepository {
+  factory DriftTagsRepository({
+    required AppDatabase database,
+    required SyncQueueRepository syncQueue,
+    required AppClock clock,
+    required EntityChangeBus changes,
+  }) => DriftTagsRepository._(database, syncQueue, clock, changes);
+
+  DriftTagsRepository._(
+    this._database,
+    this._syncQueue,
+    this._clock,
+    this._changes,
+  );""",
+          )
+          replace_exact(
+              'lib/features/tags/data/repositories/tags_repository_impl.dart',
+              """      onCancel: () async {
+        await subscription?.cancel();
+        subscription = null;
+      },""",
+              """      onCancel: () async {
+        await subscription?.cancel();
+        subscription = null;
+        if (!controller.isClosed) await controller.close();
+      },""",
+          )
+
+          replace_exact(
+              'lib/features/smart_views/presentation/screens/smart_views_screen.dart',
+              'showSmartViewEditor(context, ref)',
+              '_showSmartViewEditor(context, ref)',
+          )
+          replace_exact(
+              'lib/features/smart_views/presentation/screens/smart_views_screen.dart',
+              'showSmartViewEditor(\n      context,',
+              '_showSmartViewEditor(\n      context,',
+          )
+          replace_exact(
+              'lib/features/smart_views/presentation/screens/smart_views_screen.dart',
+              'Future<_EditorResult?> showSmartViewEditor(',
+              'Future<_EditorResult?> _showSmartViewEditor(',
+          )
+
+          replace_exact(
+              'lib/features/tags/presentation/screens/tags_management_screen.dart',
+              'separatorBuilder: (_, __) => const SizedBox(height: 2),',
+              'separatorBuilder: (_, _) => const SizedBox(height: 2),',
+          )
           PY
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
       - run: dart format lib test
-      - name: Verify analyzer is clean
+      - name: Verify analyzer
         run: flutter analyze
-      - name: Commit analyzer fixes
+      - name: Commit fixes to feature branch
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lib test lib/core/database/app_database.g.dart
-          git commit -m "Resolve Flutter analyzer issues" || exit 0
-          git pull --rebase origin main
-          git push origin HEAD:main
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "fix: clean tags smart views regressions"
+          git push origin HEAD:feature/tags-smart-views
