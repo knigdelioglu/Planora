@@ -13,6 +13,8 @@ import 'package:not_app/features/kanban/presentation/screens/card_detail_screen.
 import 'package:not_app/features/kanban/presentation/screens/kanban_board_screen.dart';
 import 'package:not_app/features/notes/presentation/screens/note_editor_screen.dart';
 import 'package:not_app/features/search/domain/entities/search_result.dart';
+import 'package:not_app/features/smart_views/public/smart_views_api.dart';
+import 'package:not_app/features/tags/public/tags_api.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key, this.autofocus = false, this.focusNode});
@@ -50,6 +52,27 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   int _selectedIndex = -1;
   bool _busy = false;
   String _type = 'all';
+  Set<String> _tagIds = <String>{};
+  bool? _hasTags;
+  bool? _hasReminder;
+  bool? _hasAttachment;
+  int? _updatedWithinDays;
+
+  bool get _hasAdvancedFilters =>
+      _tagIds.isNotEmpty ||
+      _hasTags != null ||
+      _hasReminder != null ||
+      _hasAttachment != null ||
+      _updatedWithinDays != null;
+
+  int get _filterCount {
+    int count = _tagIds.isNotEmpty ? 1 : 0;
+    if (_hasTags != null) count++;
+    if (_hasReminder != null) count++;
+    if (_hasAttachment != null) count++;
+    if (_updatedWithinDays != null) count++;
+    return count;
+  }
 
   FocusNode _resolveFocusNode(FocusNode? external) {
     if (external != null) return external;
@@ -156,7 +179,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _changed() {
     _debounce?.cancel();
     final String value = _query.text.trim();
-    if (value.isEmpty) {
+    if (value.isEmpty && !_hasAdvancedFilters) {
       setState(() {
         _results = const <SearchResultEntity>[];
         _selectedIndex = -1;
@@ -168,19 +191,216 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _debounce = Timer(const Duration(milliseconds: 180), _search);
   }
 
+  ContentScope get _contentScope => switch (_type) {
+    'note' => ContentScope.notes,
+    'card' => ContentScope.cards,
+    _ => ContentScope.all,
+  };
+
   Future<void> _search() async {
     final String value = _query.text.trim();
-    if (value.isEmpty) return;
+    if (value.isEmpty && !_hasAdvancedFilters) return;
+    if (_type == 'board' && _hasAdvancedFilters) {
+      if (mounted) {
+        setState(() {
+          _results = const <SearchResultEntity>[];
+          _selectedIndex = -1;
+          _busy = false;
+        });
+      }
+      return;
+    }
+
     setState(() => _busy = true);
-    final List<SearchResultEntity> data = await ref
-        .read(searchRepositoryProvider)
-        .search(value);
+    final List<SearchResultEntity> data;
+    if (_hasAdvancedFilters) {
+      final List<SmartViewResult> filtered = await ref
+          .read(smartViewsRepositoryProvider)
+          .query(
+            ContentFilter(
+              scope: _contentScope,
+              textQuery: value.isEmpty ? null : value,
+              allTagIds: _tagIds.toList(growable: false),
+              hasTags: _hasTags,
+              hasReminder: _hasReminder,
+              hasAttachment: _hasAttachment,
+              updatedWithinDays: _updatedWithinDays,
+            ),
+          );
+      data = filtered
+          .map(
+            (SmartViewResult result) => SearchResultEntity(
+              entityType: result.entityType,
+              entityId: result.entityId,
+              title: result.title,
+              preview: result.preview,
+            ),
+          )
+          .toList(growable: false);
+    } else {
+      data = await ref.read(searchRepositoryProvider).search(value);
+    }
+
     if (!mounted || value != _query.text.trim()) return;
     setState(() {
       _results = data;
       _selectedIndex = -1;
       _busy = false;
     });
+  }
+
+  Future<void> _openFilters() async {
+    if (_type == 'board') return;
+    final List<TagEntity> tags = await ref.read(tagsRepositoryProvider).watchTags().first;
+    if (!mounted) return;
+
+    Set<String> tagIds = Set<String>.from(_tagIds);
+    bool? hasTags = _hasTags;
+    bool? hasReminder = _hasReminder;
+    bool? hasAttachment = _hasAttachment;
+    int? updatedWithinDays = _updatedWithinDays;
+
+    final bool? apply = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Arama filtreleri'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Text('Etiketler', style: Theme.of(context).textTheme.labelLarge),
+                  const SizedBox(height: 8),
+                  if (tags.isEmpty)
+                    Text(
+                      'Henüz etiket yok.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    )
+                  else
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: tags.map((TagEntity tag) {
+                        final bool selected = tagIds.contains(tag.id);
+                        return FilterChip(
+                          selected: selected,
+                          label: Text('#${tag.name}'),
+                          onSelected: (bool value) {
+                            setDialogState(() {
+                              if (value) {
+                                tagIds.add(tag.id);
+                                hasTags = null;
+                              } else {
+                                tagIds.remove(tag.id);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(growable: false),
+                    ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    initialValue: hasTags == null
+                        ? 'any'
+                        : hasTags!
+                        ? 'tagged'
+                        : 'untagged',
+                    decoration: const InputDecoration(labelText: 'Etiket durumu'),
+                    items: const <DropdownMenuItem<String>>[
+                      DropdownMenuItem(value: 'any', child: Text('Fark etmez')),
+                      DropdownMenuItem(value: 'tagged', child: Text('Etiketli')),
+                      DropdownMenuItem(value: 'untagged', child: Text('Etiketsiz')),
+                    ],
+                    onChanged: (String? value) => setDialogState(() {
+                      hasTags = switch (value) {
+                        'tagged' => true,
+                        'untagged' => false,
+                        _ => null,
+                      };
+                      if (hasTags == false) tagIds.clear();
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+                  _NullableFilterField(
+                    label: 'Hatırlatıcı',
+                    value: hasReminder,
+                    onChanged: (value) => setDialogState(() => hasReminder = value),
+                  ),
+                  const SizedBox(height: 8),
+                  _NullableFilterField(
+                    label: 'Dosya eki',
+                    value: hasAttachment,
+                    onChanged: (value) => setDialogState(() => hasAttachment = value),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<int?>(
+                    initialValue: updatedWithinDays,
+                    decoration: const InputDecoration(labelText: 'Güncellenme'),
+                    items: const <DropdownMenuItem<int?>>[
+                      DropdownMenuItem<int?>(value: null, child: Text('Tüm zamanlar')),
+                      DropdownMenuItem<int?>(value: 1, child: Text('Son 24 saat')),
+                      DropdownMenuItem<int?>(value: 7, child: Text('Son 7 gün')),
+                      DropdownMenuItem<int?>(value: 30, child: Text('Son 30 gün')),
+                      DropdownMenuItem<int?>(value: 90, child: Text('Son 90 gün')),
+                    ],
+                    onChanged: (value) =>
+                        setDialogState(() => updatedWithinDays = value),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                setDialogState(() {
+                  tagIds.clear();
+                  hasTags = null;
+                  hasReminder = null;
+                  hasAttachment = null;
+                  updatedWithinDays = null;
+                });
+              },
+              child: const Text('Temizle'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Vazgeç'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Uygula'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (apply != true) return;
+    setState(() {
+      _tagIds = tagIds;
+      _hasTags = hasTags;
+      _hasReminder = hasReminder;
+      _hasAttachment = hasAttachment;
+      _updatedWithinDays = updatedWithinDays;
+    });
+    await _search();
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _tagIds.clear();
+      _hasTags = null;
+      _hasReminder = null;
+      _hasAttachment = null;
+      _updatedWithinDays = null;
+    });
+    if (_query.text.trim().isEmpty) {
+      setState(() => _results = const <SearchResultEntity>[]);
+    } else {
+      unawaited(_search());
+    }
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
@@ -213,6 +433,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       if (_query.text.isNotEmpty) {
         _query.clear();
+      } else if (_hasAdvancedFilters) {
+        _clearFilters();
       } else if (Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       } else {
@@ -267,12 +489,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _type = type;
       _selectedIndex = -1;
     });
+    if (_query.text.trim().isNotEmpty || _hasAdvancedFilters) {
+      unawaited(_search());
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final List<SearchResultEntity> visible = _visibleResults;
     final List<_DisplayItem> display = _displayItems;
+    final bool hasSearchIntent =
+        _query.text.trim().isNotEmpty || _hasAdvancedFilters;
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () {
@@ -330,6 +557,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                         ? 0
                                         : _selectedIndex],
                                   );
+                                } else if (_hasAdvancedFilters) {
+                                  unawaited(_search());
                                 }
                               },
                             ),
@@ -351,6 +580,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             child: Wrap(
                               spacing: 7,
                               runSpacing: 7,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: <Widget>[
                                 _TypeChip(
                                   label: 'Tümü',
@@ -372,25 +602,56 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   selected: _type == 'board',
                                   onSelected: () => _selectType('board'),
                                 ),
+                                FilterChip(
+                                  selected: _hasAdvancedFilters,
+                                  avatar: const Icon(Icons.tune_rounded, size: 16),
+                                  label: Text(
+                                    _filterCount == 0
+                                        ? 'Filtreler'
+                                        : 'Filtreler ($_filterCount)',
+                                  ),
+                                  onSelected: _type == 'board'
+                                      ? null
+                                      : (_) => unawaited(_openFilters()),
+                                ),
+                                if (_hasAdvancedFilters)
+                                  ActionChip(
+                                    avatar: const Icon(Icons.close_rounded, size: 15),
+                                    label: const Text('Filtreleri temizle'),
+                                    onPressed: _clearFilters,
+                                  ),
                               ],
                             ),
                           ),
                         ),
                       ),
+                      if (_type == 'board' && _hasAdvancedFilters)
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            horizontal,
+                            8,
+                            horizontal,
+                            0,
+                          ),
+                          child: Text(
+                            'Etiket ve içerik filtreleri panolara uygulanmaz.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
                       const SizedBox(height: 10),
                       Expanded(
-                        child: _query.text.trim().isEmpty
+                        child: !hasSearchIntent
                             ? const EmptyState(
                                 icon: Icons.search_rounded,
                                 title: 'Ne arıyorsunuz?',
                                 message:
-                                    'Notlar, kartlar ve panolar cihazınızda aranır.',
+                                    'Notlar, kartlar ve panolar cihazınızda aranır. Etiket ve metadata filtreleri not/kart sonuçlarına uygulanabilir.',
                               )
                             : visible.isEmpty && !_busy
                             ? const EmptyState(
                                 icon: Icons.search_off_rounded,
                                 title: 'Sonuç bulunamadı',
-                                message: 'Farklı bir kelime deneyin.',
+                                message: 'Arama kelimesini veya filtreleri değiştirin.',
                               )
                             : Center(
                                 child: ConstrainedBox(
@@ -504,6 +765,41 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
     );
   }
+}
+
+class _NullableFilterField extends StatelessWidget {
+  const _NullableFilterField({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool? value;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: <Widget>[
+      Expanded(child: Text(label)),
+      SegmentedButton<String>(
+        showSelectedIcon: false,
+        segments: const <ButtonSegment<String>>[
+          ButtonSegment(value: 'any', label: Text('Fark etmez')),
+          ButtonSegment(value: 'yes', label: Text('Var')),
+          ButtonSegment(value: 'no', label: Text('Yok')),
+        ],
+        selected: <String>{value == null ? 'any' : value! ? 'yes' : 'no'},
+        onSelectionChanged: (selection) {
+          onChanged(switch (selection.first) {
+            'yes' => true,
+            'no' => false,
+            _ => null,
+          });
+        },
+      ),
+    ],
+  );
 }
 
 class _TypeChip extends StatelessWidget {
