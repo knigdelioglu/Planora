@@ -791,8 +791,9 @@ Future<_EditorResult?> _showSmartViewEditor(
                             ),
                           ],
                           onChanged: (value) {
-                            if (value != null)
+                            if (value != null) {
                               setState(() => sortField = value);
+                            }
                           },
                         ),
                       ),
