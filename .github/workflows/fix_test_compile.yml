@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   patch:
@@ -21,7 +22,7 @@ jobs:
       - name: Patch feature regressions and analyzer issues
         shell: bash
         run: |
-          python3 - <<'PY'
+          python3 - <<'PY' | tee /tmp/patch-report.txt
           from pathlib import Path
           import re
 
@@ -101,6 +102,7 @@ jobs:
           patch('lib/features/tags/presentation/screens/tags_management_screen.dart', r'separatorBuilder: \(_, __\) => const SizedBox\(height: 2\),', 'separatorBuilder: (_, _) => const SizedBox(height: 2),', 1)
           PY
       - name: Commit patch to feature branch
+        id: commit_patch
         shell: bash
         run: |
           set -euo pipefail
@@ -108,7 +110,27 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lib
           if git diff --cached --quiet; then
+            echo 'pushed=no' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git commit -m "fix: patch tags smart views merge blockers"
           git push origin HEAD:feature/tags-smart-views
+          echo 'pushed=yes' >> "$GITHUB_OUTPUT"
+      - name: Publish patch report
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUSHED: ${{ steps.commit_patch.outputs.pushed }}
+        shell: bash
+        run: |
+          {
+            echo '# Tags + Smart Views merge-readiness patch'
+            echo
+            echo "Trigger commit: $GITHUB_SHA"
+            echo "Pushed to feature: ${PUSHED:-no}"
+            echo
+            echo '```text'
+            cat /tmp/patch-report.txt 2>/dev/null || true
+            echo '```'
+          } > /tmp/patch-issue.md
+          gh issue create --title '[CI merge-ready patch] tags-smart-views' --body-file /tmp/patch-issue.md
