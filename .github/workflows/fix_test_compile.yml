@@ -1,4 +1,4 @@
-name: Fast source cleanup tags smart views
+name: Fix final tags smart views gates
 
 on:
   push:
@@ -19,10 +19,10 @@ jobs:
         with:
           ref: feature/tags-smart-views
           fetch-depth: 0
-      - name: Apply source cleanup
+      - name: Fix analyzer lint and migration expectations
         shell: bash
         run: |
-          python3 - <<'PY' | tee /tmp/source-cleanup.txt
+          python3 - <<'PY'
           from pathlib import Path
 
           def replace(path, old, new, count=1):
@@ -34,38 +34,55 @@ jobs:
                   raise SystemExit(f'{path}: expected {count}, found {found}')
               p.write_text(text.replace(old, new, count))
 
-          replace('lib/core/sync/local_entity_store.dart', '// ignore_for_file: prefer_initializing_formals\n\n', '')
-          replace('lib/core/sync/local_entity_store.dart', '  LocalEntityStore({\n    required this._database,\n    required AppClock clock,\n    EntityChangeBus? changes,\n  }) : _changes = changes;', '  LocalEntityStore({\n    required this._database,\n    required AppClock clock,\n    this._changes,\n  });')
+          replace(
+              'lib/features/smart_views/presentation/screens/smart_views_screen.dart',
+              '                          onChanged: (value) {\n                            if (value != null)\n                              setState(() => sortField = value);\n                          },',
+              '                          onChanged: (value) {\n                            if (value != null) {\n                              setState(() => sortField = value);\n                            }\n                          },',
+          )
 
-          replace('lib/features/smart_views/data/repositories/smart_views_repository_impl.dart', '// ignore_for_file: prefer_initializing_formals, close_sinks\n\n', '')
-          replace('lib/features/smart_views/data/repositories/smart_views_repository_impl.dart', '  DriftSmartViewsRepository({\n    required AppDatabase database,\n    required SyncQueueRepository syncQueue,\n    required AppClock clock,\n    required EntityChangeBus changes,\n    Uuid? uuid,\n  }) : _database = database,\n       _syncQueue = syncQueue,\n       _clock = clock,\n       _changes = changes,\n       _uuid = uuid ?? const Uuid();', '  DriftSmartViewsRepository({\n    required this._database,\n    required this._syncQueue,\n    required this._clock,\n    required this._changes,\n    Uuid? uuid,\n  }) : _uuid = uuid ?? const Uuid();')
-          replace('lib/features/smart_views/data/repositories/smart_views_repository_impl.dart', '    late StreamController<List<SmartViewResult>> controller;', '    // Broadcast controller is intentionally re-listenable; onCancel releases all external subscriptions.\n    // ignore: close_sinks\n    late StreamController<List<SmartViewResult>> controller;')
-          replace('lib/features/smart_views/data/repositories/smart_views_repository_impl.dart', '    late StreamController<T> controller;', '    // Broadcast controller is intentionally re-listenable; onCancel releases the external subscription.\n    // ignore: close_sinks\n    late StreamController<T> controller;')
-
-          replace('lib/features/tags/data/repositories/tags_repository_impl.dart', '// ignore_for_file: prefer_initializing_formals, close_sinks\n\n', '')
-          replace('lib/features/tags/data/repositories/tags_repository_impl.dart', '  DriftTagsRepository({\n    required AppDatabase database,\n    required SyncQueueRepository syncQueue,\n    required AppClock clock,\n    required EntityChangeBus changes,\n  }) : _database = database,\n       _syncQueue = syncQueue,\n       _clock = clock,\n       _changes = changes;', '  DriftTagsRepository({\n    required this._database,\n    required this._syncQueue,\n    required this._clock,\n    required this._changes,\n  });')
-          replace('lib/features/tags/data/repositories/tags_repository_impl.dart', '    late StreamController<T> controller;', '    // Broadcast controller is intentionally re-listenable; onCancel releases the external subscription.\n    // ignore: close_sinks\n    late StreamController<T> controller;')
-
-          replace('lib/features/smart_views/presentation/screens/smart_views_screen.dart', '    if (snapshot != null) snapshots[board.id] = snapshot;\n  }\n  if (!context.mounted) {', '    if (snapshot != null) snapshots[board.id] = snapshot;\n  }\n  if (boardId == null) {\n    columnId = null;\n  } else if (!boards.any((board) => board.id == boardId)) {\n    boardId = null;\n    columnId = null;\n  } else if (columnId != null &&\n      !(snapshots[boardId]?.columns.any((column) => column.id == columnId) ?? false)) {\n    columnId = null;\n  }\n  if (!context.mounted) {')
-
-          replace('lib/features/search/presentation/screens/search_screen.dart', "                  DropdownButtonFormField<int?>(\n                    initialValue: updatedWithinDays,\n                    decoration: const InputDecoration(labelText: 'Güncellenme'),\n                    items: const <DropdownMenuItem<int?>>[\n                      DropdownMenuItem<int?>(\n                        value: null,\n                        child: Text('Tüm zamanlar'),\n                      ),\n                      DropdownMenuItem<int?>(\n                        value: 1,\n                        child: Text('Son 24 saat'),\n                      ),\n                      DropdownMenuItem<int?>(\n                        value: 7,\n                        child: Text('Son 7 gün'),\n                      ),\n                      DropdownMenuItem<int?>(\n                        value: 30,\n                        child: Text('Son 30 gün'),\n                      ),\n                      DropdownMenuItem<int?>(\n                        value: 90,\n                        child: Text('Son 90 gün'),\n                      ),\n                    ],\n                    onChanged: (value) =>\n                        setDialogState(() => updatedWithinDays = value),\n                  ),", "                  DropdownButtonFormField<String>(\n                    initialValue: updatedWithinDays?.toString() ?? 'all',\n                    decoration: const InputDecoration(labelText: 'Güncellenme'),\n                    items: const <DropdownMenuItem<String>>[\n                      DropdownMenuItem(value: 'all', child: Text('Tüm zamanlar')),\n                      DropdownMenuItem(value: '1', child: Text('Son 24 saat')),\n                      DropdownMenuItem(value: '7', child: Text('Son 7 gün')),\n                      DropdownMenuItem(value: '30', child: Text('Son 30 gün')),\n                      DropdownMenuItem(value: '90', child: Text('Son 90 gün')),\n                    ],\n                    onChanged: (value) => setDialogState(() {\n                      updatedWithinDays = value == null || value == 'all'\n                          ? null\n                          : int.tryParse(value);\n                    }),\n                  ),")
-
-          replace('lib/features/kanban/presentation/screens/card_detail_screen.dart', "import 'package:not_app/features/tags/domain/entities/tag.dart';\nimport 'package:not_app/features/tags/presentation/widgets/tag_strip.dart';", "import 'package:not_app/features/tags/public/tags_ui.dart';")
+          path = Path('test/database/app_database_migration_test.dart')
+          text = path.read_text()
+          text = text.replace(
+              "test('schema v1 fixture migrates to v4 without data loss'",
+              "test('schema v1 fixture migrates to v5 without data loss'",
+              1,
+          )
+          text = text.replace(
+              "test('schema v2 fixture migrates conflict rows to v4'",
+              "test('schema v2 fixture migrates conflict rows to v5'",
+              1,
+          )
+          found = text.count('expect(await _userVersion(db), 4);')
+          print(f'migration version expectations: {found}')
+          if found != 3:
+              raise SystemExit(f'expected 3 v4 user_version assertions, found {found}')
+          text = text.replace(
+              'expect(await _userVersion(db), 4);',
+              'expect(await _userVersion(db), 5);',
+          )
+          marker = "    expect(await _tableExists(db, 'card_note_links'), isTrue);\n"
+          found = text.count(marker)
+          print(f'card_note_links table assertions: {found}')
+          if found < 2:
+              raise SystemExit(f'expected at least 2 card_note_links assertions, found {found}')
+          v5 = marker + "    expect(await _tableExists(db, 'tags'), isTrue);\n    expect(await _tableExists(db, 'tag_assignments'), isTrue);\n    expect(await _tableExists(db, 'smart_views'), isTrue);\n"
+          text = text.replace(marker, v5, 1)
+          second = text.find(marker, text.find(v5) + len(v5))
+          if second < 0:
+              raise SystemExit('second card_note_links assertion not found')
+          text = text[:second] + v5 + text[second + len(marker):]
+          path.write_text(text)
           PY
-      - name: Commit source cleanup
+      - name: Commit final gate fixes
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- \
-            lib/core/sync/local_entity_store.dart \
-            lib/features/smart_views/data/repositories/smart_views_repository_impl.dart \
-            lib/features/tags/data/repositories/tags_repository_impl.dart \
             lib/features/smart_views/presentation/screens/smart_views_screen.dart \
-            lib/features/search/presentation/screens/search_screen.dart \
-            lib/features/kanban/presentation/screens/card_detail_screen.dart
-          git commit -m "fix: finalize tags smart views cleanup"
+            test/database/app_database_migration_test.dart
+          git commit -m "test: align migration coverage with schema v5"
           git push origin HEAD:feature/tags-smart-views
       - name: Publish patch report
         if: always()
@@ -73,4 +90,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh issue create --title "[CI fast cleanup] tags-smart-views ${{ job.status }}" --body "Fast source cleanup status: ${{ job.status }}."
+          gh issue create --title "[CI final gate patch] tags-smart-views ${{ job.status }}" --body "Final gate patch status: ${{ job.status }}."
