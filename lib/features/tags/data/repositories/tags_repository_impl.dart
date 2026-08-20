@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 import 'package:not_app/core/database/app_database.dart';
 import 'package:not_app/core/events/entity_change_bus.dart';
@@ -8,7 +10,6 @@ import 'package:not_app/core/sync/sync_queue_repository.dart';
 import 'package:not_app/core/utils/clock.dart';
 import 'package:not_app/features/tags/domain/entities/tag.dart';
 import 'package:not_app/features/tags/domain/repositories/tags_repository.dart';
-import 'package:uuid/uuid.dart';
 
 final class DriftTagsRepository implements TagsRepository {
   DriftTagsRepository({
@@ -16,12 +17,10 @@ final class DriftTagsRepository implements TagsRepository {
     required SyncQueueRepository syncQueue,
     required AppClock clock,
     required EntityChangeBus changes,
-    Uuid? uuid,
   }) : _database = database,
        _syncQueue = syncQueue,
        _clock = clock,
-       _changes = changes,
-       _uuid = uuid ?? const Uuid();
+       _changes = changes;
 
   static const Set<String> supportedColorKeys = <String>{
     'gray',
@@ -40,7 +39,6 @@ final class DriftTagsRepository implements TagsRepository {
   final SyncQueueRepository _syncQueue;
   final AppClock _clock;
   final EntityChangeBus _changes;
-  final Uuid _uuid;
 
   @override
   Stream<List<TagEntity>> watchTags() => _watch<List<TagEntity>>(
@@ -60,7 +58,17 @@ final class DriftTagsRepository implements TagsRepository {
   @override
   Stream<int> watchUsageCount(String tagId) => _watch<int>(
     const <String>{'tag_assignment'},
-    () => _usageCount(tagId),
+    () async {
+      final QueryRow row = await _database.customSelect(
+        '''
+        SELECT count(*) AS usage_count
+        FROM tag_assignments
+        WHERE tag_id = ? AND deleted_at IS NULL
+        ''',
+        variables: <Variable<Object>>[Variable<String>(tagId)],
+      ).getSingle();
+      return row.read<int>('usage_count');
+    },
   );
 
   @override
@@ -95,12 +103,12 @@ final class DriftTagsRepository implements TagsRepository {
   }) async {
     final String cleanName = _cleanName(name);
     final String normalized = normalizeName(cleanName);
-    final String color = _validatedColor(colorKey);
     if (normalized.isEmpty) {
       throw ArgumentError.value(name, 'name', 'Etiket adı boş olamaz.');
     }
-
-    final QueryRow? existing = await _database.customSelect(
+    final String id = _tagId(normalized);
+    final _TagRow? existingById = await _tagById(id);
+    final QueryRow? existingActive = await _database.customSelect(
       '''
       SELECT id FROM tags
       WHERE normalized_name = ? AND deleted_at IS NULL
@@ -108,10 +116,24 @@ final class DriftTagsRepository implements TagsRepository {
       ''',
       variables: <Variable<Object>>[Variable<String>(normalized)],
     ).getSingleOrNull();
-    if (existing != null) return existing.read<String>('id');
+    if (existingActive != null) return existingActive.read<String>('id');
 
-    final String id = _uuid.v7();
+    final String color = _validatedColor(colorKey);
     final DateTime now = _clock.nowUtc();
+    if (existingById != null) {
+      await _database.transaction(() async {
+        await _writeTag(
+          existingById,
+          name: cleanName,
+          normalizedName: normalized,
+          colorKey: color,
+          deletedAt: null,
+        );
+      });
+      _changes.notify('tag');
+      return id;
+    }
+
     await _database.transaction(() async {
       await _database.customStatement(
         '''
@@ -172,25 +194,31 @@ final class DriftTagsRepository implements TagsRepository {
     if (duplicate != null) {
       throw StateError('Aynı ada sahip başka bir etiket zaten var.');
     }
-    await _mutateTag(
-      row,
-      name: cleanName,
-      normalizedName: normalized,
-      colorKey: row.colorKey,
-      deletedAt: row.deletedAt,
-    );
+    await _database.transaction(() async {
+      await _writeTag(
+        row,
+        name: cleanName,
+        normalizedName: normalized,
+        colorKey: row.colorKey,
+        deletedAt: row.deletedAt,
+      );
+    });
+    _changes.notify('tag');
   }
 
   @override
   Future<void> setColor(String tagId, String colorKey) async {
     final _TagRow row = await _requireTag(tagId);
-    await _mutateTag(
-      row,
-      name: row.name,
-      normalizedName: row.normalizedName,
-      colorKey: _validatedColor(colorKey),
-      deletedAt: row.deletedAt,
-    );
+    await _database.transaction(() async {
+      await _writeTag(
+        row,
+        name: row.name,
+        normalizedName: row.normalizedName,
+        colorKey: _validatedColor(colorKey),
+        deletedAt: row.deletedAt,
+      );
+    });
+    _changes.notify('tag');
   }
 
   @override
@@ -201,11 +229,7 @@ final class DriftTagsRepository implements TagsRepository {
     final List<_AssignmentRow> assignments = await _activeAssignments(tagId: tagId);
     await _database.transaction(() async {
       for (final _AssignmentRow assignment in assignments) {
-        await _writeAssignment(
-          assignment,
-          deletedAt: now,
-          enqueue: true,
-        );
+        await _writeAssignment(assignment, deletedAt: now);
       }
       await _writeTag(
         row,
@@ -213,7 +237,6 @@ final class DriftTagsRepository implements TagsRepository {
         normalizedName: row.normalizedName,
         colorKey: row.colorKey,
         deletedAt: now,
-        enqueue: true,
       );
     });
     _changes.notify('tag_assignment');
@@ -231,21 +254,16 @@ final class DriftTagsRepository implements TagsRepository {
       throw StateError('Silinmiş etiket içeriğe atanamaz.');
     }
     await _requireTarget(targetType, targetId);
-
-    final _AssignmentRow? existing = await _assignmentFor(
-      tagId: tagId,
-      targetType: targetType,
-      targetId: targetId,
-    );
-    if (existing?.deletedAt == null && existing != null) return;
+    final String assignmentId = _assignmentId(tagId, targetType, targetId);
+    final _AssignmentRow? existing = await _assignmentById(assignmentId);
+    if (existing != null && existing.deletedAt == null) return;
 
     final DateTime now = _clock.nowUtc();
     if (existing != null) {
       await _database.transaction(() async {
-        await _writeAssignment(existing, deletedAt: null, enqueue: true);
+        await _writeAssignment(existing, deletedAt: null);
       });
     } else {
-      final String id = _uuid.v7();
       await _database.transaction(() async {
         await _database.customStatement(
           '''
@@ -255,7 +273,7 @@ final class DriftTagsRepository implements TagsRepository {
           ) VALUES (?, ?, ?, ?, ?, ?, 1, NULL)
           ''',
           <Object?>[
-            id,
+            assignmentId,
             tagId,
             targetType.wireName,
             targetId,
@@ -265,10 +283,10 @@ final class DriftTagsRepository implements TagsRepository {
         );
         await _syncQueue.enqueue(
           entityType: 'tag_assignment',
-          entityId: id,
+          entityId: assignmentId,
           operationType: SyncOperationType.upsert,
           payload: _assignmentPayload(
-            id: id,
+            id: assignmentId,
             tagId: tagId,
             targetType: targetType.wireName,
             targetId: targetId,
@@ -290,18 +308,12 @@ final class DriftTagsRepository implements TagsRepository {
     required TagTargetType targetType,
     required String targetId,
   }) async {
-    final _AssignmentRow? existing = await _assignmentFor(
-      tagId: tagId,
-      targetType: targetType,
-      targetId: targetId,
+    final _AssignmentRow? existing = await _assignmentById(
+      _assignmentId(tagId, targetType, targetId),
     );
     if (existing == null || existing.deletedAt != null) return;
     await _database.transaction(() async {
-      await _writeAssignment(
-        existing,
-        deletedAt: _clock.nowUtc(),
-        enqueue: true,
-      );
+      await _writeAssignment(existing, deletedAt: _clock.nowUtc());
     });
     _changes.notify('tag_assignment');
   }
@@ -311,15 +323,15 @@ final class DriftTagsRepository implements TagsRepository {
     required TagTargetType targetType,
     required String targetId,
   }) async {
-    final List<_AssignmentRow> assignments = await _activeAssignments(
+    final List<_AssignmentRow> rows = await _activeAssignments(
       targetType: targetType,
       targetId: targetId,
     );
-    if (assignments.isEmpty) return;
+    if (rows.isEmpty) return;
     final DateTime now = _clock.nowUtc();
     await _database.transaction(() async {
-      for (final _AssignmentRow assignment in assignments) {
-        await _writeAssignment(assignment, deletedAt: now, enqueue: true);
+      for (final _AssignmentRow row in rows) {
+        await _writeAssignment(row, deletedAt: now);
       }
     });
     _changes.notify('tag_assignment');
@@ -338,110 +350,32 @@ final class DriftTagsRepository implements TagsRepository {
     return rows.map(_mapTag).toList(growable: false);
   }
 
-  Future<int> _usageCount(String tagId) async {
-    final QueryRow row = await _database.customSelect(
-      '''
-      SELECT count(*) AS usage_count
-      FROM tag_assignments
-      WHERE tag_id = ? AND deleted_at IS NULL
-      ''',
-      variables: <Variable<Object>>[Variable<String>(tagId)],
-    ).getSingle();
-    return row.read<int>('usage_count');
-  }
-
-  Stream<T> _watch<T>(Iterable<String> entityTypes, Future<T> Function() load) {
-    late StreamController<T> controller;
-    StreamSubscription<void>? subscription;
-    bool loading = false;
-    bool reloadRequested = false;
-
-    Future<void> emit() async {
-      if (loading) {
-        reloadRequested = true;
-        return;
-      }
-      loading = true;
-      do {
-        reloadRequested = false;
-        try {
-          controller.add(await load());
-        } catch (error, stackTrace) {
-          controller.addError(error, stackTrace);
-        }
-      } while (reloadRequested && !controller.isClosed);
-      loading = false;
-    }
-
-    controller = StreamController<T>.broadcast(
-      onListen: () {
-        emit();
-        subscription = _changes.watchAny(entityTypes).listen((_) => emit());
-      },
-      onCancel: () async {
-        await subscription?.cancel();
-        subscription = null;
-      },
-    );
-    return controller.stream;
-  }
-
-  Future<_TagRow> _requireTag(String tagId) async {
+  Future<_TagRow?> _tagById(String id) async {
     final QueryRow? row = await _database.customSelect(
       '''
       SELECT id, name, normalized_name, color_key,
              created_at, updated_at, version, deleted_at
       FROM tags WHERE id = ? LIMIT 1
       ''',
-      variables: <Variable<Object>>[Variable<String>(tagId)],
+      variables: <Variable<Object>>[Variable<String>(id)],
     ).getSingleOrNull();
-    if (row == null) throw StateError('Etiket bulunamadı: $tagId');
-    return _TagRow.fromQuery(row);
+    return row == null ? null : _TagRow.fromQuery(row);
   }
 
-  Future<void> _requireTarget(TagTargetType type, String targetId) async {
-    final bool exists;
-    switch (type) {
-      case TagTargetType.note:
-        final row = await (_database.select(_database.notes)
-              ..where(
-                (tbl) =>
-                    tbl.id.equals(targetId) & tbl.deletedAt.isNull(),
-              ))
-            .getSingleOrNull();
-        exists = row != null;
-      case TagTargetType.card:
-        final row = await (_database.select(_database.cards)
-              ..where(
-                (tbl) =>
-                    tbl.id.equals(targetId) & tbl.deletedAt.isNull(),
-              ))
-            .getSingleOrNull();
-        exists = row != null;
-    }
-    if (!exists) {
-      throw StateError('Etiketlenecek içerik bulunamadı: ${type.wireName}/$targetId');
-    }
+  Future<_TagRow> _requireTag(String id) async {
+    final _TagRow? row = await _tagById(id);
+    if (row == null) throw StateError('Etiket bulunamadı: $id');
+    return row;
   }
 
-  Future<_AssignmentRow?> _assignmentFor({
-    required String tagId,
-    required TagTargetType targetType,
-    required String targetId,
-  }) async {
+  Future<_AssignmentRow?> _assignmentById(String id) async {
     final QueryRow? row = await _database.customSelect(
       '''
       SELECT id, tag_id, target_type, target_id,
              created_at, updated_at, version, deleted_at
-      FROM tag_assignments
-      WHERE tag_id = ? AND target_type = ? AND target_id = ?
-      LIMIT 1
+      FROM tag_assignments WHERE id = ? LIMIT 1
       ''',
-      variables: <Variable<Object>>[
-        Variable<String>(tagId),
-        Variable<String>(targetType.wireName),
-        Variable<String>(targetId),
-      ],
+      variables: <Variable<Object>>[Variable<String>(id)],
     ).getSingleOrNull();
     return row == null ? null : _AssignmentRow.fromQuery(row);
   }
@@ -477,36 +411,15 @@ final class DriftTagsRepository implements TagsRepository {
     return rows.map(_AssignmentRow.fromQuery).toList(growable: false);
   }
 
-  Future<void> _mutateTag(
-    _TagRow row, {
-    required String name,
-    required String normalizedName,
-    required String colorKey,
-    required DateTime? deletedAt,
-  }) async {
-    await _database.transaction(() async {
-      await _writeTag(
-        row,
-        name: name,
-        normalizedName: normalizedName,
-        colorKey: colorKey,
-        deletedAt: deletedAt,
-        enqueue: true,
-      );
-    });
-    _changes.notify('tag');
-  }
-
   Future<void> _writeTag(
     _TagRow row, {
     required String name,
     required String normalizedName,
     required String colorKey,
     required DateTime? deletedAt,
-    required bool enqueue,
   }) async {
     final DateTime now = _clock.nowUtc();
-    final int nextVersion = row.version + 1;
+    final int version = row.version + 1;
     await _database.customStatement(
       '''
       UPDATE tags
@@ -519,38 +432,35 @@ final class DriftTagsRepository implements TagsRepository {
         normalizedName,
         colorKey,
         now.toIso8601String(),
-        nextVersion,
+        version,
         deletedAt?.toIso8601String(),
         row.id,
       ],
     );
-    if (enqueue) {
-      await _syncQueue.enqueue(
-        entityType: 'tag',
-        entityId: row.id,
-        operationType: SyncOperationType.upsert,
-        payload: _tagPayload(
-          id: row.id,
-          name: name,
-          normalizedName: normalizedName,
-          colorKey: colorKey,
-          createdAt: row.createdAt,
-          updatedAt: now,
-          version: nextVersion,
-          deletedAt: deletedAt,
-        ),
-        baseVersion: row.version,
-      );
-    }
+    await _syncQueue.enqueue(
+      entityType: 'tag',
+      entityId: row.id,
+      operationType: SyncOperationType.upsert,
+      payload: _tagPayload(
+        id: row.id,
+        name: name,
+        normalizedName: normalizedName,
+        colorKey: colorKey,
+        createdAt: row.createdAt,
+        updatedAt: now,
+        version: version,
+        deletedAt: deletedAt,
+      ),
+      baseVersion: row.version,
+    );
   }
 
   Future<void> _writeAssignment(
     _AssignmentRow row, {
     required DateTime? deletedAt,
-    required bool enqueue,
   }) async {
     final DateTime now = _clock.nowUtc();
-    final int nextVersion = row.version + 1;
+    final int version = row.version + 1;
     await _database.customStatement(
       '''
       UPDATE tag_assignments
@@ -559,29 +469,82 @@ final class DriftTagsRepository implements TagsRepository {
       ''',
       <Object?>[
         now.toIso8601String(),
-        nextVersion,
+        version,
         deletedAt?.toIso8601String(),
         row.id,
       ],
     );
-    if (enqueue) {
-      await _syncQueue.enqueue(
-        entityType: 'tag_assignment',
-        entityId: row.id,
-        operationType: SyncOperationType.upsert,
-        payload: _assignmentPayload(
-          id: row.id,
-          tagId: row.tagId,
-          targetType: row.targetType,
-          targetId: row.targetId,
-          createdAt: row.createdAt,
-          updatedAt: now,
-          version: nextVersion,
-          deletedAt: deletedAt,
-        ),
-        baseVersion: row.version,
-      );
+    await _syncQueue.enqueue(
+      entityType: 'tag_assignment',
+      entityId: row.id,
+      operationType: SyncOperationType.upsert,
+      payload: _assignmentPayload(
+        id: row.id,
+        tagId: row.tagId,
+        targetType: row.targetType,
+        targetId: row.targetId,
+        createdAt: row.createdAt,
+        updatedAt: now,
+        version: version,
+        deletedAt: deletedAt,
+      ),
+      baseVersion: row.version,
+    );
+  }
+
+  Future<void> _requireTarget(TagTargetType type, String targetId) async {
+    final bool exists;
+    switch (type) {
+      case TagTargetType.note:
+        exists = await (_database.select(_database.notes)
+                  ..where((t) => t.id.equals(targetId) & t.deletedAt.isNull()))
+                .getSingleOrNull() !=
+            null;
+      case TagTargetType.card:
+        exists = await (_database.select(_database.cards)
+                  ..where((t) => t.id.equals(targetId) & t.deletedAt.isNull()))
+                .getSingleOrNull() !=
+            null;
     }
+    if (!exists) {
+      throw StateError('Etiketlenecek içerik bulunamadı: ${type.wireName}/$targetId');
+    }
+  }
+
+  Stream<T> _watch<T>(Iterable<String> types, Future<T> Function() load) {
+    late StreamController<T> controller;
+    StreamSubscription<void>? subscription;
+    bool loading = false;
+    bool pending = false;
+
+    Future<void> emit() async {
+      if (loading) {
+        pending = true;
+        return;
+      }
+      loading = true;
+      do {
+        pending = false;
+        try {
+          controller.add(await load());
+        } catch (error, stackTrace) {
+          controller.addError(error, stackTrace);
+        }
+      } while (pending && !controller.isClosed);
+      loading = false;
+    }
+
+    controller = StreamController<T>.broadcast(
+      onListen: () {
+        emit();
+        subscription = _changes.watchAny(types).listen((_) => emit());
+      },
+      onCancel: () async {
+        await subscription?.cancel();
+        subscription = null;
+      },
+    );
+    return controller.stream;
   }
 
   TagEntity _mapTag(QueryRow row) => TagEntity(
@@ -635,6 +598,17 @@ final class DriftTagsRepository implements TagsRepository {
     'deletedAt': deletedAt?.toIso8601String(),
   };
 
+  String _tagId(String normalizedName) {
+    final String digest = sha256.convert(utf8.encode(normalizedName)).toString();
+    return 'tag-${digest.substring(0, 32)}';
+  }
+
+  String _assignmentId(
+    String tagId,
+    TagTargetType targetType,
+    String targetId,
+  ) => 'ta-${tagId.substring(4)}-${targetType.wireName}-$targetId';
+
   String _validatedColor(String value) {
     final String normalized = value.trim().toLowerCase();
     return supportedColorKeys.contains(normalized) ? normalized : 'indigo';
@@ -665,7 +639,6 @@ final class _TagRow {
     required this.normalizedName,
     required this.colorKey,
     required this.createdAt,
-    required this.updatedAt,
     required this.version,
     required this.deletedAt,
   });
@@ -676,7 +649,6 @@ final class _TagRow {
     normalizedName: row.read<String>('normalized_name'),
     colorKey: row.read<String>('color_key'),
     createdAt: DateTime.parse(row.read<String>('created_at')).toUtc(),
-    updatedAt: DateTime.parse(row.read<String>('updated_at')).toUtc(),
     version: row.read<int>('version'),
     deletedAt: row.readNullable<String>('deleted_at') == null
         ? null
@@ -688,7 +660,6 @@ final class _TagRow {
   final String normalizedName;
   final String colorKey;
   final DateTime createdAt;
-  final DateTime updatedAt;
   final int version;
   final DateTime? deletedAt;
 }
@@ -700,7 +671,6 @@ final class _AssignmentRow {
     required this.targetType,
     required this.targetId,
     required this.createdAt,
-    required this.updatedAt,
     required this.version,
     required this.deletedAt,
   });
@@ -711,7 +681,6 @@ final class _AssignmentRow {
     targetType: row.read<String>('target_type'),
     targetId: row.read<String>('target_id'),
     createdAt: DateTime.parse(row.read<String>('created_at')).toUtc(),
-    updatedAt: DateTime.parse(row.read<String>('updated_at')).toUtc(),
     version: row.read<int>('version'),
     deletedAt: row.readNullable<String>('deleted_at') == null
         ? null
@@ -723,7 +692,6 @@ final class _AssignmentRow {
   final String targetType;
   final String targetId;
   final DateTime createdAt;
-  final DateTime updatedAt;
   final int version;
   final DateTime? deletedAt;
 }
