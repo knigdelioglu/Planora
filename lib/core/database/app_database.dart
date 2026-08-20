@@ -36,7 +36,7 @@ class AppDatabase extends _$AppDatabase {
       AppDatabase(await openNativeConnection(keyService: keyService));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -44,6 +44,7 @@ class AppDatabase extends _$AppDatabase {
       await migrator.createAll();
       await _createSearchFts();
       await _createCardNoteLinks();
+      await _createTagsAndSmartViews();
     },
     onUpgrade: (Migrator migrator, int from, int to) async {
       if (from < 2) {
@@ -71,6 +72,9 @@ class AppDatabase extends _$AppDatabase {
       if (from < 4) {
         await _createCardNoteLinks();
       }
+      if (from < 5) {
+        await _createTagsAndSmartViews();
+      }
     },
     beforeOpen: (OpeningDetails details) async {
       await customStatement('PRAGMA foreign_keys = ON');
@@ -78,6 +82,7 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('PRAGMA busy_timeout = 5000');
       await _createSearchFts();
       await _createCardNoteLinks();
+      await _createTagsAndSmartViews();
       await _createProductIndexes();
       await _installSensitiveDataRetentionGuards();
     },
@@ -114,6 +119,77 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS card_note_links_note_idx '
       'ON card_note_links (note_id, deleted_at)',
+    );
+  }
+
+  Future<void> _createTagsAndSmartViews() async {
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS tags(
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT NOT NULL,
+        normalized_name TEXT NOT NULL,
+        color_key TEXT NOT NULL DEFAULT 'indigo',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        deleted_at TEXT
+      )
+    ''');
+    await customStatement('''
+      CREATE UNIQUE INDEX IF NOT EXISTS tags_active_normalized_name_uq
+      ON tags(normalized_name)
+      WHERE deleted_at IS NULL
+    ''');
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS tags_updated_at_idx '
+      'ON tags(updated_at, deleted_at)',
+    );
+
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS tag_assignments(
+        id TEXT NOT NULL PRIMARY KEY,
+        tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+        target_type TEXT NOT NULL CHECK(target_type IN ('note', 'card')),
+        target_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        deleted_at TEXT
+      )
+    ''');
+    await customStatement('''
+      CREATE UNIQUE INDEX IF NOT EXISTS tag_assignments_identity_uq
+      ON tag_assignments(tag_id, target_type, target_id)
+    ''');
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS tag_assignments_target_idx '
+      'ON tag_assignments(target_type, target_id, deleted_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS tag_assignments_tag_idx '
+      'ON tag_assignments(tag_id, deleted_at)',
+    );
+
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS smart_views(
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT NOT NULL,
+        icon_key TEXT NOT NULL DEFAULT 'filter_alt',
+        rank_key TEXT NOT NULL,
+        query_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        deleted_at TEXT
+      )
+    ''');
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS smart_views_rank_idx '
+      'ON smart_views(rank_key, deleted_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS smart_views_updated_at_idx '
+      'ON smart_views(updated_at)',
     );
   }
 
