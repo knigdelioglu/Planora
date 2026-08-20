@@ -1,10 +1,9 @@
-name: Quick PostgreSQL test diagnostic
+name: Tags smart views validation
 
 on:
   push:
     branches:
-      - agent/ci-diagnostic-20260819
-      - merge/all-branches-20260819
+      - agent/run-tests
     paths:
       - tools/quick_test.trigger
 
@@ -46,24 +45,26 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
-      - name: Run focused gates and publish
+      - name: Run validation and publish issue
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set +e
-          report="$RUNNER_TEMP/quick-report.md"
+          report="$RUNNER_TEMP/tags-smart-views-report.md"
           overall=0
-          echo '# Planora all-branches validation' > "$report"
+          echo '# Planora Tags + Smart Views validation' > "$report"
           echo >> "$report"
           echo "Commit: $GITHUB_SHA" >> "$report"
+          echo "Run: $GITHUB_RUN_ID" >> "$report"
           echo >> "$report"
           for spec in \
             'Formatting|dart format --output=none --set-exit-if-changed lib test' \
             'Static analysis|flutter analyze' \
             'All Flutter tests|flutter test --coverage --concurrency=1' \
             'Integration tests|flutter test test/integration --concurrency=1' \
-            'Android debug build|flutter build apk --debug'; do
+            'Tags Smart Views core tests|flutter test test/features/tags_smart_views_test.dart test/database/tags_smart_views_migration_test.dart test/core/sync/tags_sync_dependency_test.dart --concurrency=1' \
+            'Tags Smart Views performance|flutter test test/features/tags_smart_views_performance_test.dart --concurrency=1'; do
             label="${spec%%|*}"
             cmd="${spec#*|}"
             log="$RUNNER_TEMP/$(echo "$label" | tr ' ' '_' | tr '[:upper:]' '[:lower:]').log"
@@ -82,9 +83,9 @@ jobs:
             echo >> "$report"
           done
           if [ "$overall" -eq 0 ]; then
-            title='[CI quick] Planora all-branches PASS'
+            title='[CI tags-smart-views] PASS'
           else
-            title='[CI quick] Planora all-branches FAIL'
+            title='[CI tags-smart-views] FAIL'
           fi
           gh issue create --title "$title" --body-file "$report"
           exit "$overall"
