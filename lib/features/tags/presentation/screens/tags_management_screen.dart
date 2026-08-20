@@ -143,42 +143,51 @@ class TagsManagementScreen extends ConsumerWidget {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: const <String>[
-                    'gray',
-                    'red',
-                    'orange',
-                    'amber',
-                    'green',
-                    'teal',
-                    'blue',
-                    'indigo',
-                    'violet',
-                    'pink',
-                  ].map((String key) {
-                    final bool selected = colorKey == key;
-                    final Color color = tagColor(context, key);
-                    return InkWell(
-                      onTap: () => setState(() => colorKey = key),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: selected ? 0.22 : 0.10),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: selected
-                                ? color
-                                : color.withValues(alpha: 0.25),
-                            width: selected ? 2 : 1,
-                          ),
-                        ),
-                        child: selected
-                            ? Icon(Icons.check_rounded, size: 18, color: color)
-                            : null,
-                      ),
-                    );
-                  }).toList(growable: false),
+                  children:
+                      const <String>[
+                            'gray',
+                            'red',
+                            'orange',
+                            'amber',
+                            'green',
+                            'teal',
+                            'blue',
+                            'indigo',
+                            'violet',
+                            'pink',
+                          ]
+                          .map((String key) {
+                            final bool selected = colorKey == key;
+                            final Color color = tagColor(context, key);
+                            return InkWell(
+                              onTap: () => setState(() => colorKey = key),
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: color.withValues(
+                                    alpha: selected ? 0.22 : 0.10,
+                                  ),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: selected
+                                        ? color
+                                        : color.withValues(alpha: 0.25),
+                                    width: selected ? 2 : 1,
+                                  ),
+                                ),
+                                child: selected
+                                    ? Icon(
+                                        Icons.check_rounded,
+                                        size: 18,
+                                        color: color,
+                                      )
+                                    : null,
+                              ),
+                            );
+                          })
+                          .toList(growable: false),
                 ),
               ],
             ),
@@ -211,9 +220,9 @@ class TagsManagementScreen extends ConsumerWidget {
       }
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -222,7 +231,8 @@ class TagsManagementScreen extends ConsumerWidget {
     WidgetRef ref,
     TagEntity tag,
   ) async {
-    final bool confirmed = await showDialog<bool>(
+    final bool confirmed =
+        await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: Text('“${tag.name}” silinsin mi?'),

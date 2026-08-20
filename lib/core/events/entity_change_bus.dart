@@ -16,9 +16,7 @@ final class EntityChangeBus {
 
   Stream<void> watchAny(Iterable<String> entityTypes) {
     final Set<String> accepted = entityTypes.toSet();
-    return _controller.stream
-        .where(accepted.contains)
-        .map<void>((_) {});
+    return _controller.stream.where(accepted.contains).map<void>((_) {});
   }
 
   void notify(String entityType) {

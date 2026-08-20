@@ -251,7 +251,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Future<void> _openFilters() async {
     if (_type == 'board') return;
-    final List<TagEntity> tags = await ref.read(tagsRepositoryProvider).watchTags().first;
+    final List<TagEntity> tags = await ref
+        .read(tagsRepositoryProvider)
+        .watchTags()
+        .first;
     if (!mounted) return;
 
     Set<String> tagIds = Set<String>.from(_tagIds);
@@ -271,7 +274,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  Text('Etiketler', style: Theme.of(context).textTheme.labelLarge),
+                  Text(
+                    'Etiketler',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
                   const SizedBox(height: 8),
                   if (tags.isEmpty)
                     Text(
@@ -282,23 +288,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: tags.map((TagEntity tag) {
-                        final bool selected = tagIds.contains(tag.id);
-                        return FilterChip(
-                          selected: selected,
-                          label: Text('#${tag.name}'),
-                          onSelected: (bool value) {
-                            setDialogState(() {
-                              if (value) {
-                                tagIds.add(tag.id);
-                                hasTags = null;
-                              } else {
-                                tagIds.remove(tag.id);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(growable: false),
+                      children: tags
+                          .map((TagEntity tag) {
+                            final bool selected = tagIds.contains(tag.id);
+                            return FilterChip(
+                              selected: selected,
+                              label: Text('#${tag.name}'),
+                              onSelected: (bool value) {
+                                setDialogState(() {
+                                  if (value) {
+                                    tagIds.add(tag.id);
+                                    hasTags = null;
+                                  } else {
+                                    tagIds.remove(tag.id);
+                                  }
+                                });
+                              },
+                            );
+                          })
+                          .toList(growable: false),
                     ),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
@@ -307,11 +315,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         : hasTags!
                         ? 'tagged'
                         : 'untagged',
-                    decoration: const InputDecoration(labelText: 'Etiket durumu'),
+                    decoration: const InputDecoration(
+                      labelText: 'Etiket durumu',
+                    ),
                     items: const <DropdownMenuItem<String>>[
                       DropdownMenuItem(value: 'any', child: Text('Fark etmez')),
-                      DropdownMenuItem(value: 'tagged', child: Text('Etiketli')),
-                      DropdownMenuItem(value: 'untagged', child: Text('Etiketsiz')),
+                      DropdownMenuItem(
+                        value: 'tagged',
+                        child: Text('Etiketli'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'untagged',
+                        child: Text('Etiketsiz'),
+                      ),
                     ],
                     onChanged: (String? value) => setDialogState(() {
                       hasTags = switch (value) {
@@ -326,24 +342,41 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   _NullableFilterField(
                     label: 'Hatırlatıcı',
                     value: hasReminder,
-                    onChanged: (value) => setDialogState(() => hasReminder = value),
+                    onChanged: (value) =>
+                        setDialogState(() => hasReminder = value),
                   ),
                   const SizedBox(height: 8),
                   _NullableFilterField(
                     label: 'Dosya eki',
                     value: hasAttachment,
-                    onChanged: (value) => setDialogState(() => hasAttachment = value),
+                    onChanged: (value) =>
+                        setDialogState(() => hasAttachment = value),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<int?>(
                     initialValue: updatedWithinDays,
                     decoration: const InputDecoration(labelText: 'Güncellenme'),
                     items: const <DropdownMenuItem<int?>>[
-                      DropdownMenuItem<int?>(value: null, child: Text('Tüm zamanlar')),
-                      DropdownMenuItem<int?>(value: 1, child: Text('Son 24 saat')),
-                      DropdownMenuItem<int?>(value: 7, child: Text('Son 7 gün')),
-                      DropdownMenuItem<int?>(value: 30, child: Text('Son 30 gün')),
-                      DropdownMenuItem<int?>(value: 90, child: Text('Son 90 gün')),
+                      DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('Tüm zamanlar'),
+                      ),
+                      DropdownMenuItem<int?>(
+                        value: 1,
+                        child: Text('Son 24 saat'),
+                      ),
+                      DropdownMenuItem<int?>(
+                        value: 7,
+                        child: Text('Son 7 gün'),
+                      ),
+                      DropdownMenuItem<int?>(
+                        value: 30,
+                        child: Text('Son 30 gün'),
+                      ),
+                      DropdownMenuItem<int?>(
+                        value: 90,
+                        child: Text('Son 90 gün'),
+                      ),
                     ],
                     onChanged: (value) =>
                         setDialogState(() => updatedWithinDays = value),
@@ -524,8 +557,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final double horizontal =
-                      constraints.maxWidth < 600 ? 16 : 24;
+                  final double horizontal = constraints.maxWidth < 600
+                      ? 16
+                      : 24;
                   return Column(
                     children: <Widget>[
                       Padding(
@@ -604,7 +638,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                 ),
                                 FilterChip(
                                   selected: _hasAdvancedFilters,
-                                  avatar: const Icon(Icons.tune_rounded, size: 16),
+                                  avatar: const Icon(
+                                    Icons.tune_rounded,
+                                    size: 16,
+                                  ),
                                   label: Text(
                                     _filterCount == 0
                                         ? 'Filtreler'
@@ -616,7 +653,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                 ),
                                 if (_hasAdvancedFilters)
                                   ActionChip(
-                                    avatar: const Icon(Icons.close_rounded, size: 15),
+                                    avatar: const Icon(
+                                      Icons.close_rounded,
+                                      size: 15,
+                                    ),
                                     label: const Text('Filtreleri temizle'),
                                     onPressed: _clearFilters,
                                   ),
@@ -651,7 +691,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             ? const EmptyState(
                                 icon: Icons.search_off_rounded,
                                 title: 'Sonuç bulunamadı',
-                                message: 'Arama kelimesini veya filtreleri değiştirin.',
+                                message:
+                                    'Arama kelimesini veya filtreleri değiştirin.',
                               )
                             : Center(
                                 child: ConstrainedBox(
@@ -789,7 +830,13 @@ class _NullableFilterField extends StatelessWidget {
           ButtonSegment(value: 'yes', label: Text('Var')),
           ButtonSegment(value: 'no', label: Text('Yok')),
         ],
-        selected: <String>{value == null ? 'any' : value! ? 'yes' : 'no'},
+        selected: <String>{
+          value == null
+              ? 'any'
+              : value!
+              ? 'yes'
+              : 'no',
+        },
         onSelectionChanged: (selection) {
           onChanged(switch (selection.first) {
             'yes' => true,

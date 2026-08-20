@@ -4,10 +4,7 @@ abstract interface class NoteKanbanRepository {
   Future<List<LinkedNoteEntity>> linkedNotesForCard(String cardId);
   Future<String?> linkedCardIdForNote(String noteId);
 
-  Future<void> moveNoteToCard({
-    required String noteId,
-    required String cardId,
-  });
+  Future<void> moveNoteToCard({required String noteId, required String cardId});
 
   Future<String> moveNoteToColumn({
     required String noteId,

@@ -46,11 +46,7 @@ void main() {
       clock: clock,
       changes: changes,
     );
-    notes = DriftNotesRepository(
-      database: db,
-      syncQueue: queue,
-      clock: clock,
-    );
+    notes = DriftNotesRepository(database: db, syncQueue: queue, clock: clock);
     kanban = DriftKanbanRepository(
       database: db,
       syncQueue: queue,
@@ -117,26 +113,29 @@ void main() {
     );
   });
 
-  test('deleting a tag removes it from targets without deleting content', () async {
-    final String noteId = await notes.createNote(title: 'Kalacak not');
-    final String tagId = await tags.createTag(name: 'Geçici');
-    await tags.assign(
-      tagId: tagId,
-      targetType: TagTargetType.note,
-      targetId: noteId,
-    );
-
-    await tags.deleteTag(tagId);
-
-    expect(await notes.getNote(noteId), isNotNull);
-    expect(
-      await tags.tagsForTarget(
+  test(
+    'deleting a tag removes it from targets without deleting content',
+    () async {
+      final String noteId = await notes.createNote(title: 'Kalacak not');
+      final String tagId = await tags.createTag(name: 'Geçici');
+      await tags.assign(
+        tagId: tagId,
         targetType: TagTargetType.note,
         targetId: noteId,
-      ),
-      isEmpty,
-    );
-  });
+      );
+
+      await tags.deleteTag(tagId);
+
+      expect(await notes.getNote(noteId), isNotNull);
+      expect(
+        await tags.tagsForTarget(
+          targetType: TagTargetType.note,
+          targetId: noteId,
+        ),
+        isEmpty,
+      );
+    },
+  );
 
   test('smart view combines text, tag and metadata filters', () async {
     final String noteId = await notes.createNote(title: 'Sınav hazırlığı');
@@ -244,10 +243,7 @@ void main() {
     );
 
     final results = await smartViews.query(
-      ContentFilter(
-        scope: ContentScope.notes,
-        noneTagIds: <String>[bekliyor],
-      ),
+      ContentFilter(scope: ContentScope.notes, noneTagIds: <String>[bekliyor]),
     );
     final ids = results.map((item) => item.entityId).toSet();
     expect(ids, contains(included));
@@ -318,10 +314,7 @@ void main() {
     final String tagId = await tags.createTag(name: 'Planora');
     final String viewId = await smartViews.createView(
       name: 'Planora işleri',
-      filter: ContentFilter(
-        anyTagIds: <String>[tagId],
-        hasAttachment: true,
-      ),
+      filter: ContentFilter(anyTagIds: <String>[tagId], hasAttachment: true),
     );
 
     final views = await smartViews.watchViews().first;

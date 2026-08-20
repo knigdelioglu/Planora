@@ -90,10 +90,8 @@ final class ContentFilter {
       if (decoded is Map<Object?, Object?>) {
         return ContentFilter.fromJson(
           decoded.map(
-            (Object? key, Object? value) => MapEntry<String, Object?>(
-              key.toString(),
-              value,
-            ),
+            (Object? key, Object? value) =>
+                MapEntry<String, Object?>(key.toString(), value),
           ),
         );
       }

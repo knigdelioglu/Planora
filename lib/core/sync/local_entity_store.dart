@@ -98,15 +98,17 @@ final class LocalEntityStore {
           'deletedAt': row.deletedAt?.toIso8601String(),
         };
       case 'card_note_link':
-        final row = await _database.customSelect(
-          '''
+        final row = await _database
+            .customSelect(
+              '''
           SELECT id, note_id, card_id, created_at, updated_at, version, deleted_at
           FROM card_note_links
           WHERE id = ?
           LIMIT 1
           ''',
-          variables: <Variable<Object>>[Variable<String>(entityId)],
-        ).getSingleOrNull();
+              variables: <Variable<Object>>[Variable<String>(entityId)],
+            )
+            .getSingleOrNull();
         if (row == null) return null;
         return <String, Object?>{
           'id': row.read<String>('id'),
@@ -156,14 +158,16 @@ final class LocalEntityStore {
           'deletedAt': row.deletedAt?.toIso8601String(),
         };
       case 'tag':
-        final row = await _database.customSelect(
-          '''
+        final row = await _database
+            .customSelect(
+              '''
           SELECT id, name, normalized_name, color_key,
                  created_at, updated_at, version, deleted_at
           FROM tags WHERE id = ? LIMIT 1
           ''',
-          variables: <Variable<Object>>[Variable<String>(entityId)],
-        ).getSingleOrNull();
+              variables: <Variable<Object>>[Variable<String>(entityId)],
+            )
+            .getSingleOrNull();
         if (row == null) return null;
         return <String, Object?>{
           'id': row.read<String>('id'),
@@ -176,14 +180,16 @@ final class LocalEntityStore {
           'deletedAt': row.readNullable<String>('deleted_at'),
         };
       case 'tag_assignment':
-        final row = await _database.customSelect(
-          '''
+        final row = await _database
+            .customSelect(
+              '''
           SELECT id, tag_id, target_type, target_id,
                  created_at, updated_at, version, deleted_at
           FROM tag_assignments WHERE id = ? LIMIT 1
           ''',
-          variables: <Variable<Object>>[Variable<String>(entityId)],
-        ).getSingleOrNull();
+              variables: <Variable<Object>>[Variable<String>(entityId)],
+            )
+            .getSingleOrNull();
         if (row == null) return null;
         return <String, Object?>{
           'id': row.read<String>('id'),
@@ -196,14 +202,16 @@ final class LocalEntityStore {
           'deletedAt': row.readNullable<String>('deleted_at'),
         };
       case 'smart_view':
-        final row = await _database.customSelect(
-          '''
+        final row = await _database
+            .customSelect(
+              '''
           SELECT id, name, icon_key, rank_key, query_json,
                  created_at, updated_at, version, deleted_at
           FROM smart_views WHERE id = ? LIMIT 1
           ''',
-          variables: <Variable<Object>>[Variable<String>(entityId)],
-        ).getSingleOrNull();
+              variables: <Variable<Object>>[Variable<String>(entityId)],
+            )
+            .getSingleOrNull();
         if (row == null) return null;
         return <String, Object?>{
           'id': row.read<String>('id'),

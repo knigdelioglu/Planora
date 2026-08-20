@@ -48,8 +48,7 @@ class NoteGridCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   const Icon(Icons.description_outlined, size: 18),
                   const Spacer(),
-                  if (isFavorite)
-                    const Icon(Icons.star_rounded, size: 18),
+                  if (isFavorite) const Icon(Icons.star_rounded, size: 18),
                   PopupMenuButton<String>(
                     tooltip: 'Not işlemleri',
                     onSelected: (value) {

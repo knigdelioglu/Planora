@@ -154,9 +154,10 @@ class _MoveNoteToKanbanDialogState
                           'Bu panoda hedef olarak seçilebilecek kolon yok.',
                         );
                       }
-                      final String? selectedColumnId = snapshot.columns.any(
-                        (column) => column.id == _columnId,
-                      )
+                      final String? selectedColumnId =
+                          snapshot.columns.any(
+                            (column) => column.id == _columnId,
+                          )
                           ? _columnId
                           : null;
                       final List<KanbanCard> cards = selectedColumnId == null
@@ -166,7 +167,8 @@ class _MoveNoteToKanbanDialogState
                       final bool validCardTarget =
                           _cardTarget == _newCard ||
                           cards.any((card) => card.id == _cardTarget);
-                      final String? selectedCardTarget = selectedColumnId == null
+                      final String? selectedCardTarget =
+                          selectedColumnId == null
                           ? null
                           : validCardTarget
                           ? _cardTarget
@@ -240,8 +242,7 @@ class _MoveNoteToKanbanDialogState
                           Align(
                             alignment: Alignment.centerRight,
                             child: FilledButton.icon(
-                              onPressed:
-                                  selectedColumnId == null || _saving
+                              onPressed: selectedColumnId == null || _saving
                                   ? null
                                   : () => unawaited(_submit(snapshot)),
                               icon: _saving

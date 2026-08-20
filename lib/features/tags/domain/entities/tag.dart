@@ -7,7 +7,8 @@ enum TagTargetType {
 
   static TagTargetType parse(String value) => TagTargetType.values.firstWhere(
     (TagTargetType type) => type.wireName == value,
-    orElse: () => throw ArgumentError.value(value, 'value', 'Unknown tag target'),
+    orElse: () =>
+        throw ArgumentError.value(value, 'value', 'Unknown tag target'),
   );
 }
 

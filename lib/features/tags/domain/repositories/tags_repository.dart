@@ -15,10 +15,7 @@ abstract interface class TagsRepository {
     required String targetId,
   });
 
-  Future<String> createTag({
-    required String name,
-    String colorKey = 'indigo',
-  });
+  Future<String> createTag({required String name, String colorKey = 'indigo'});
 
   Future<void> renameTag(String tagId, String name);
 

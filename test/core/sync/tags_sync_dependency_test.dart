@@ -142,12 +142,14 @@ void main() {
     final SyncRunResult result = await engine.runOnce();
     expect(result.pulled, 2);
 
-    final storedTag = await database.customSelect(
-      "SELECT id FROM tags WHERE id = 'tag_test' LIMIT 1",
-    ).getSingleOrNull();
-    final storedAssignment = await database.customSelect(
-      "SELECT id, tag_id FROM tag_assignments WHERE id = 'assignment_test' LIMIT 1",
-    ).getSingleOrNull();
+    final storedTag = await database
+        .customSelect("SELECT id FROM tags WHERE id = 'tag_test' LIMIT 1")
+        .getSingleOrNull();
+    final storedAssignment = await database
+        .customSelect(
+          "SELECT id, tag_id FROM tag_assignments WHERE id = 'assignment_test' LIMIT 1",
+        )
+        .getSingleOrNull();
 
     expect(storedTag?.read<String>('id'), 'tag_test');
     expect(storedAssignment?.read<String>('tag_id'), 'tag_test');

@@ -235,7 +235,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     builder: (context, snapshot) {
       final List<SmartViewEntity> views =
           snapshot.data ?? const <SmartViewEntity>[];
-      final List<SmartViewEntity> visible = views.take(4).toList(growable: false);
+      final List<SmartViewEntity> visible = views
+          .take(4)
+          .toList(growable: false);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -331,7 +333,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                             Icon(
                               Icons.search_rounded,
                               size: 19,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                             const SizedBox(width: 9),
                             Expanded(
@@ -354,7 +358,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                   child: ListView(
                     padding: EdgeInsets.zero,
                     children: <Widget>[
-                      ...List<Widget>.generate(_mainDestinations.length, (index) {
+                      ...List<Widget>.generate(_mainDestinations.length, (
+                        index,
+                      ) {
                         final item = _mainDestinations[index];
                         return AppSidebarItem(
                           label: item.label,
@@ -494,10 +500,8 @@ class _AppShellState extends ConsumerState<AppShell> {
             ),
             onSmartViews: _openSmartViews,
             onTags: _openTags,
-            onSettings: () => AppRouter.push<void>(
-              context,
-              const SettingsScreen(),
-            ),
+            onSettings: () =>
+                AppRouter.push<void>(context, const SettingsScreen()),
             sync: _sync(configured, signedIn),
           )
         : _page(_index);

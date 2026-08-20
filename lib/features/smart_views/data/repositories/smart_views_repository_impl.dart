@@ -34,15 +34,16 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
   final Uuid _uuid;
 
   @override
-  Stream<List<SmartViewEntity>> watchViews() => _watchCustom<List<SmartViewEntity>>(
-    const <String>{'smart_view'},
-    _loadViews,
-  );
+  Stream<List<SmartViewEntity>> watchViews() =>
+      _watchCustom<List<SmartViewEntity>>(const <String>{
+        'smart_view',
+      }, _loadViews);
 
   @override
   Stream<List<SmartViewResult>> watchResults(ContentFilter filter) {
     late StreamController<List<SmartViewResult>> controller;
-    final List<StreamSubscription<dynamic>> subscriptions = <StreamSubscription<dynamic>>[];
+    final List<StreamSubscription<dynamic>> subscriptions =
+        <StreamSubscription<dynamic>>[];
     bool loading = false;
     bool reloadRequested = false;
 
@@ -178,7 +179,9 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
     }
 
     if (filter.favorite != null) {
-      sql.write(" AND content.entity_type = 'note' AND content.is_favorite = ?");
+      sql.write(
+        " AND content.entity_type = 'note' AND content.is_favorite = ?",
+      );
       variables.add(Variable<int>(filter.favorite! ? 1 : 0));
     }
     if (filter.boardId != null) {
@@ -221,10 +224,9 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
     };
     sql.write(' ORDER BY $sortColumn $direction, content.entity_id ASC');
 
-    final List<QueryRow> rows = await _database.customSelect(
-      sql.toString(),
-      variables: variables,
-    ).get();
+    final List<QueryRow> rows = await _database
+        .customSelect(sql.toString(), variables: variables)
+        .get();
     return rows.map(_mapResult).toList(growable: false);
   }
 
@@ -238,14 +240,12 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
     if (cleanName.isEmpty) {
       throw ArgumentError.value(name, 'name', 'Görünüm adı boş olamaz.');
     }
-    final QueryRow? last = await _database.customSelect(
-      '''
+    final QueryRow? last = await _database.customSelect('''
       SELECT rank_key FROM smart_views
       WHERE deleted_at IS NULL
       ORDER BY rank_key DESC
       LIMIT 1
-      ''',
-    ).getSingleOrNull();
+      ''').getSingleOrNull();
     final String rank = FractionalIndexing.between(
       last?.read<String>('rank_key'),
       null,
@@ -253,7 +253,9 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
     final String id = _uuid.v7();
     final DateTime now = _clock.nowUtc();
     final String queryJson = filter.encode();
-    final String normalizedIcon = iconKey.trim().isEmpty ? 'filter_alt' : iconKey.trim();
+    final String normalizedIcon = iconKey.trim().isEmpty
+        ? 'filter_alt'
+        : iconKey.trim();
     await _database.transaction(() async {
       await _database.customStatement(
         '''
@@ -477,15 +479,13 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
   }
 
   Future<List<SmartViewEntity>> _loadViews() async {
-    final List<QueryRow> rows = await _database.customSelect(
-      '''
+    final List<QueryRow> rows = await _database.customSelect('''
       SELECT id, name, icon_key, rank_key, query_json,
              created_at, updated_at, version, deleted_at
       FROM smart_views
       WHERE deleted_at IS NULL
       ORDER BY rank_key ASC
-      ''',
-    ).get();
+      ''').get();
     return rows.map(_mapView).toList(growable: false);
   }
 
@@ -517,14 +517,16 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
   }
 
   Future<_SmartViewRow> _require(String viewId) async {
-    final QueryRow? row = await _database.customSelect(
-      '''
+    final QueryRow? row = await _database
+        .customSelect(
+          '''
       SELECT id, name, icon_key, rank_key, query_json,
              created_at, updated_at, version, deleted_at
       FROM smart_views WHERE id = ? LIMIT 1
       ''',
-      variables: <Variable<Object>>[Variable<String>(viewId)],
-    ).getSingleOrNull();
+          variables: <Variable<Object>>[Variable<String>(viewId)],
+        )
+        .getSingleOrNull();
     if (row == null) throw StateError('Akıllı görünüm bulunamadı: $viewId');
     return _SmartViewRow.fromQuery(row);
   }
@@ -594,8 +596,10 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
       if (blocks is! List<Object?>) return '';
       return blocks
           .whereType<Map<Object?, Object?>>()
-          .map((Map<Object?, Object?> block) =>
-              (block['text'] ?? block['url'] ?? '').toString())
+          .map(
+            (Map<Object?, Object?> block) =>
+                (block['text'] ?? block['url'] ?? '').toString(),
+          )
           .where((String text) => text.isNotEmpty)
           .join('\n');
     } catch (_) {
@@ -612,7 +616,8 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
       return DateTime.fromMillisecondsSinceEpoch(raw * 1000, isUtc: true);
     } catch (_) {
       final String raw = row.read<String>(column);
-      return DateTime.tryParse(raw)?.toUtc() ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+      return DateTime.tryParse(raw)?.toUtc() ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
     }
   }
 

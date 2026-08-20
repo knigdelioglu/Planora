@@ -56,11 +56,8 @@ final class LifecycleKanbanRepository implements KanbanRepository {
     required String boardId,
     required String title,
     String? colorHex,
-  }) => delegate.createColumn(
-    boardId: boardId,
-    title: title,
-    colorHex: colorHex,
-  );
+  }) =>
+      delegate.createColumn(boardId: boardId, title: title, colorHex: colorHex);
 
   @override
   Future<void> renameColumn(String columnId, String title) =>
@@ -83,7 +80,9 @@ final class LifecycleKanbanRepository implements KanbanRepository {
     if (moveCardsToColumnId == null) {
       final List<BoardEntity> boards = await delegate.watchBoards().first;
       for (final BoardEntity board in boards) {
-        final KanbanSnapshot? snapshot = await delegate.watchBoard(board.id).first;
+        final KanbanSnapshot? snapshot = await delegate
+            .watchBoard(board.id)
+            .first;
         if (snapshot == null ||
             !snapshot.columns.any((column) => column.id == columnId)) {
           continue;
@@ -150,7 +149,9 @@ final class LifecycleKanbanRepository implements KanbanRepository {
     for (final attachment in attachmentRows) {
       await attachments.remove(attachment.id);
     }
-    final reminderRows = await reminders.watchForParent(parentType, parentId).first;
+    final reminderRows = await reminders
+        .watchForParent(parentType, parentId)
+        .first;
     for (final reminder in reminderRows) {
       await reminders.remove(reminder.id);
     }

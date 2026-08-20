@@ -742,10 +742,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen>
                   }
                 },
                 itemBuilder: (_) => const <PopupMenuEntry<String>>[
-                  PopupMenuItem(
-                    value: 'tags',
-                    child: Text('Etiketler'),
-                  ),
+                  PopupMenuItem(value: 'tags', child: Text('Etiketler')),
                   PopupMenuItem(
                     value: 'attachment',
                     child: Text('Dosya veya görsel ekle'),

@@ -85,11 +85,13 @@ class _SmartViewsScreenState extends ConsumerState<SmartViewsScreen> {
   Future<void> _createView() async {
     final _EditorResult? result = await showSmartViewEditor(context, ref);
     if (result == null) return;
-    final String id = await ref.read(smartViewsRepositoryProvider).createView(
-      name: result.name,
-      filter: result.filter,
-      iconKey: result.iconKey,
-    );
+    final String id = await ref
+        .read(smartViewsRepositoryProvider)
+        .createView(
+          name: result.name,
+          filter: result.filter,
+          iconKey: result.iconKey,
+        );
     if (mounted) setState(() => _selectedKey = 'saved:$id');
   }
 
@@ -100,12 +102,14 @@ class _SmartViewsScreenState extends ConsumerState<SmartViewsScreen> {
       initial: view,
     );
     if (result == null) return;
-    await ref.read(smartViewsRepositoryProvider).updateView(
-      viewId: view.id,
-      name: result.name,
-      filter: result.filter,
-      iconKey: result.iconKey,
-    );
+    await ref
+        .read(smartViewsRepositoryProvider)
+        .updateView(
+          viewId: view.id,
+          name: result.name,
+          filter: result.filter,
+          iconKey: result.iconKey,
+        );
   }
 
   Future<void> _deleteView(SmartViewEntity view) async {
@@ -439,7 +443,10 @@ class _Results extends ConsumerWidget {
                         if (result.isFavorite)
                           const Icon(Icons.star_rounded, size: 16),
                         if (result.hasReminder)
-                          const Icon(Icons.notifications_none_rounded, size: 16),
+                          const Icon(
+                            Icons.notifications_none_rounded,
+                            size: 16,
+                          ),
                         if (result.hasAttachment)
                           const Icon(Icons.attach_file_rounded, size: 16),
                       ],
@@ -533,11 +540,7 @@ Future<_EditorResult?> showSmartViewEditor(
     return null;
   }
 
-  void selectTag(
-    String tagId,
-    Set<String> target,
-    bool selected,
-  ) {
+  void selectTag(String tagId, Set<String> target, bool selected) {
     if (selected) {
       allTagIds.remove(tagId);
       anyTagIds.remove(tagId);
@@ -616,9 +619,8 @@ Future<_EditorResult?> showSmartViewEditor(
                     subtitle: 'İçerik seçilen etiketlerin tamamını taşımalı.',
                     tags: availableTags,
                     selected: allTagIds,
-                    onSelected: (tagId, selected) => setState(
-                      () => selectTag(tagId, allTagIds, selected),
-                    ),
+                    onSelected: (tagId, selected) =>
+                        setState(() => selectTag(tagId, allTagIds, selected)),
                   ),
                   const SizedBox(height: 14),
                   _TagFilterSection(
@@ -626,19 +628,18 @@ Future<_EditorResult?> showSmartViewEditor(
                     subtitle: 'Seçilen etiketlerden en az biri yeterli.',
                     tags: availableTags,
                     selected: anyTagIds,
-                    onSelected: (tagId, selected) => setState(
-                      () => selectTag(tagId, anyTagIds, selected),
-                    ),
+                    onSelected: (tagId, selected) =>
+                        setState(() => selectTag(tagId, anyTagIds, selected)),
                   ),
                   const SizedBox(height: 14),
                   _TagFilterSection(
                     title: 'Hariç tut',
-                    subtitle: 'Bu etiketlerden herhangi birini taşıyan içerik gelmez.',
+                    subtitle:
+                        'Bu etiketlerden herhangi birini taşıyan içerik gelmez.',
                     tags: availableTags,
                     selected: noneTagIds,
-                    onSelected: (tagId, selected) => setState(
-                      () => selectTag(tagId, noneTagIds, selected),
-                    ),
+                    onSelected: (tagId, selected) =>
+                        setState(() => selectTag(tagId, noneTagIds, selected)),
                   ),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
@@ -647,11 +648,19 @@ Future<_EditorResult?> showSmartViewEditor(
                         : hasTags!
                         ? 'tagged'
                         : 'untagged',
-                    decoration: const InputDecoration(labelText: 'Etiket durumu'),
+                    decoration: const InputDecoration(
+                      labelText: 'Etiket durumu',
+                    ),
                     items: const <DropdownMenuItem<String>>[
                       DropdownMenuItem(value: 'any', child: Text('Fark etmez')),
-                      DropdownMenuItem(value: 'tagged', child: Text('Etiketli')),
-                      DropdownMenuItem(value: 'untagged', child: Text('Etiketsiz')),
+                      DropdownMenuItem(
+                        value: 'tagged',
+                        child: Text('Etiketli'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'untagged',
+                        child: Text('Etiketsiz'),
+                      ),
                     ],
                     onChanged: (value) => setState(() {
                       hasTags = switch (value) {
@@ -691,7 +700,10 @@ Future<_EditorResult?> showSmartViewEditor(
                     initialValue: days?.toString() ?? 'all',
                     decoration: const InputDecoration(labelText: 'Güncellenme'),
                     items: const <DropdownMenuItem<String>>[
-                      DropdownMenuItem(value: 'all', child: Text('Tüm zamanlar')),
+                      DropdownMenuItem(
+                        value: 'all',
+                        child: Text('Tüm zamanlar'),
+                      ),
                       DropdownMenuItem(value: '1', child: Text('Son 24 saat')),
                       DropdownMenuItem(value: '7', child: Text('Son 7 gün')),
                       DropdownMenuItem(value: '30', child: Text('Son 30 gün')),
@@ -703,7 +715,8 @@ Future<_EditorResult?> showSmartViewEditor(
                           : int.tryParse(value);
                     }),
                   ),
-                  if (scope != ContentScope.notes && boards.isNotEmpty) ...<Widget>[
+                  if (scope != ContentScope.notes &&
+                      boards.isNotEmpty) ...<Widget>[
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: boardId ?? '__all__',
@@ -754,7 +767,9 @@ Future<_EditorResult?> showSmartViewEditor(
                       Expanded(
                         child: DropdownButtonFormField<ContentSortField>(
                           initialValue: sortField,
-                          decoration: const InputDecoration(labelText: 'Sırala'),
+                          decoration: const InputDecoration(
+                            labelText: 'Sırala',
+                          ),
                           items: const <DropdownMenuItem<ContentSortField>>[
                             DropdownMenuItem(
                               value: ContentSortField.updatedAt,
@@ -766,7 +781,8 @@ Future<_EditorResult?> showSmartViewEditor(
                             ),
                           ],
                           onChanged: (value) {
-                            if (value != null) setState(() => sortField = value);
+                            if (value != null)
+                              setState(() => sortField = value);
                           },
                         ),
                       ),
@@ -874,23 +890,25 @@ class _TagFilterSection extends StatelessWidget {
         Wrap(
           spacing: 6,
           runSpacing: 6,
-          children: tags.map((tag) {
-            final bool active = selected.contains(tag.id);
-            final Color color = tagColor(context, tag.colorKey);
-            return FilterChip(
-              selected: active,
-              avatar: Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              label: Text('#${tag.name}'),
-              onSelected: (value) => onSelected(tag.id, value),
-            );
-          }).toList(growable: false),
+          children: tags
+              .map((tag) {
+                final bool active = selected.contains(tag.id);
+                final Color color = tagColor(context, tag.colorKey);
+                return FilterChip(
+                  selected: active,
+                  avatar: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  label: Text('#${tag.name}'),
+                  onSelected: (value) => onSelected(tag.id, value),
+                );
+              })
+              .toList(growable: false),
         ),
     ],
   );
@@ -918,7 +936,13 @@ class _NullableBoolField extends StatelessWidget {
           ButtonSegment(value: 'yes', label: Text('Var')),
           ButtonSegment(value: 'no', label: Text('Yok')),
         ],
-        selected: <String>{value == null ? 'any' : value! ? 'yes' : 'no'},
+        selected: <String>{
+          value == null
+              ? 'any'
+              : value!
+              ? 'yes'
+              : 'no',
+        },
         onSelectionChanged: (selection) {
           onChanged(switch (selection.first) {
             'yes' => true,

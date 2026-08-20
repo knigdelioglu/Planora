@@ -42,7 +42,9 @@ void main() {
         AND name IN ('tags', 'tag_assignments', 'smart_views')
       ORDER BY name
     ''').get();
-    final versionRow = await migrated.customSelect('PRAGMA user_version').getSingle();
+    final versionRow = await migrated
+        .customSelect('PRAGMA user_version')
+        .getSingle();
 
     expect(
       rows.map((row) => row.read<String>('name')).toList(growable: false),

@@ -89,7 +89,8 @@ void main() {
     expect(
       stopwatch.elapsed,
       lessThan(const Duration(seconds: 5)),
-      reason: 'Filtering must stay in SQLite instead of scanning 10k items in Dart.',
+      reason:
+          'Filtering must stay in SQLite instead of scanning 10k items in Dart.',
     );
   });
 }

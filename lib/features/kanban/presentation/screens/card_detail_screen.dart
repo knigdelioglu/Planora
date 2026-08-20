@@ -351,9 +351,7 @@ class _CardDetailPaneState extends ConsumerState<CardDetailPane> {
                           Icons.description_outlined,
                           size: 19,
                         ),
-                        children: <Widget>[
-                          LinkedNotesSection(cardId: card.id),
-                        ],
+                        children: <Widget>[LinkedNotesSection(cardId: card.id)],
                       ),
                       ExpansionTile(
                         tilePadding: EdgeInsets.zero,

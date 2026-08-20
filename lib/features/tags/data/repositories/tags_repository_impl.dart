@@ -41,43 +41,42 @@ final class DriftTagsRepository implements TagsRepository {
   final EntityChangeBus _changes;
 
   @override
-  Stream<List<TagEntity>> watchTags() => _watch<List<TagEntity>>(
-    const <String>{'tag'},
-    _loadTags,
-  );
+  Stream<List<TagEntity>> watchTags() =>
+      _watch<List<TagEntity>>(const <String>{'tag'}, _loadTags);
 
   @override
   Stream<List<TagEntity>> watchTagsForTarget({
     required TagTargetType targetType,
     required String targetId,
-  }) => _watch<List<TagEntity>>(
-    const <String>{'tag', 'tag_assignment'},
-    () => tagsForTarget(targetType: targetType, targetId: targetId),
-  );
+  }) => _watch<List<TagEntity>>(const <String>{
+    'tag',
+    'tag_assignment',
+  }, () => tagsForTarget(targetType: targetType, targetId: targetId));
 
   @override
-  Stream<int> watchUsageCount(String tagId) => _watch<int>(
-    const <String>{'tag_assignment'},
-    () async {
-      final QueryRow row = await _database.customSelect(
-        '''
+  Stream<int> watchUsageCount(String tagId) =>
+      _watch<int>(const <String>{'tag_assignment'}, () async {
+        final QueryRow row = await _database
+            .customSelect(
+              '''
         SELECT count(*) AS usage_count
         FROM tag_assignments
         WHERE tag_id = ? AND deleted_at IS NULL
         ''',
-        variables: <Variable<Object>>[Variable<String>(tagId)],
-      ).getSingle();
-      return row.read<int>('usage_count');
-    },
-  );
+              variables: <Variable<Object>>[Variable<String>(tagId)],
+            )
+            .getSingle();
+        return row.read<int>('usage_count');
+      });
 
   @override
   Future<List<TagEntity>> tagsForTarget({
     required TagTargetType targetType,
     required String targetId,
   }) async {
-    final List<QueryRow> rows = await _database.customSelect(
-      '''
+    final List<QueryRow> rows = await _database
+        .customSelect(
+          '''
       SELECT t.id, t.name, t.normalized_name, t.color_key,
              t.created_at, t.updated_at, t.version, t.deleted_at
       FROM tags t
@@ -88,11 +87,12 @@ final class DriftTagsRepository implements TagsRepository {
         AND t.deleted_at IS NULL
       ORDER BY lower(t.name), t.name
       ''',
-      variables: <Variable<Object>>[
-        Variable<String>(targetType.wireName),
-        Variable<String>(targetId),
-      ],
-    ).get();
+          variables: <Variable<Object>>[
+            Variable<String>(targetType.wireName),
+            Variable<String>(targetId),
+          ],
+        )
+        .get();
     return rows.map(_mapTag).toList(growable: false);
   }
 
@@ -108,14 +108,16 @@ final class DriftTagsRepository implements TagsRepository {
     }
     final String id = _tagId(normalized);
     final _TagRow? existingById = await _tagById(id);
-    final QueryRow? existingActive = await _database.customSelect(
-      '''
+    final QueryRow? existingActive = await _database
+        .customSelect(
+          '''
       SELECT id FROM tags
       WHERE normalized_name = ? AND deleted_at IS NULL
       LIMIT 1
       ''',
-      variables: <Variable<Object>>[Variable<String>(normalized)],
-    ).getSingleOrNull();
+          variables: <Variable<Object>>[Variable<String>(normalized)],
+        )
+        .getSingleOrNull();
     if (existingActive != null) return existingActive.read<String>('id');
 
     final String color = _validatedColor(colorKey);
@@ -180,17 +182,19 @@ final class DriftTagsRepository implements TagsRepository {
     if (normalized.isEmpty) {
       throw ArgumentError.value(name, 'name', 'Etiket adı boş olamaz.');
     }
-    final QueryRow? duplicate = await _database.customSelect(
-      '''
+    final QueryRow? duplicate = await _database
+        .customSelect(
+          '''
       SELECT id FROM tags
       WHERE normalized_name = ? AND deleted_at IS NULL AND id <> ?
       LIMIT 1
       ''',
-      variables: <Variable<Object>>[
-        Variable<String>(normalized),
-        Variable<String>(tagId),
-      ],
-    ).getSingleOrNull();
+          variables: <Variable<Object>>[
+            Variable<String>(normalized),
+            Variable<String>(tagId),
+          ],
+        )
+        .getSingleOrNull();
     if (duplicate != null) {
       throw StateError('Aynı ada sahip başka bir etiket zaten var.');
     }
@@ -226,7 +230,9 @@ final class DriftTagsRepository implements TagsRepository {
     final _TagRow row = await _requireTag(tagId);
     if (row.deletedAt != null) return;
     final DateTime now = _clock.nowUtc();
-    final List<_AssignmentRow> assignments = await _activeAssignments(tagId: tagId);
+    final List<_AssignmentRow> assignments = await _activeAssignments(
+      tagId: tagId,
+    );
     await _database.transaction(() async {
       for (final _AssignmentRow assignment in assignments) {
         await _writeAssignment(assignment, deletedAt: now);
@@ -338,27 +344,27 @@ final class DriftTagsRepository implements TagsRepository {
   }
 
   Future<List<TagEntity>> _loadTags() async {
-    final List<QueryRow> rows = await _database.customSelect(
-      '''
+    final List<QueryRow> rows = await _database.customSelect('''
       SELECT id, name, normalized_name, color_key,
              created_at, updated_at, version, deleted_at
       FROM tags
       WHERE deleted_at IS NULL
       ORDER BY lower(name), name
-      ''',
-    ).get();
+      ''').get();
     return rows.map(_mapTag).toList(growable: false);
   }
 
   Future<_TagRow?> _tagById(String id) async {
-    final QueryRow? row = await _database.customSelect(
-      '''
+    final QueryRow? row = await _database
+        .customSelect(
+          '''
       SELECT id, name, normalized_name, color_key,
              created_at, updated_at, version, deleted_at
       FROM tags WHERE id = ? LIMIT 1
       ''',
-      variables: <Variable<Object>>[Variable<String>(id)],
-    ).getSingleOrNull();
+          variables: <Variable<Object>>[Variable<String>(id)],
+        )
+        .getSingleOrNull();
     return row == null ? null : _TagRow.fromQuery(row);
   }
 
@@ -369,14 +375,16 @@ final class DriftTagsRepository implements TagsRepository {
   }
 
   Future<_AssignmentRow?> _assignmentById(String id) async {
-    final QueryRow? row = await _database.customSelect(
-      '''
+    final QueryRow? row = await _database
+        .customSelect(
+          '''
       SELECT id, tag_id, target_type, target_id,
              created_at, updated_at, version, deleted_at
       FROM tag_assignments WHERE id = ? LIMIT 1
       ''',
-      variables: <Variable<Object>>[Variable<String>(id)],
-    ).getSingleOrNull();
+          variables: <Variable<Object>>[Variable<String>(id)],
+        )
+        .getSingleOrNull();
     return row == null ? null : _AssignmentRow.fromQuery(row);
   }
 
@@ -399,15 +407,12 @@ final class DriftTagsRepository implements TagsRepository {
       clauses.add('target_id = ?');
       variables.add(Variable<String>(targetId));
     }
-    final List<QueryRow> rows = await _database.customSelect(
-      '''
+    final List<QueryRow> rows = await _database.customSelect('''
       SELECT id, tag_id, target_type, target_id,
              created_at, updated_at, version, deleted_at
       FROM tag_assignments
       WHERE ${clauses.join(' AND ')}
-      ''',
-      variables: variables,
-    ).get();
+      ''', variables: variables).get();
     return rows.map(_AssignmentRow.fromQuery).toList(growable: false);
   }
 
@@ -496,18 +501,22 @@ final class DriftTagsRepository implements TagsRepository {
     final bool exists;
     switch (type) {
       case TagTargetType.note:
-        exists = await (_database.select(_database.notes)
+        exists =
+            await (_database.select(_database.notes)
                   ..where((t) => t.id.equals(targetId) & t.deletedAt.isNull()))
                 .getSingleOrNull() !=
             null;
       case TagTargetType.card:
-        exists = await (_database.select(_database.cards)
+        exists =
+            await (_database.select(_database.cards)
                   ..where((t) => t.id.equals(targetId) & t.deletedAt.isNull()))
                 .getSingleOrNull() !=
             null;
     }
     if (!exists) {
-      throw StateError('Etiketlenecek içerik bulunamadı: ${type.wireName}/$targetId');
+      throw StateError(
+        'Etiketlenecek içerik bulunamadı: ${type.wireName}/$targetId',
+      );
     }
   }
 
@@ -599,7 +608,9 @@ final class DriftTagsRepository implements TagsRepository {
   };
 
   String _tagId(String normalizedName) {
-    final String digest = sha256.convert(utf8.encode(normalizedName)).toString();
+    final String digest = sha256
+        .convert(utf8.encode(normalizedName))
+        .toString();
     return 'tag-${digest.substring(0, 32)}';
   }
 
