@@ -14,9 +14,7 @@ import 'package:not_app/features/notes/domain/repositories/notes_repository.dart
 import 'package:not_app/features/notes/presentation/screens/note_editor_screen.dart';
 import 'package:not_app/features/notes/presentation/widgets/note_grid_card.dart';
 import 'package:not_app/features/notes/presentation/widgets/note_move_to_kanban_dialog.dart';
-import 'package:not_app/features/smart_views/presentation/screens/smart_views_screen.dart';
-import 'package:not_app/features/tags/domain/entities/tag.dart';
-import 'package:not_app/features/tags/presentation/widgets/tag_strip.dart';
+import 'package:not_app/features/tags/public/tags_ui.dart';
 
 class NotesScreen extends ConsumerStatefulWidget {
   const NotesScreen({super.key});
@@ -321,14 +319,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
               actions: <Widget>[
-                IconButton(
-                  tooltip: 'Akıllı Görünümler',
-                  onPressed: () => AppRouter.push<void>(
-                    context,
-                    const SmartViewsScreen(),
-                  ),
-                  icon: const Icon(Icons.auto_awesome_motion_outlined),
-                ),
                 if (_filter != NoteFilter.trash)
                   SegmentedButton<NoteViewMode>(
                     showSelectedIcon: false,
