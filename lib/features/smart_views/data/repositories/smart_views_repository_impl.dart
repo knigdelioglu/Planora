@@ -42,8 +42,7 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
   @override
   Stream<List<SmartViewResult>> watchResults(ContentFilter filter) {
     late StreamController<List<SmartViewResult>> controller;
-    final List<StreamSubscription<dynamic>> subscriptions =
-        <StreamSubscription<dynamic>>[];
+    final List<StreamSubscription<dynamic>> subscriptions = <StreamSubscription<dynamic>>[];
     bool loading = false;
     bool reloadRequested = false;
 
@@ -76,7 +75,7 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
           _database
               .customSelect(
                 'SELECT 1',
-                readsFrom: <ResultSetImplementation>{
+                readsFrom: {
                   _database.notes,
                   _database.cards,
                   _database.attachments,
@@ -162,6 +161,22 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
         break;
     }
 
+    final String? textQuery = filter.textQuery?.trim();
+    if (textQuery != null && textQuery.isNotEmpty) {
+      final String expression = _ftsExpression(textQuery);
+      if (expression.isNotEmpty) {
+        sql.write('''
+          AND EXISTS (
+            SELECT 1 FROM search_fts s
+            WHERE s.entity_type = content.entity_type
+              AND s.entity_id = content.entity_id
+              AND search_fts MATCH ?
+          )
+        ''');
+        variables.add(Variable<String>(expression));
+      }
+    }
+
     if (filter.favorite != null) {
       sql.write(" AND content.entity_type = 'note' AND content.is_favorite = ?");
       variables.add(Variable<int>(filter.favorite! ? 1 : 0));
@@ -175,9 +190,9 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
       variables.add(Variable<String>(filter.columnId!));
     }
     if (filter.updatedWithinDays != null && filter.updatedWithinDays! > 0) {
-      final DateTime cutoff = _clock
-          .nowUtc()
-          .subtract(Duration(days: filter.updatedWithinDays!));
+      final DateTime cutoff = _clock.nowUtc().subtract(
+        Duration(days: filter.updatedWithinDays!),
+      );
       sql.write(' AND content.updated_at >= ?');
       variables.add(Variable<DateTime>(cutoff));
     }
@@ -185,14 +200,12 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
     _appendTagFilters(sql, variables, filter);
     _appendPresenceFilter(
       sql,
-      variables,
       table: 'reminders',
       alias: 'r_filter',
       value: filter.hasReminder,
     );
     _appendPresenceFilter(
       sql,
-      variables,
       table: 'attachments',
       alias: 'a_filter',
       value: filter.hasAttachment,
@@ -211,14 +224,7 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
     final List<QueryRow> rows = await _database.customSelect(
       sql.toString(),
       variables: variables,
-      readsFrom: <ResultSetImplementation>{
-        _database.notes,
-        _database.cards,
-        _database.attachments,
-        _database.reminders,
-      },
     ).get();
-
     return rows.map(_mapResult).toList(growable: false);
   }
 
@@ -247,6 +253,7 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
     final String id = _uuid.v7();
     final DateTime now = _clock.nowUtc();
     final String queryJson = filter.encode();
+    final String normalizedIcon = iconKey.trim().isEmpty ? 'filter_alt' : iconKey.trim();
     await _database.transaction(() async {
       await _database.customStatement(
         '''
@@ -258,7 +265,7 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
         <Object?>[
           id,
           cleanName,
-          iconKey.trim().isEmpty ? 'filter_alt' : iconKey.trim(),
+          normalizedIcon,
           rank,
           queryJson,
           now.toIso8601String(),
@@ -272,7 +279,7 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
         payload: _payload(
           id: id,
           name: cleanName,
-          iconKey: iconKey,
+          iconKey: normalizedIcon,
           rankKey: rank,
           queryJson: queryJson,
           createdAt: now,
@@ -389,6 +396,20 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
     List<Variable<Object>> variables,
     ContentFilter filter,
   ) {
+    if (filter.hasTags != null) {
+      sql.write(filter.hasTags! ? ' AND EXISTS (' : ' AND NOT EXISTS (');
+      sql.write('''
+        SELECT 1
+        FROM tag_assignments ta_presence
+        INNER JOIN tags t_presence ON t_presence.id = ta_presence.tag_id
+        WHERE ta_presence.target_type = content.entity_type
+          AND ta_presence.target_id = content.entity_id
+          AND ta_presence.deleted_at IS NULL
+          AND t_presence.deleted_at IS NULL
+      )
+      ''');
+    }
+
     for (final String tagId in filter.allTagIds) {
       sql.write('''
         AND EXISTS (
@@ -439,8 +460,7 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
   }
 
   void _appendPresenceFilter(
-    StringBuffer sql,
-    List<Variable<Object>> variables, {
+    StringBuffer sql, {
     required String table,
     required String alias,
     required bool? value,
@@ -529,7 +549,7 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
       entityId: row.read<String>('entity_id'),
       title: row.read<String>('title'),
       preview: entityType == 'note' ? _notePlainText(rawBody) : rawBody,
-      updatedAt: row.read<DateTime>('updated_at').toUtc(),
+      updatedAt: _readSqliteDate(row, 'updated_at'),
       boardId: row.readNullable<String>('board_id'),
       columnId: row.readNullable<String>('column_id'),
       isFavorite: row.read<int>('is_favorite') != 0,
@@ -551,7 +571,7 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
   }) => <String, Object?>{
     'id': id,
     'name': name,
-    'iconKey': iconKey.trim().isEmpty ? 'filter_alt' : iconKey.trim(),
+    'iconKey': iconKey,
     'rankKey': rankKey,
     'queryJson': queryJson,
     'createdAt': createdAt.toIso8601String(),
@@ -559,6 +579,12 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
     'version': version,
     'deletedAt': deletedAt?.toIso8601String(),
   };
+
+  String _ftsExpression(String query) => query
+      .split(RegExp(r'\s+'))
+      .where((String token) => token.trim().isNotEmpty)
+      .map((String token) => '"${token.replaceAll('"', '""')}"*')
+      .join(' AND ');
 
   String _notePlainText(String contentJson) {
     try {
@@ -577,8 +603,20 @@ final class DriftSmartViewsRepository implements SmartViewsRepository {
     }
   }
 
-  String _placeholders(int count) =>
-      List<String>.filled(count, '?').join(', ');
+  DateTime _readSqliteDate(QueryRow row, String column) {
+    try {
+      final int raw = row.read<int>(column);
+      if (raw.abs() > 100000000000) {
+        return DateTime.fromMillisecondsSinceEpoch(raw, isUtc: true);
+      }
+      return DateTime.fromMillisecondsSinceEpoch(raw * 1000, isUtc: true);
+    } catch (_) {
+      final String raw = row.read<String>(column);
+      return DateTime.tryParse(raw)?.toUtc() ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+    }
+  }
+
+  String _placeholders(int count) => List<String>.filled(count, '?').join(', ');
 
   DateTime? _parseDate(String? value) =>
       value == null ? null : DateTime.tryParse(value)?.toUtc();
