@@ -18,6 +18,8 @@ import 'package:not_app/features/reminders/presentation/screens/reminders_screen
 import 'package:not_app/features/search/domain/entities/search_result.dart';
 import 'package:not_app/features/search/presentation/screens/search_screen.dart';
 import 'package:not_app/features/settings/presentation/settings_screen.dart';
+import 'package:not_app/features/smart_views/presentation/screens/smart_views_screen.dart';
+import 'package:not_app/features/tags/presentation/screens/tags_management_screen.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -102,6 +104,12 @@ class _AppShellState extends ConsumerState<AppShell> {
         return;
     }
   }
+
+  Future<void> _openSmartViews() =>
+      AppRouter.push<void>(context, const SmartViewsScreen());
+
+  Future<void> _openTags() =>
+      AppRouter.push<void>(context, const TagsManagementScreen());
 
   void _openSettings() {
     final double width = MediaQuery.sizeOf(context).width;
@@ -283,9 +291,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                             Icon(
                               Icons.search_rounded,
                               size: 19,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                             const SizedBox(width: 9),
                             Expanded(
@@ -315,6 +321,27 @@ class _AppShellState extends ConsumerState<AppShell> {
                     onTap: () => setState(() => _index = index),
                   );
                 }),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
+                  child: Text(
+                    'DÜZENLE',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                AppSidebarItem(
+                  label: 'Akıllı Görünümler',
+                  icon: Icons.auto_awesome_motion_outlined,
+                  selectedIcon: Icons.auto_awesome_motion_rounded,
+                  selected: false,
+                  onTap: _openSmartViews,
+                ),
+                AppSidebarItem(
+                  label: 'Etiketler',
+                  icon: Icons.sell_outlined,
+                  selectedIcon: Icons.sell_rounded,
+                  selected: false,
+                  onTap: _openTags,
+                ),
                 const Spacer(),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
@@ -358,7 +385,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     ),
                     child: Center(
                       child: Text(
-                        'N',
+                        'P',
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onPrimary,
                           fontWeight: FontWeight.w700,
@@ -371,6 +398,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                   tooltip: 'Ara · ⌘K',
                   onPressed: _openSearch,
                   icon: const Icon(Icons.search_rounded),
+                ),
+                IconButton(
+                  tooltip: 'Akıllı Görünümler',
+                  onPressed: _openSmartViews,
+                  icon: const Icon(Icons.auto_awesome_motion_outlined),
                 ),
               ],
             ),
@@ -418,8 +450,12 @@ class _AppShellState extends ConsumerState<AppShell> {
               context,
               const SearchScreen(autofocus: true),
             ),
-            onSettings: () =>
-                AppRouter.push<void>(context, const SettingsScreen()),
+            onSmartViews: _openSmartViews,
+            onTags: _openTags,
+            onSettings: () => AppRouter.push<void>(
+              context,
+              const SettingsScreen(),
+            ),
             sync: _sync(configured, signedIn),
           )
         : _page(_index);
@@ -463,11 +499,15 @@ class _AppShellState extends ConsumerState<AppShell> {
 class _CompactMore extends StatelessWidget {
   const _CompactMore({
     required this.onSearch,
+    required this.onSmartViews,
+    required this.onTags,
     required this.onSettings,
     required this.sync,
   });
 
   final VoidCallback onSearch;
+  final VoidCallback onSmartViews;
+  final VoidCallback onTags;
   final VoidCallback onSettings;
   final Widget sync;
 
@@ -482,6 +522,18 @@ class _CompactMore extends StatelessWidget {
         leading: const Icon(Icons.search_rounded),
         title: const Text('Arama'),
         onTap: onSearch,
+      ),
+      ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+        leading: const Icon(Icons.auto_awesome_motion_outlined),
+        title: const Text('Akıllı Görünümler'),
+        onTap: onSmartViews,
+      ),
+      ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+        leading: const Icon(Icons.sell_outlined),
+        title: const Text('Etiketleri Yönet'),
+        onTap: onTags,
       ),
       ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8),
